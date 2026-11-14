@@ -31,14 +31,14 @@ internal sealed class LensRenderer : IDisposable
     private readonly ID3D11Device _device;
     private readonly ID3D11DeviceContext _context;
     private readonly IDXGISwapChain1 _swap;
-    private readonly ID3D11RenderTargetView _rtv;
+    private ID3D11RenderTargetView _rtv;
     private readonly ID3D11VertexShader _vs;
     private readonly ID3D11PixelShader _ps;
     private readonly ID3D11Buffer _cb;
     private readonly ID3D11SamplerState _sampler;
     private readonly IDXGIOutput1 _output;
     private readonly Thread _thread;
-    private readonly int _width, _height;
+    private int _width, _height;
     private readonly int _monLeft, _monTop, _monW, _monH;
 
     private IDXGIOutputDuplication? _dup;
@@ -98,6 +98,10 @@ internal sealed class LensRenderer : IDisposable
             new[] { FeatureLevel.Level_11_0, FeatureLevel.Level_10_1, FeatureLevel.Level_10_0 },
             out _device, out _, out _context).CheckError();
 
+        // The capture thread and the UI thread both touch the device; let D3D serialise them as well as our lock.
+        using (var multithread = _device.QueryInterface<ID3D11Multithread>())
+            multithread.SetMultithreadProtected(true);
+
         using (var dxgiDevice = _device.QueryInterface<IDXGIDevice>())
         using (var dxgiFactory = adapter.GetParent<IDXGIFactory2>())
         {
@@ -137,6 +141,24 @@ internal sealed class LensRenderer : IDisposable
         var bytes = new byte[stream.Length];
         stream.ReadExactly(bytes);
         return bytes;
+    }
+
+    /// <summary>The glass window changed size (the island grew for a bigger page): resize the swap chain to match.</summary>
+    public void Resize(int width, int height)
+    {
+        width = Math.Max(16, width);
+        height = Math.Max(16, height);
+        lock (_lock)
+        {
+            if (width == _width && height == _height) return;
+            _context.ClearState();
+            _rtv.Dispose();
+            _swap.ResizeBuffers(2, (uint)width, (uint)height, Format.B8G8R8A8_UNorm, SwapChainFlags.None).CheckError();
+            _width = width;
+            _height = height;
+            using var back = _swap.GetBuffer<ID3D11Texture2D>(0);
+            _rtv = _device.CreateRenderTargetView(back);
+        }
     }
 
     /// <summary>The island's rounded shape in glass-window pixels, plus the window's position on screen. Rendered at once.</summary>
@@ -196,8 +218,8 @@ internal sealed class LensRenderer : IDisposable
                     }
                     finally
                     {
-                        resource.Dispose();
                         _dup.ReleaseFrame();
+                        resource.Dispose();
                     }
                 }
                 else if (hr.Code == Vortice.DXGI.ResultCode.WaitTimeout.Code)

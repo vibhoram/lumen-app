@@ -120,6 +120,7 @@ internal sealed class GpuBlurBackdrop : IDisposable
     {
         if (r.Equals(_bounds)) return;
         _bounds = r;
+        try { _lens?.Resize(r.Right - r.Left, r.Bottom - r.Top); } catch (Exception ex) { App.LogError(ex); }
         NativeMethods.SetWindowPos(_hwnd, IntPtr.Zero, r.Left, r.Top, r.Right - r.Left, r.Bottom - r.Top,
             NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOOWNERZORDER);
         // Every thumbnail's source/destination rectangle depends on the bounds.
