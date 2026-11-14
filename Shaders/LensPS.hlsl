@@ -1,4 +1,4 @@
-// Liquid Glass lens ring (D3D11, ps_4_0). Draws only the curved bevel of the island: the screen behind
+﻿// Liquid Glass lens ring (D3D11, ps_4_0). Draws only the curved bevel of the island: the screen behind
 // it is bent inward along the rim, split slightly by colour, lit by a specular edge; the flat middle is
 // left transparent so the DirectComposition blur underneath shows through, sharp and jitter-free.
 cbuffer Params : register(b0)
@@ -56,7 +56,7 @@ float4 main(float4 sv : SV_Position) : SV_Target
     // reads the background just OUTSIDE the edge, along the outward normal, and squeezes it into the
     // bevel (like the rim of a thick glass dome gathering the surroundings). Samples reach farther out the
     // deeper the pixel is, which compresses a wide band of background into the thin rim.
-    float reach = p1.z * lens + depth * 1.3 + 3.0;
+    float reach = p1.z * lens * 0.7 + depth * 0.3 + 2.0;
     float2 mon = pos + p2.zw;
     float2 invMon = 1.0 / p2.xy;
     float disp = p3.y;
@@ -90,3 +90,4 @@ float4 main(float4 sv : SV_Position) : SV_Target
     float3 rgb = (col * ringA + spec.xxx) * mask;
     return float4(rgb, a);
 }
+
