@@ -1137,6 +1137,7 @@ public partial class MainWindow : Window
                 {
                     Style = (Style)FindResource("IconButton"),
                     ToolTip = PageTitle(page),
+                    Tag = "NoHover", // the glass pill is the only outline; no hover circle
                     RenderTransformOrigin = new Point(0.5, 0.5),
                     RenderTransform = new TransformGroup { Children = { new ScaleTransform(1, 1), new TranslateTransform() } },
                 };

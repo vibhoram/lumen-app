@@ -110,6 +110,9 @@
                                 </Trigger.ExitActions>
                                 <Setter TargetName="Hv" Property="Opacity" Value="0.28" />
                             </Trigger>
+                            <Trigger Property="Tag" Value="NoHover">
+                                <Setter TargetName="Hv" Property="Visibility" Value="Collapsed" />
+                            </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.35" />
                             </Trigger>
