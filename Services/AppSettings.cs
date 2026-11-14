@@ -257,6 +257,12 @@ public sealed class AppSettings
     /// <summary>Which Ollama model to use offline. Empty = pick the fastest installed.</summary>
     public string LocalModel { get; set; } = "";
 
+    /// <summary>The pet nudges you now and then: water, stretch, rest your eyes.</summary>
+    public bool PetReminders { get; set; } = true;
+
+    /// <summary>Minutes between the pet's nudges (10..120).</summary>
+    public int PetReminderMinutes { get; set; } = 40;
+
     /// <summary>Show every slider (otherwise just presets and the essentials).</summary>
     public bool ShowAdvanced { get; set; }
 

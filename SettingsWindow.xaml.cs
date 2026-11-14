@@ -290,6 +290,8 @@ public partial class SettingsWindow : Window
             () => s.CalendarReminderMinutes, v => s.CalendarReminderMinutes = v);
 
         var pet = Section("COMPANION", "Companion");
+        Check(pet, "Healthy nudges (water, stretch, eyes)", () => s.PetReminders, v => s.PetReminders = v);
+        Slider(pet, "Nudge every", 10, 120, 5, () => s.PetReminderMinutes, v => s.PetReminderMinutes = (int)v, v => $"{v:0} min");
         Check(pet, "A little pet walks beneath the island", () => s.PetEnabled, v => s.PetEnabled = v);
         Choice(pet, "Pet", new[] { (PetKind.Cat, "Cat"), (PetKind.Dog, "Dog"), (PetKind.Bunny, "Bunny"), (PetKind.Robot, "Robot"), (PetKind.Fox, "Fox"), (PetKind.Panda, "Panda"), (PetKind.Dragon, "Dragon"), (PetKind.Ghost, "Ghost"), (PetKind.Axolotl, "Axolotl"), (PetKind.Wolf, "Wolf") }, () => s.PetKind, v => s.PetKind = v);
         Choice(pet, "Outfit", new[] { (PetOutfit.None, "None"), (PetOutfit.Hat, "Party hat"), (PetOutfit.Bow, "Bow"), (PetOutfit.Glasses, "Glasses"), (PetOutfit.Scarf, "Scarf") }, () => s.PetOutfit, v => s.PetOutfit = v);

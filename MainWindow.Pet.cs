@@ -31,6 +31,8 @@ public partial class MainWindow
         _pet.Kind = _settings.PetKind;
         _pet.Talks = _settings.PetTalks;
         _pet.Outfit = _settings.PetOutfit;
+        _pet.Reminders = _settings.PetReminders;
+        _pet.ReminderMinutes = _settings.PetReminderMinutes;
         if (!_settings.PetEnabled) { _pet.Visibility = Visibility.Collapsed; _pet.Running = false; }
     }
 

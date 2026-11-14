@@ -22,13 +22,18 @@ public sealed class PetWidget : Canvas
     public const double SpriteWidth = 44;
     public const double SpriteHeight = 34;
 
-    private enum Mood { Walk, Idle, Sleep, Dance, Hop, Watch, Yawn, Excited, Worried, Study, Follow }
+    private enum Mood { Walk, Idle, Sleep, Dance, Hop, Watch, Yawn, Excited, Worried, Study, Follow, Play, Stretch }
 
     private readonly DispatcherTimer _timer = new(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(33) };
     private readonly Random _rng = new();
     private readonly Canvas _sprite = new() { Width = SpriteWidth, Height = SpriteHeight };
     private readonly ScaleTransform _flip = new(1, 1, SpriteWidth / 2, SpriteHeight);
     private readonly TranslateTransform _bob = new();
+    private readonly RotateTransform _spin = new(0, SpriteWidth / 2, SpriteHeight / 2);
+    private readonly Ellipse _ball = new() { Width = 7, Height = 7, Opacity = 0, IsHitTestVisible = false, Fill = new RadialGradientBrush(Color.FromRgb(0xFF, 0xE0, 0x7A), Color.FromRgb(0xFF, 0x6B, 0x6B)) { GradientOrigin = new Point(0.3, 0.3) } };
+    private double _reminderLeft = 40 * 60;
+    private int _reminderStep;
+    private readonly Queue<DateTime> _clicks = new();
     private readonly TranslateTransform _move = new();
     private readonly RotateTransform _headNod = new(0, 29, 22);
     private readonly RotateTransform _tailWag = new(0, 8, 21);
@@ -53,6 +58,7 @@ public sealed class PetWidget : Canvas
     private double _excitedT;
     private double _speechLeft;
     private double _quipIn = 25;
+    private double _greetIn = 3;
     private readonly Ellipse _mouth = new() { Width = 3.2, Height = 2.2, Fill = new SolidColorBrush(Color.FromRgb(0xB0, 0x55, 0x65)), Opacity = 0 };
     private readonly Rectangle _book = new() { Width = 9, Height = 6, RadiusX = 1, RadiusY = 1, Fill = new SolidColorBrush(Color.FromRgb(0x5E, 0x8B, 0xFF)), Opacity = 0 };
     private readonly TranslateTransform _pupil = new();
@@ -71,13 +77,24 @@ public sealed class PetWidget : Canvas
         Width = SpriteWidth;
         Height = SpriteHeight;
         Children.Add(_sprite);
+        Children.Add(_ball);
         Children.Add(_bubble);
         Panel.SetZIndex(_bubble, 5);
         Cursor = System.Windows.Input.Cursors.Hand;
         Background = Brushes.Transparent; // the whole sprite box is clickable
-        _sprite.RenderTransform = new TransformGroup { Children = { _squash, _flip, _bob } };
+        _sprite.RenderTransform = new TransformGroup { Children = { _squash, _flip, _bob, _spin } };
         RenderTransform = _move;
-        MouseLeftButtonUp += (_, e) => { e.Handled = true; React(PetEvent.Click); };
+        MouseLeftButtonDown += (_, e) => { if (e.ClickCount == 2) { e.Handled = true; Trick(); } };
+        MouseLeftButtonUp += (_, e) =>
+        {
+            e.Handled = true;
+            // five quick pets in a row make it dizzy; otherwise a normal reaction
+            var now = DateTime.UtcNow;
+            _clicks.Enqueue(now);
+            while (_clicks.Count > 0 && (now - _clicks.Peek()).TotalSeconds > 3) _clicks.Dequeue();
+            if (_clicks.Count >= 5) { _clicks.Clear(); Dizzy(); return; }
+            React(PetEvent.Click);
+        };
         _timer.Tick += (_, _) => Tick();
         Build();
         MouseRightButtonUp += (_, e) =>
@@ -277,6 +294,51 @@ public sealed class PetWidget : Canvas
         SetTop(_bubble, 4);
         _bubble.Opacity = 1;
         _speechLeft = seconds;
+    }
+
+    /// <summary>Double-click: a little flip.</summary>
+    public void Trick()
+    {
+        if (_quiet) return;
+        Hop();
+        var flip = new System.Windows.Media.Animation.DoubleAnimation(0, 360, TimeSpan.FromMilliseconds(620)) { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseInOut } };
+        _spin.BeginAnimation(RotateTransform.AngleProperty, flip);
+        Say(Pick("ta-da!", "watch this!", "wheee", "nailed it"));
+    }
+
+    private void Dizzy()
+    {
+        var spin = new System.Windows.Media.Animation.DoubleAnimation(0, 720, TimeSpan.FromMilliseconds(1100)) { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } };
+        _spin.BeginAnimation(RotateTransform.AngleProperty, spin);
+        SetMood(Mood.Worried);
+        Say(Pick("ok ok I'm dizzy...", "the room is spinning", "too many pats!"), 3);
+    }
+
+    /// <summary>Gentle nudges (water, stretch, eyes) every so often; off while it is quiet or you are focusing.</summary>
+    public bool Reminders { get; set; } = true;
+    public int ReminderMinutes { get; set; } = 40;
+
+    private static readonly string[] Nudges =
+    {
+        "water break? hydrate!", "stretch your legs a sec", "look far away for 20 seconds (eyes!)", "sit up straight, friend", "roll your shoulders back", "deep breath in... and out",
+    };
+
+    private string TimeGreeting()
+    {
+        var h = DateTime.Now.Hour;
+        return h switch { < 5 => "still up? me too", < 12 => "good morning!", < 17 => "afternoon!", < 22 => "good evening", _ => "late night session?" };
+    }
+
+    private Mood PickActivity()
+    {
+        if (_music) return Mood.Dance;
+        var h = DateTime.Now.Hour;
+        var r = _rng.NextDouble();
+        if (h is >= 23 or < 5) return r < 0.7 ? Mood.Yawn : Mood.Walk;                  // night: sleepy
+        if (h < 11) return r < 0.35 ? Mood.Stretch : r < 0.6 ? Mood.Play : Mood.Walk;   // morning: stretch and play
+        if (h < 14) return r < 0.4 ? Mood.Play : Mood.Walk;                             // midday
+        if (h < 19) return r < 0.35 ? Mood.Play : r < 0.5 ? Mood.Stretch : Mood.Walk;  // afternoon
+        return r < 0.4 ? Mood.Yawn : r < 0.6 ? Mood.Play : Mood.Walk;                  // evening: winding down
     }
 
     public void Hop()
@@ -510,11 +572,16 @@ public sealed class PetWidget : Canvas
             Mood.Follow => 6,
             Mood.Excited => 1.6,
             Mood.Worried => 3.2,
+            Mood.Play => 7,
+            Mood.Stretch => 2.4,
             _ => 99,
         };
         if (mood == Mood.Walk) _dir = _x > (_minX + _maxX) / 2 ? -1 : (_rng.Next(2) == 0 ? 1 : -1);
         if (mood != Mood.Sleep) _zzz.Opacity = 0;
         if (mood != Mood.Study) _book.Opacity = 0;
+        if (mood != Mood.Play) _ball.Opacity = 0;
+        if (mood == Mood.Stretch) Say(Pick("*stretch*", "ahhh", "good stretch"), 1.8);
+        if (mood == Mood.Play) Say(Pick("ball!", "catch me!", "playtime"), 1.8);
     }
 
     private void Tick()
@@ -536,6 +603,21 @@ public sealed class PetWidget : Canvas
         }
         _hunger = Math.Min(1, _hunger + dt / 480);   // hungry after about eight minutes
         if (_hunger > 0.9 && _speechLeft <= 0 && !_quiet && _mood is Mood.Idle or Mood.Walk or Mood.Watch && _rng.NextDouble() < dt / 40) Say(Pick("I'm hungry...", "is it snack time?", "my tummy is rumbling"), 3);
+        if (Reminders && !_quiet && !_studying && _talks)
+        {
+            _reminderLeft -= dt;
+            if (_reminderLeft <= 0)
+            {
+                _reminderLeft = Math.Max(10, ReminderMinutes) * 60;
+                if (_mood is Mood.Idle or Mood.Walk or Mood.Watch or Mood.Play or Mood.Stretch)
+                {
+                    Hop();
+                    Say(Nudges[_reminderStep++ % Nudges.Length], 4.5);
+                }
+                else _reminderLeft = 60; // busy right now: try again in a minute
+            }
+        }
+        if (_greetIn > 0) { _greetIn -= dt; if (_greetIn <= 0 && !_quiet) { Hop(); Say(TimeGreeting(), 3); } }
         _quipIn -= dt;
         if (_quipIn <= 0)
         {
@@ -596,7 +678,7 @@ public sealed class PetWidget : Canvas
                 if (_moodLeft <= 0)
                 {
                     var night = DateTime.Now.Hour is < 6 or >= 23;
-                    SetMood(_music ? Mood.Dance : _rng.NextDouble() < (night ? 0.7 : 0.3) ? Mood.Yawn : Mood.Walk);
+                    SetMood(night && _rng.NextDouble() < 0.7 ? Mood.Yawn : PickActivity());
                 }
                 break;
             case Mood.Watch:
@@ -665,6 +747,33 @@ public sealed class PetWidget : Canvas
                 nod = 14 + Math.Sin(_phase * 1.2) * 1.5; // head down over the book
                 wag = Math.Sin(_phase * 1.1) * 3;
                 break;
+            case Mood.Play:
+            {
+                // chase a bouncing ball back and forth
+                _ball.Opacity = 1;
+                var speed = 30;
+                _x += _dir * speed * dt;
+                if (_x <= _minX) { _x = _minX; _dir = 1; }
+                else if (_x >= _maxX) { _x = _maxX; _dir = -1; }
+                foreach (var (_, rot, phase) in _legs) rot.Angle = Math.Sin(_phase * 14 + phase) * 32;
+                bobY = -Math.Abs(Math.Sin(_phase * 14)) * 1.8;
+                nod = Math.Sin(_phase * 7) * 5;
+                var bounce = Math.Abs(Math.Sin(_phase * 8)) * 9;
+                SetLeft(_ball, SpriteWidth / 2 + _dir * 24 - 3.5);
+                SetTop(_ball, SpriteHeight - 12 - bounce);
+                if (_moodLeft <= 0) SetMood(Mood.Walk);
+                break;
+            }
+            case Mood.Stretch:
+            {
+                var u = Math.Clamp(1 - _moodLeft / 2.4, 0, 1);
+                var arch = Math.Sin(u * Math.PI);
+                nod = 14 * arch;                // a deep bow
+                squash = 1 - 0.1 * arch;
+                foreach (var (_, rot, _) in _legs) rot.Angle *= 0.8;
+                if (_moodLeft <= 0) SetMood(Mood.Idle);
+                break;
+            }
             case Mood.Hop:
             {
                 _hopT += dt;
