@@ -322,6 +322,8 @@ public partial class MainWindow : Window
 
         SourceInitialized += OnSourceInitialized;
         Loaded += OnLoaded;
+        Loaded += (_, _) => Reposition();
+        DpiChanged += (_, _) => Dispatcher.InvokeAsync(Reposition);
         Closed += OnClosed;
         SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
         // waking from sleep: a friendly "welcome back" that fits the time of day
@@ -946,12 +948,25 @@ public partial class MainWindow : Window
 
     private void Reposition()
     {
-        // stay on the screen the island is on (display changes); the primary one at startup
-        var screen = IsLoaded ? CurrentScreen() : System.Windows.Forms.Screen.PrimaryScreen!;
-        var dpiScale = IsLoaded ? VisualTreeHelper.GetDpi(this).DpiScaleX : 1.0;
-        var area = screen.Bounds;
-        Left = IsLoaded ? (area.Left + (area.Width - Width * dpiScale) / 2) / dpiScale : (SystemParameters.PrimaryScreenWidth - Width) / 2;
-        Top = IsLoaded ? area.Top / dpiScale + _settings.TopOffset : _settings.TopOffset;
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (!IsLoaded || hwnd == IntPtr.Zero)
+        {
+            // before the window exists: a rough placement (refined as soon as it is loaded)
+            Left = (SystemParameters.PrimaryScreenWidth - Width) / 2;
+            Top = _settings.TopOffset;
+            return;
+        }
+        // Measure where the island's own centre line really is on screen (this already includes any DPI scaling), then move the
+        // window so that line sits on the middle of the screen. Pure DIP maths put the pill off-centre on mixed-DPI setups.
+        if (!NativeMethods.GetWindowRect(hwnd, out var rect)) return;
+        var centre = Root.PointToScreen(new Point(BaseWidth / 2, 0)).X;
+        var offset = centre - rect.Left;
+        var area = CurrentScreen().Bounds;
+        var targetLeft = (int)Math.Round(area.Left + area.Width / 2.0 - offset);
+        var dpi = VisualTreeHelper.GetDpi(this).DpiScaleY;
+        var targetTop = (int)Math.Round(area.Top + _settings.TopOffset * dpi);
+        if (targetLeft == rect.Left && targetTop == rect.Top) return;
+        NativeMethods.SetWindowPos(hwnd, IntPtr.Zero, targetLeft, targetTop, 0, 0, NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
     }
 
     // ---------------------------------------------------------------- rendering

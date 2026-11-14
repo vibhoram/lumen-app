@@ -53,6 +53,7 @@ public partial class MainWindow
         var b = screen.Bounds;
         Left = (b.Left + (b.Width - Width * dpi) / 2) / dpi;
         Top = b.Top / dpi + _settings.TopOffset;
+        Dispatcher.InvokeAsync(Reposition); // fine-tune: centre the island line exactly on that screen
         // the lens reads one monitor through Desktop Duplication: rebuild it for the new one
         Dispatcher.InvokeAsync(async () =>
         {
