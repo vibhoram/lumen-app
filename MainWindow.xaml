@@ -533,6 +533,9 @@
                             </Button>
                         </StackPanel>
                     </Grid>
+
+                    <!-- Alarms: set one here, see and remove the ones you have (built in code: MainWindow.Alarms.cs). -->
+                    <StackPanel x:Name="AlarmRow" Margin="0,10,0,0" />
                     </StackPanel>
 
                     <!-- Notifications from other apps; rows built in code (BuildNotificationList). -->

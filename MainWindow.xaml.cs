@@ -160,6 +160,7 @@ public partial class MainWindow : Window
         ApplyMusicLayout();
         FocusPage.Children.Add(new FocusPanel(_focusSession, _settings, _timer));
         WireVitals();
+        WireAlarmRow();
         _clipPanel = new ClipboardPanel(_clipHistory);
         ClipboardPage.Children.Add(_clipPanel);
         _clipPanel.BeginTypingRequested += BeginTyping;
