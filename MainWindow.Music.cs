@@ -101,6 +101,7 @@ public partial class MainWindow
         if (art is not null) _palette = ColorTools.Palette(art, 4);
         ApplyEqualizerLook(_media.Current?.Accent ?? Colors.White);
         MediaWave.Colors = _palette;
+        ProgressBar.Palette = _palette.Select(BrightenAccent).ToList(); // the progress bar wears the cover's colours too
     }
 
     private static void EaseColor(GradientStop stop, Color to)

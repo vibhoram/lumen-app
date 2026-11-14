@@ -16,21 +16,13 @@ public partial class MainWindow
 {
     private int _alarmMinutes = 7 * 60;
     private bool _alarmDaily;
-    private TextBlock _aHour = null!, _aMinute = null!, _aAmPm = null!;
+    private DrumPicker _aHour = null!, _aMinute = null!, _aAmPm = null!;
+    private bool _drumSync;
+
     private StackPanel _alarmChips = null!;
     private Border _dailyChip = null!;
 
     private static string Clock(int minutes) => DateTime.Today.AddMinutes(minutes).ToString("h:mm tt");
-
-    private TextBlock Segment(string tip, Action<int> wheel, double width)
-    {
-        var t = new TextBlock { FontSize = 20, FontWeight = FontWeights.SemiBold, Width = width, TextAlignment = TextAlignment.Center, Cursor = Cursors.SizeNS, ToolTip = tip, Tag = "WheelOwner", Background = Brushes.Transparent, Typography = { NumeralAlignment = FontNumeralAlignment.Tabular } };
-        t.MouseWheel += (_, e) => { e.Handled = true; wheel(e.Delta > 0 ? 1 : -1); };
-        t.PreviewMouseWheel += (_, e) => { e.Handled = true; wheel(e.Delta > 0 ? 1 : -1); };
-        // click: top half goes up, bottom half goes down (for mice without a wheel)
-        t.MouseLeftButtonUp += (_, e) => { e.Handled = true; wheel(e.GetPosition(t).Y < t.ActualHeight / 2 ? 1 : -1); };
-        return t;
-    }
 
     private Border Pill(string text, Action click)
     {
@@ -44,17 +36,26 @@ public partial class MainWindow
     {
         _alarmMinutes = (int)SmartTime.DefaultAlarm(_settings, DateTime.Now).TotalMinutes % 1440; // your usual time, else the next half hour
 
-        _aHour = Segment("Scroll (or click top/bottom) to change the hour", d => Nudge(d * 60), 30);
-        _aMinute = Segment("Scroll (or click top/bottom) to change the minutes", d => Nudge(d * 5), 30);
-        _aAmPm = Segment("Click to switch AM / PM", d => Nudge(720), 38);
-        _aAmPm.Cursor = Cursors.Hand;
-        _aAmPm.FontSize = 14;
-        _aAmPm.VerticalAlignment = VerticalAlignment.Center;
+        // iOS-style dials: hour, minute, AM/PM (wheel, drag, or click above/below the middle)
+        _aHour = new DrumPicker(44) { Items = Enumerable.Range(1, 12).Select(h => h.ToString()).ToList() };
+        _aMinute = new DrumPicker(44) { Items = Enumerable.Range(0, 60).Select(m => m.ToString("00")).ToList() };
+        _aAmPm = new DrumPicker(44) { Items = new[] { "AM", "PM" }, Loop = false };
+        void FromDrums()
+        {
+            if (_drumSync) return;
+            var h12 = _aHour.Index + 1;                       // 1..12
+            var hour = h12 % 12 + (_aAmPm.Index == 1 ? 12 : 0);
+            _alarmMinutes = hour * 60 + _aMinute.Index;
+        }
+        _aHour.ValueChanged += _ => FromDrums();
+        _aMinute.ValueChanged += _ => FromDrums();
+        _aAmPm.ValueChanged += _ => FromDrums();
 
-        var time = new StackPanel { Orientation = Orientation.Horizontal };
+        var time = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         time.Children.Add(_aHour);
-        time.Children.Add(new TextBlock { Text = ":", FontSize = 20, FontWeight = FontWeights.SemiBold, Opacity = 0.6, VerticalAlignment = VerticalAlignment.Center });
+        time.Children.Add(new TextBlock { Text = ":", FontSize = 20, FontWeight = FontWeights.SemiBold, Opacity = 0.55, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(1, 0, 1, 3) });
         time.Children.Add(_aMinute);
+        time.Children.Add(new Border { Width = 6 });
         time.Children.Add(_aAmPm);
 
         var row = new Grid();
@@ -63,7 +64,7 @@ public partial class MainWindow
         row.ColumnDefinitions.Add(new ColumnDefinition());
         Grid.SetColumn(time, 1);
         row.Children.Add(time);
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
         _dailyChip = Pill("Daily", () => { _alarmDaily = !_alarmDaily; UpdateAlarmRow(); });
         actions.Children.Add(_dailyChip);
         actions.Children.Add(Pill("Set alarm", AddAlarmFromRow));
@@ -81,18 +82,14 @@ public partial class MainWindow
         BuildAlarmChips();
     }
 
-    private void Nudge(int delta)
-    {
-        _alarmMinutes = ((_alarmMinutes + delta) % 1440 + 1440) % 1440;
-        UpdateAlarmRow();
-    }
-
     private void UpdateAlarmRow()
     {
         var t = DateTime.Today.AddMinutes(_alarmMinutes);
-        _aHour.Text = t.ToString("%h");
-        _aMinute.Text = t.ToString("mm");
-        _aAmPm.Text = t.ToString("tt");
+        _drumSync = true;
+        _aHour.Index = (t.Hour % 12 == 0 ? 12 : t.Hour % 12) - 1;
+        _aMinute.Index = t.Minute;
+        _aAmPm.Index = t.Hour >= 12 ? 1 : 0;
+        _drumSync = false;
         _dailyChip.Background = _alarmDaily
             ? new LinearGradientBrush(Color.FromRgb(0x3B, 0x9D, 0xFF), Color.FromRgb(0x0A, 0x7A, 0xFF), 90)
             : (Brush)FindResource("GlassFill");
@@ -182,25 +179,26 @@ public partial class MainWindow
 
     // ------------------------------------------------------------------ Alarm / Timer / Stopwatch switcher
 
-    private enum ClockMode { Alarm, Timer, Stopwatch }
+    private enum ClockMode { Alarm, Timer, Stopwatch, None }
 
-    private ClockMode _clockMode = ClockMode.Alarm;
+    private ClockMode _clockMode = ClockMode.None; // collapsed until you open one
     private System.Windows.Threading.DispatcherTimer? _swCountdown;
     private int _swCount;
     private Border? _swStartPill;
     private TextBlock? _swStartText;
 
-    private FrameworkElement RegionFor(ClockMode mode) => mode switch
+    private FrameworkElement? RegionFor(ClockMode mode) => mode switch
     {
+        ClockMode.Alarm => AlarmRow,
         ClockMode.Timer => _timer.IsActive ? TimerActivePanel : TimerPresets,
         ClockMode.Stopwatch => _stopwatch.IsActive ? StopwatchPanel : StopwatchIdlePanel,
-        _ => AlarmRow,
+        _ => null,
     };
 
     /// <summary>Shows only the options of the current mode (no animation: used on every refresh).</summary>
     private void ApplyClockMode()
     {
-        if (_clockMode == ClockMode.Timer) BuildTimerPresets();
+        if (_clockMode == ClockMode.Timer) { BuildTimerPresets(); BuildTimerDial(); }
         if (_clockMode == ClockMode.Alarm) BuildAlarmSuggestions();
         var shown = RegionFor(_clockMode);
         foreach (var region in new FrameworkElement[] { AlarmRow, TimerPresets, TimerActivePanel, StopwatchPanel, StopwatchIdlePanel })
@@ -232,14 +230,14 @@ public partial class MainWindow
     /// <summary>Swaps the options with a fluid hand-over: the old ones fade up and away, the new ones spring in, and the island grows or shrinks with a spring to fit.</summary>
     private void SetClockMode(ClockMode mode)
     {
-        if (mode == _clockMode) return;
-        var order = (int)mode - (int)_clockMode; // direction of travel decides which way things slide
+        if (mode == _clockMode) mode = ClockMode.None; // tapping the open one closes it
+        var order = mode == ClockMode.None ? 1 : (int)mode - (int)(_clockMode == ClockMode.None ? ClockMode.Alarm : _clockMode); // direction of travel decides which way things slide
         var old = RegionFor(_clockMode);
         _clockMode = mode;
         var incoming = RegionFor(mode);
 
         // outgoing: stays on screen for a moment without taking layout room (same trick as page changes)
-        if (_state.IsExpanded && old.Visibility == Visibility.Visible && old.ActualHeight > 0)
+        if (old is not null && _state.IsExpanded && old.Visibility == Visibility.Visible && old.ActualHeight > 0)
         {
             _leavingClockRegion = old;
             old.IsHitTestVisible = false;
@@ -261,7 +259,8 @@ public partial class MainWindow
         }
 
         ApplyClockMode();
-        if (_state.IsExpanded)
+        if (incoming is null) { if (_state.IsExpanded) Dispatcher.InvokeAsync(Render); }
+        else if (_state.IsExpanded)
         {
             var shift = ShiftOf(incoming);
             var scale = ScaleOf(incoming);
@@ -277,40 +276,45 @@ public partial class MainWindow
     }
 
     private static readonly string[] ModeNames = { "Alarm", "Timer", "Stopwatch" };
+    private static readonly string[] ModeGlyphs = { "\uE121", "\uE916", "\uE916" };
 
-    /// <summary>Header row: the current mode on the left, the other two as small glass pills on the right.</summary>
     private ClockMode? _barMode;
 
+    /// <summary>One row, three pills. The open one is lit; tap it again to fold everything away.</summary>
     private void UpdateModeBar()
     {
         if (_barMode == _clockMode && ClockModeBar.Children.Count > 0) return; // keep the pills (and their animation state)
         _barMode = _clockMode;
         ClockModeBar.Children.Clear();
         ClockModeBar.ColumnDefinitions.Clear();
-        ClockModeBar.ColumnDefinitions.Add(new ColumnDefinition());
-        ClockModeBar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var glyph = _clockMode switch { ClockMode.Timer => "\uE916", ClockMode.Stopwatch => "\uE916", _ => "\uE121" };
-        var tint = _clockMode == ClockMode.Stopwatch ? (Brush)FindResource("Cyan") : (Brush)FindResource("Orange");
-        var title = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        title.Children.Add(new TextBlock { Style = (Style)FindResource("Glyph"), Text = glyph, FontSize = 14, Foreground = tint, Margin = new Thickness(0, 0, 8, 0) });
-        title.Children.Add(new TextBlock { Text = ModeNames[(int)_clockMode], FontSize = 13, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
-        ClockModeBar.Children.Add(title);
-
-        var others = new StackPanel { Orientation = Orientation.Horizontal };
-        foreach (ClockMode m in Enum.GetValues<ClockMode>())
+        for (var i = 0; i < 3; i++) ClockModeBar.ColumnDefinitions.Add(new ColumnDefinition());
+        for (var i = 0; i < 3; i++)
         {
-            if (m == _clockMode) continue;
-            var mode = m;
-            var pill = Pill(ModeNames[(int)m], () => SetClockMode(mode));
-            pill.RenderTransformOrigin = new Point(0.5, 0.5);
-            pill.RenderTransform = new ScaleTransform(1, 1);
-            // soft hover swell, like the other buttons
-            pill.MouseEnter += (_, _) => PopPill(pill, 1.07);
+            var mode = (ClockMode)i;
+            var open = _clockMode == mode;
+            var tint = open ? Brushes.White : (Brush)FindResource("Secondary");
+            var label = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
+            label.Children.Add(new TextBlock { Style = (Style)FindResource("Glyph"), Text = ModeGlyphs[i], FontSize = 13, Foreground = open ? Brushes.White : (i == 2 ? (Brush)FindResource("Cyan") : (Brush)FindResource("Orange")), Margin = new Thickness(0, 0, 7, 0) });
+            label.Children.Add(new TextBlock { Text = ModeNames[i], FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = tint, VerticalAlignment = VerticalAlignment.Center });
+            var pill = new Border
+            {
+                CornerRadius = new CornerRadius(16),
+                Padding = new Thickness(8, 7, 8, 7),
+                Margin = new Thickness(i == 0 ? 0 : 3, 0, i == 2 ? 0 : 3, 0),
+                Cursor = Cursors.Hand,
+                BorderThickness = new Thickness(1),
+                BorderBrush = (Brush)FindResource("GlassRim"),
+                Background = open ? AssistantPanel.AccentGradient() : (Brush)FindResource("GlassFill"),
+                Child = label,
+                RenderTransformOrigin = new Point(0.5, 0.5),
+                RenderTransform = new ScaleTransform(1, 1),
+            };
+            pill.MouseEnter += (_, _) => PopPill(pill, 1.05);
             pill.MouseLeave += (_, _) => PopPill(pill, 1);
-            others.Children.Add(pill);
+            pill.MouseLeftButtonUp += (_, e) => { e.Handled = true; SetClockMode(mode); };
+            Grid.SetColumn(pill, i);
+            ClockModeBar.Children.Add(pill);
         }
-        Grid.SetColumn(others, 1);
-        ClockModeBar.Children.Add(others);
     }
 
     private static void PopPill(Border pill, double to)
@@ -370,5 +374,56 @@ public partial class MainWindow
         };
         _swCountdown.Start();
     }
-}
 
+    // ------------------------------------------------------------------ custom timer dial
+
+    private DrumPicker? _tH, _tM, _tS;
+    private StackPanel? _timerDial;
+    private TimeSpan _timerDraft = TimeSpan.FromMinutes(10);
+
+    /// <summary>Hours : minutes : seconds dials and a Start button; the one-tap lengths sit under them.</summary>
+    private void BuildTimerDial()
+    {
+        if (_timerDial is not null) return;
+        _tH = new DrumPicker(40) { Items = Enumerable.Range(0, 24).Select(h => h.ToString()).ToList() };
+        _tM = new DrumPicker(40) { Items = Enumerable.Range(0, 60).Select(m => m.ToString("00")).ToList() };
+        _tS = new DrumPicker(40) { Items = Enumerable.Range(0, 60).Select(m => m.ToString("00")).ToList() };
+        _tH.Index = _timerDraft.Hours; _tM.Index = _timerDraft.Minutes; _tS.Index = _timerDraft.Seconds;
+        void Colon(StackPanel p) => p.Children.Add(new TextBlock { Text = ":", FontSize = 20, FontWeight = FontWeights.SemiBold, Opacity = 0.55, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(1, 0, 1, 3) });
+        var dials = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        dials.Children.Add(_tH); Colon(dials); dials.Children.Add(_tM); Colon(dials); dials.Children.Add(_tS);
+        dials.Children.Add(new TextBlock { Text = "h  m  s", FontSize = 10.5, Opacity = 0.5, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) });
+
+        var start = Pill("Start", () =>
+        {
+            var span = new TimeSpan(_tH!.Index, _tM!.Index, _tS!.Index);
+            if (span.TotalSeconds < 1) return;
+            _timerDraft = span;
+            _timer.Start(span);
+            if (span.TotalMinutes >= 1) SmartTime.RecordTimer(_settings, (int)Math.Round(span.TotalMinutes));
+            _settings.Save();
+        });
+        start.HorizontalAlignment = HorizontalAlignment.Right;
+        start.VerticalAlignment = VerticalAlignment.Center;
+        start.Background = AssistantPanel.AccentGradient();
+        ((TextBlock)start.Child).FontSize = 13;
+        start.Padding = new Thickness(18, 7, 18, 7);
+
+        var row = new Grid { Margin = new Thickness(0, 0, 0, 6) };
+        row.ColumnDefinitions.Add(new ColumnDefinition());
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.Children.Add(dials);
+        Grid.SetColumn(start, 1);
+        row.Children.Add(start);
+        _timerDial = new StackPanel();
+        _timerDial.Children.Add(row);
+
+        // TimerPresets is a one-cell grid holding the chip row: stack the dial above it
+        TimerPresets.RowDefinitions.Clear();
+        TimerPresets.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        TimerPresets.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        Grid.SetRow(_timerDial, 0);
+        Grid.SetRow(TimerPresetRow, 1);
+        TimerPresets.Children.Add(_timerDial);
+    }
+}

@@ -140,6 +140,10 @@ public partial class MainWindow : Window
         WireClara();
         WireContext();
         WireMonitors();
+        ActivityBubble.IsVisibleChanged += (_, _) => UpdateBubbleRings();
+        ActivityBubble2.IsVisibleChanged += (_, _) => UpdateBubbleRings();
+        ActivityBubble.SizeChanged += (_, _) => UpdateBubbleRings();
+        ActivityBubble2.SizeChanged += (_, _) => UpdateBubbleRings();
         WireMusic();
         WireDock();
         ArtBanner.IsVisibleChanged += (_, _) => { ApplyTabSelection(); };
@@ -956,6 +960,9 @@ public partial class MainWindow : Window
 
         SwitchTo(view);
         AnimateTo(width, height, radius * Roundness);
+        // the activity rings (timer, stopwatch, music) are only drawn while the island is collapsed: refresh them now, not on
+        // the next one-second tick, or a ring appears half a second after its bubble
+        UpdateBubbleRings();
     }
 
     private FrameworkElement ViewFor(IslandView view) => view switch

@@ -7,7 +7,7 @@ using System.Windows.Threading;
 
 namespace DIsland;
 
-public enum WaveStyle { Ribbon, Silk, Tide, Pulse, Bars, Beads }
+public enum WaveStyle { Ribbon, Silk, Tide, Pulse, Bars, Beads, Aurora, Comet, Pixels }
 
 public sealed class WaveRibbon : FrameworkElement
 {
@@ -61,6 +61,9 @@ public sealed class WaveRibbon : FrameworkElement
             case WaveStyle.Pulse: DrawPulse(dc, w, h, t, a, b); return;
             case WaveStyle.Bars: DrawBars(dc, w, h, t, a, b); return;
             case WaveStyle.Beads: DrawBeads(dc, w, h, t, a, b); return;
+            case WaveStyle.Aurora: DrawAurora(dc, w, h, t); return;
+            case WaveStyle.Comet: DrawComet(dc, w, h, t, a, b); return;
+            case WaveStyle.Pixels: DrawPixels(dc, w, h, t, a, b); return;
         }
         // two layers only: a soft main ribbon and a fainter one drifting the other way
         for (var k = 0; k < 2; k++)
@@ -210,6 +213,76 @@ public sealed class WaveRibbon : FrameworkElement
             var brush = new SolidColorBrush(Color.FromArgb((byte)(0x50 + 0x90 * env), c.R, c.G, c.B));
             brush.Freeze();
             dc.DrawEllipse(brush, null, new Point(x, y), r, r);
+        }
+    }
+
+    private Color PaletteAt(double f)
+    {
+        if (_colors.Count == 1) return _colors[0];
+        f = Math.Clamp(f, 0, 1) * (_colors.Count - 1);
+        var i = Math.Min((int)f, _colors.Count - 2);
+        return DIsland.Services.ColorTools.Mix(_colors[i], _colors[i + 1], f - i);
+    }
+
+    /// <summary>Aurora: three soft filled waves, one in each of the cover's colours, drifting through each other.</summary>
+    private void DrawAurora(DrawingContext dc, double w, double h, double t)
+    {
+        for (var k = 0; k < 3; k++)
+        {
+            var c = PaletteAt(k / 2.0);
+            var amp = (1.6 + 2.8 * _level) * (1 - k * 0.15);
+            var len = 120 + k * 55;
+            var ph = t * (0.7 + k * 0.3) * (k == 1 ? -1 : 1) + k * 2.3;
+            var g = new StreamGeometry();
+            using (var ctx = g.Open())
+            {
+                ctx.BeginFigure(new Point(0, h + 1), true, true);
+                for (double x = 0; x <= w + 3; x += 3)
+                    ctx.LineTo(new Point(x, h - 3.4 - k * 0.8 - Math.Sin(x / len * 2 * Math.PI + ph) * amp), true, false);
+                ctx.LineTo(new Point(w, h + 1), true, false);
+            }
+            g.Freeze();
+            dc.DrawGeometry(Fade(c, c, (byte)(0x58 - k * 0x10)), null, g);
+        }
+    }
+
+    /// <summary>Comet: a bright head sweeping along a gentle wave with a fading tail of beads behind it.</summary>
+    private void DrawComet(DrawingContext dc, double w, double h, double t, Color a, Color b)
+    {
+        double Y(double x) => h - 4.2 - Math.Sin(x / 90 * 2 * Math.PI + t * 1.2) * (1.4 + 2.2 * _level);
+        dc.DrawGeometry(null, new Pen(Fade(a, b, 0x30), 1.0), Line(w, Y));
+        var head = (t * 70) % (w + 80) - 20;
+        for (var i = 0; i < 14; i++)
+        {
+            var x = head - i * 5;
+            if (x < 0 || x > w) continue;
+            var c = PaletteAt(Math.Clamp(x / w, 0, 1));
+            var alpha = (byte)(230 * Math.Pow(1 - i / 14.0, 1.6));
+            var r = 2.4 * (1 - i / 18.0);
+            var brush = new SolidColorBrush(Color.FromArgb(alpha, c.R, c.G, c.B));
+            brush.Freeze();
+            dc.DrawEllipse(brush, null, new Point(x, Y(x)), r, r);
+        }
+    }
+
+    /// <summary>Pixels: a retro blocky equalizer made of small squares that hop in steps.</summary>
+    private void DrawPixels(DrawingContext dc, double w, double h, double t, Color a, Color b)
+    {
+        const double cell = 4, gap = 1.4;
+        var cols = (int)(w / (cell + gap));
+        var rows = Math.Max(1, (int)(h / (cell + gap)));
+        for (var i = 0; i < cols; i++)
+        {
+            var env = Math.Sin(Math.Clamp(i / (double)cols, 0, 1) * Math.PI);
+            var v = 0.5 + 0.5 * Math.Sin(i * 0.5 + Math.Floor(t * 6) * 1.3) * Math.Sin(i * 0.21 - Math.Floor(t * 4));
+            var filled = Math.Clamp((int)Math.Round((0.25 + 0.75 * _level * v) * rows * (0.4 + 0.6 * env)), 1, rows);
+            var c = PaletteAt(i / (double)Math.Max(1, cols - 1));
+            for (var r = 0; r < filled; r++)
+            {
+                var brush = new SolidColorBrush(Color.FromArgb((byte)(0x50 + 0x80 * env), c.R, c.G, c.B));
+                brush.Freeze();
+                dc.DrawRoundedRectangle(brush, null, new Rect(i * (cell + gap) + 1, h - (r + 1) * (cell + gap), cell, cell), 1, 1);
+            }
         }
     }
 }

@@ -228,13 +228,14 @@ public partial class SettingsWindow : Window
         {
             (ProgressStyle.Wavy, "Wavy"), (ProgressStyle.Line, "Line"), (ProgressStyle.Pill, "Thick"),
             (ProgressStyle.Soundwave, "Soundwave"), (ProgressStyle.Dots, "Dots"), (ProgressStyle.Glow, "Glow"),
+            (ProgressStyle.Ribbon, "Ribbon"), (ProgressStyle.Aurora, "Aurora"), (ProgressStyle.Pulse, "Pulse"), (ProgressStyle.Beads, "Beads"), (ProgressStyle.Spark, "Spark"),
         }, () => s.ProgressStyle, v => s.ProgressStyle = v);
         Choice(media, "Time on the pill", new[] { (CompactTime.Off, "Off"), (CompactTime.Elapsed, "Elapsed"), (CompactTime.Remaining, "Remaining") },
             () => s.CompactMediaTime, v => s.CompactMediaTime = v);
         Check(media, "Split the collapsed music pill: spinning album disc and pulse bubble beside the title", () => s.MusicSplit, v => s.MusicSplit = v);
         Check(media, "Wave ribbon along the collapsed music pill (cover colours, moves with the music)", () => s.MusicWave, v => s.MusicWave = v);
         Check(media, "Show the time of day on the music pill", () => s.ClockOnMusicPill, v => s.ClockOnMusicPill = v);
-        Choice(media, "Music pill wave", new[] { (WaveStyle.Ribbon, "Ribbon"), (WaveStyle.Silk, "Silk"), (WaveStyle.Tide, "Tide"), (WaveStyle.Pulse, "Pulse"), (WaveStyle.Bars, "Bars"), (WaveStyle.Beads, "Beads") }, () => s.WaveStyle, v => s.WaveStyle = v);
+        Choice(media, "Music pill wave", new[] { (WaveStyle.Ribbon, "Ribbon"), (WaveStyle.Silk, "Silk"), (WaveStyle.Tide, "Tide"), (WaveStyle.Pulse, "Pulse"), (WaveStyle.Bars, "Bars"), (WaveStyle.Beads, "Beads"), (WaveStyle.Aurora, "Aurora"), (WaveStyle.Comet, "Comet"), (WaveStyle.Pixels, "Pixels") }, () => s.WaveStyle, v => s.WaveStyle = v);
         Choice(media, "Audio bars", new[] { (EqualizerLook.Aura, "Aura (cover colours)"), (EqualizerLook.Silver, "Silver"), (EqualizerLook.Song, "Song colour"), (EqualizerLook.Mint, "Mint"), (EqualizerLook.Sunset, "Sunset") }, () => s.EqualizerLook, v => s.EqualizerLook = v);
         Check(media, "Artist name under the title on the collapsed pill", () => s.ShowArtistOnPill, v => s.ShowArtistOnPill = v);
         Check(media, "Thin progress line along the collapsed pill", () => s.CompactProgressLine, v => s.CompactProgressLine = v);
