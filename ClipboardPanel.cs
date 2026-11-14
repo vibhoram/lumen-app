@@ -32,6 +32,7 @@ public sealed class ClipboardPanel : Grid
     private readonly Border _detailBody = new();
     private readonly DispatcherTimer _rebuild = new() { Interval = TimeSpan.FromMilliseconds(40) };
     private Filter _filter = Filter.All;
+    private Border? _pinChip;
     private ClipItem? _open;
 
     public ClipboardPanel(ClipboardHistory history)
@@ -53,17 +54,17 @@ public sealed class ClipboardPanel : Grid
             Foreground = Brushes.White,
             CaretBrush = Brushes.White,
             FontSize = 12.5,
-            Width = 24,
+            Width = 12,
             VerticalAlignment = VerticalAlignment.Center,
             Padding = new Thickness(0),
         };
-        _searchHint = new TextBlock { Text = "Search", FontSize = 12.5, Opacity = 0.5, IsHitTestVisible = false, VerticalAlignment = VerticalAlignment.Center };
+        _searchHint = new TextBlock { Text = "", FontSize = 12.5, Opacity = 0.5, IsHitTestVisible = false, VerticalAlignment = VerticalAlignment.Center };
         var searchBox = new Border
         {
             CornerRadius = new CornerRadius(14),
             Background = AssistantPanel.B("#1AFFFFFF"),
-            Padding = new Thickness(10, 5, 10, 5),
-            Margin = new Thickness(0, 0, 8, 0),
+            Padding = new Thickness(8, 5, 6, 5),
+            Margin = new Thickness(0, 0, 6, 0),
             Child = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
@@ -76,11 +77,11 @@ public sealed class ClipboardPanel : Grid
         };
         top.Children.Add(searchBox);
 
-        foreach (var (f, label) in new[] { (Filter.All, "All"), (Filter.Images, "Images"), (Filter.Links, "Links"), (Filter.Text, "Text"), (Filter.Pinned, "") })
+        foreach (var (f, label) in new[] { (Filter.All, "All"), (Filter.Images, "Images"), (Filter.Links, "Links"), (Filter.Text, "Text") })
         {
             var chip = AssistantPanel.Chip(f == Filter.Pinned ? "" : "", label, () => { _filter = f; RefreshFilters(); QueueRebuild(); });
             if (f == Filter.Pinned) chip.ToolTip = "Pinned";
-            chip.Margin = new Thickness(0, 0, 4, 0);
+            chip.Margin = new Thickness(0, 0, 3, 0);
             chip.Tag = f;
             _filters.Children.Add(chip);
         }
@@ -111,7 +112,11 @@ public sealed class ClipboardPanel : Grid
         pause.MouseLeftButtonUp += (_, e) => { e.Handled = true; _history.Paused = !_history.Paused; };
         _history.PausedChanged += () => Dispatcher.InvokeAsync(ShowPause);
         ShowPause();
-        var right = new StackPanel { Orientation = Orientation.Horizontal, Children = { pause, clear } };
+        var pinChip = AssistantPanel.Chip("", "", () => { _filter = _filter == Filter.Pinned ? Filter.All : Filter.Pinned; RefreshFilters(); QueueRebuild(); });
+        pinChip.ToolTip = "Pinned";
+        pinChip.Margin = new Thickness(0, 0, 4, 0);
+        _pinChip = pinChip;
+        var right = new StackPanel { Orientation = Orientation.Horizontal, Children = { pinChip, pause, clear } };
         SetColumn(right, 2);
         top.Children.Add(right);
         Children.Add(top);
@@ -189,6 +194,7 @@ public sealed class ClipboardPanel : Grid
     {
         foreach (Border chip in _filters.Children)
             chip.Background = (Filter)chip.Tag == _filter ? AssistantPanel.AccentGradient() : AssistantPanel.B("#1FFFFFFF");
+        if (_pinChip is not null) _pinChip.Background = _filter == Filter.Pinned ? AssistantPanel.AccentGradient() : AssistantPanel.GlassFillBrush();
     }
 
     private IEnumerable<ClipItem> Visible()

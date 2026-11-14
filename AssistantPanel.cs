@@ -438,7 +438,7 @@ public sealed class AssistantPanel : Grid
         var tools = ClaraBrain.Tools();
 
         // Which brain answers: text-only chats run offline on this PC (Ollama); anything with a picture, or right after one, goes to Groq.
-        var cloudNeeded = image is not null || _history.TakeLast(6).Any(m => m.ImageDataUrl is not null);
+        var cloudNeeded = image is not null; // only the picture you are sending right now needs the cloud; text follow-ups stay offline
         var localModel = !cloudNeeded && _settings.AssistantUseLocalAi ? await LocalAi.PickModelAsync(_settings) : null;
         if (localModel is null && string.IsNullOrWhiteSpace(_settings.GroqApiKey)) { ShowNoKey(); SetBusy(false); return; }
         var useLocal = localModel is not null;
