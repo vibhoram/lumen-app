@@ -23,6 +23,12 @@ public enum IslandMaterial
     LiquidGlass,
 }
 
+public sealed class QuickLink
+{
+    public string Name { get; set; } = "";
+    public string Url { get; set; } = "";
+}
+
 public enum EqualizerLook { Silver, Song, Mint, Sunset }
 
 public enum CompactTime { Off, Elapsed, Remaining }
@@ -304,6 +310,9 @@ public sealed class AppSettings
     };
 
     public const int MaxQuickApps = 16;
+
+    /// <summary>Web links shown on the Apps page after the apps (YouTube, Gmail accounts...).</summary>
+    public List<QuickLink> QuickLinks { get; set; } = new();
 
     // ---- updates
     /// <summary>Check the official GitHub releases once a day.</summary>

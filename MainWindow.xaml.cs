@@ -3636,7 +3636,7 @@ public partial class MainWindow : Window
         var apps = _settings.QuickApps.Take(AppSettings.MaxQuickApps).ToList();
         var dipSize = Math.Clamp(_settings.QuickAppIconSize, 16, 48);
         var f = Scale * VisualTreeHelper.GetDpi(this).DpiScaleX; // design units → screen pixels
-        var key = $"{dipSize}|{f}\n{string.Join('\n', apps)}"; // icons are rendered for the size
+        var key = $"{dipSize}|{f}\n{string.Join('\n', apps)}\n{string.Join('\n', _settings.QuickLinks.Select(l => l.Name + l.Url))}"; // icons are rendered for the size
         if (key == _quickAppsKey) return;
         _quickAppsKey = key;
 
@@ -3663,8 +3663,47 @@ public partial class MainWindow : Window
             QuickAppsRow.Children.Add(button);
         }
 
-        // "+" to pick apps in Settings.
-        if (QuickAppsRow.Children.Count < AppSettings.MaxQuickApps)
+        // web links: YouTube, Gmail accounts...
+        foreach (var link in _settings.QuickLinks.ToList())
+        {
+            var letter = new TextBlock { Text = link.Name.Length > 0 ? char.ToUpperInvariant(link.Name[0]).ToString() : "?", FontSize = shown * 0.5, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            var favicon = new Image { Width = shown * 0.72, Height = shown * 0.72, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            var disc = new Grid
+            {
+                Width = shown, Height = shown,
+                Children = { new Border { CornerRadius = new CornerRadius(shown * 0.28), Background = new SolidColorBrush(Color.FromArgb(0x33, 255, 255, 255)) }, letter, favicon },
+            };
+            var tile = AppTile(disc, link.Name, tileWidth, tileHeight);
+            tile.ToolTip = link.Url;
+            tile.Click += (_, _) =>
+            {
+                _hoverSuppressed = true;
+                SetExpanded(false);
+                try { Process.Start(new ProcessStartInfo(link.Url) { UseShellExecute = true })?.Dispose(); } catch (Exception) { }
+            };
+            // right-click removes it
+            tile.MouseRightButtonUp += (_, e) =>
+            {
+                e.Handled = true;
+                _settings.QuickLinks.Remove(link);
+                _settings.NotifyChanged();
+                _settings.Save();
+            };
+            QuickAppsRow.Children.Add(tile);
+            _ = LoadFaviconAsync(link.Url, favicon, letter);
+        }
+
+        // "+ Link" opens a small dialog; "+" picks apps in Settings.
+        var addLink = AppTile(new Grid
+            {
+                Width = shown,
+                Height = shown,
+                Children = { new TextBlock { Style = (Style)FindResource("Glyph"), Text = "\uE71B", FontSize = Math.Max(14, dipSize * 0.5), Foreground = (Brush)FindResource("Secondary") } },
+            }, "Add link", tileWidth, tileHeight);
+        addLink.Click += (_, _) => AddLinkDialog();
+        QuickAppsRow.Children.Add(addLink);
+
+        if (QuickAppsRow.Children.Count < AppSettings.MaxQuickApps + _settings.QuickLinks.Count + 1)
         {
             var add = AppTile(new Grid
                 {
@@ -3680,6 +3719,28 @@ public partial class MainWindow : Window
         var perRow = Math.Clamp((int)((ExpandedWidth - 36) / tileWidth), 1, Math.Max(1, QuickAppsRow.Children.Count));
         QuickAppsRow.Width = perRow * tileWidth;
         if (IsLoaded && _state.IsExpanded) Render();
+    }
+
+    private static async Task LoadFaviconAsync(string url, Image target, TextBlock letter)
+    {
+        var icon = await FaviconService.GetAsync(url);
+        if (icon is null) return;
+        target.Source = icon;
+        letter.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>Asks for a name and address (a copied link is pre-filled) and adds the link to the Apps page.</summary>
+    private void AddLinkDialog()
+    {
+        string? prefill = null;
+        try { if (Clipboard.ContainsText() && Uri.TryCreate(Clipboard.GetText().Trim(), UriKind.Absolute, out var u) && u.Scheme is "http" or "https") prefill = u.ToString(); } catch (Exception) { }
+        _hoverSuppressed = true;
+        SetExpanded(false);
+        var dialog = new LinkDialog(prefill);
+        if (dialog.ShowDialog() != true) return;
+        _settings.QuickLinks.Add(new QuickLink { Name = dialog.LinkName, Url = dialog.LinkUrl });
+        _settings.NotifyChanged();
+        _settings.Save();
     }
 
     private Button AppTile(FrameworkElement icon, string name, double width, double height)
