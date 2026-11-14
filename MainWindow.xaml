@@ -363,10 +363,6 @@
 
                     <!-- Page navigation (tabs or dots, built in code); mic/camera chip on the right, left of the gear. -->
                     <Grid x:Name="PageNav" Height="22" Margin="0,0,34,10">
-                        <!-- The selected tab's glass pill: one shape that glides between tabs (MoveTabLozenge). -->
-                        <Border x:Name="TabLozenge" HorizontalAlignment="Left" VerticalAlignment="Top" CornerRadius="14"
-                                IsHitTestVisible="False" Visibility="Collapsed" BorderThickness="1"
-                                Background="{StaticResource GlassFill}" BorderBrush="{StaticResource GlassRim}" />
                         <StackPanel x:Name="PageTabs" Orientation="Horizontal" VerticalAlignment="Center" />
                         <StackPanel x:Name="PrivacyChip" Orientation="Horizontal" HorizontalAlignment="Right"
                                     VerticalAlignment="Center" Visibility="Collapsed">
