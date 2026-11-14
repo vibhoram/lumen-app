@@ -91,9 +91,6 @@
         <!-- Liquid Glass: a live, blurred copy of the screen behind the island, clipped to its shape. -->
         <Canvas x:Name="GlassLayer" IsHitTestVisible="False" Visibility="Collapsed">
             <Image x:Name="GlassImage" Stretch="Fill" RenderOptions.BitmapScalingMode="Linear">
-                <Image.Effect>
-                    <BlurEffect Radius="14" KernelType="Gaussian" RenderingBias="Performance" />
-                </Image.Effect>
             </Image>
         </Canvas>
 

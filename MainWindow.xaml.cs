@@ -44,6 +44,7 @@ public partial class MainWindow : Window
     private readonly VolumeService _volume = new();
     private readonly BrightnessService _brightness = new();
     private readonly VolumeKeyHook _volumeKeys = new();
+    private readonly MouseShakeService _shake = new();
     private readonly BatteryService _battery = new();
     private readonly WallpaperEngineService _wallpaper = new();
     private readonly DeviceService _devices = new();
@@ -72,6 +73,8 @@ public partial class MainWindow : Window
     private readonly ScreenCapture _capture = new();
     private readonly DispatcherTimer _glassTimer = new(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(33) };
     private WriteableBitmap? _glassBitmap;
+    private readonly BlurEffect _blur = new() { Radius = 14, KernelType = KernelType.Gaussian, RenderingBias = RenderingBias.Performance };
+    private readonly LiquidGlassEffect _refraction = new();
     private bool _excludedFromCapture;
     private bool _captureUnsupported;
 
@@ -156,6 +159,8 @@ public partial class MainWindow : Window
         _volume.Changed += ShowVolume;
         _brightness.Changed += ShowBrightness;
         _volumeKeys.VolumeKey += OnVolumeKey;
+        _shake.Shaken += () => SetIslandHidden(!IslandHidden);
+        _peekTimer.Tick += (_, _) => PeekTick();
         _battery.Alert += OnBatteryAlert;
         _devices.Changed += OnDeviceChanged;
         _keyboard.LockToggled += OnLockToggled;
@@ -189,7 +194,7 @@ public partial class MainWindow : Window
         _hoverTimer.Tick += (_, _) =>
         {
             _hoverTimer.Stop();
-            SetExpanded(true);
+            if (!_peeking) SetExpanded(true);
         };
         _leavePoll.Tick += OnLeavePoll;
         _progressTimer.Tick += (_, _) => UpdateProgress();
@@ -372,6 +377,8 @@ public partial class MainWindow : Window
 
         _hoverTimer.Interval = TimeSpan.FromMilliseconds(Math.Max(1, _settings.HoverDelayMs));
         _volumeKeys.Enabled = _settings.HideVolumeFlyout;
+        _shake.Sensitivity = _settings.ShakeSensitivity;
+        _shake.Enabled = _settings.MagicShake;
 
         Root.LayoutTransform = Math.Abs(Scale - 1) < 0.001 ? Transform.Identity : new ScaleTransform(Scale, Scale);
         Width = BaseWidth * Scale;
@@ -754,6 +761,7 @@ public partial class MainWindow : Window
         _wallpaper.Dispose();
         _background.Dispose();
         _volumeKeys.Dispose();
+        _shake.Dispose();
         _battery.Dispose();
         _devices.Dispose();
         _keyboard.Dispose();
@@ -1429,6 +1437,7 @@ public partial class MainWindow : Window
         // Auto: the GPU engine can't draw WinUI 3 windows (their thumbnails come out empty), so while
         // one is the top window behind the island the screen-capture engine takes over.
         var gpu = wantBlur && _settings.GlassEngine != GlassEngine.ScreenCapture
+                  && _settings.GlassEngine != GlassEngine.Refraction
                   && !(_settings.GlassEngine == GlassEngine.Auto && _winUiBehind)
                   && GpuBlurVerified() && EnsureGpuBlur();
         if (gpu != _gpuActive)
@@ -1446,7 +1455,15 @@ public partial class MainWindow : Window
         GlassLayer.Visibility = capture ? Visibility.Visible : Visibility.Collapsed;
         if (capture)
         {
-            ((BlurEffect)GlassImage.Effect).Radius = Math.Clamp(_settings.GlassBlur, 0, 1) * MaxGlassBlur;
+            if (_settings.GlassEngine == GlassEngine.Refraction)
+            {
+                GlassImage.Effect = _refraction;
+            }
+            else
+            {
+                GlassImage.Effect = _blur;
+                _blur.Radius = Math.Clamp(_settings.GlassBlur, 0, 1) * MaxGlassBlur;
+            }
             CaptureGlass();
             _glassTimer.Start();
         }
@@ -1687,7 +1704,8 @@ public partial class MainWindow : Window
 
         var dpi = VisualTreeHelper.GetDpi(this);
         var f = dpi.DpiScaleX * Scale; // design units → screen pixels
-        var pad = ((BlurEffect)GlassImage.Effect).Radius + 4;
+        var refract = GlassImage.Effect is LiquidGlassEffect;
+        var pad = refract ? 48 : _blur.Radius + 4;
         var w = Math.Max(0, _width.Value);
         var h = Math.Max(0, _height.Value);
 
@@ -1710,6 +1728,21 @@ public partial class MainWindow : Window
             GlassImage.Source = _glassBitmap;
         }
         _glassBitmap.WritePixels(new Int32Rect(0, 0, pw, ph), _capture.Bits, _capture.BufferSize, _capture.Stride);
+
+        if (refract)
+        {
+            // Pill rectangle inside the capture, in capture pixels.
+            var pillLeft = (BaseWidth - w) / 2 * f - px;
+            var pillTop = PillTop * f - py;
+            var radius = Math.Clamp(_radius.Value, 0, Math.Min(w, h) / 2) * f;
+            var bevel = Math.Max(8 * f, Math.Min(w, h) * f * 0.35);
+            var blur = Math.Clamp(_settings.GlassBlur, 0, 1) * MaxGlassBlur * f * 0.35;
+            var strength = Math.Clamp(_settings.GlassRefraction, 0, 1) * 34 * f;
+            _refraction.Rect = new System.Windows.Media.Media3D.Point4D(pillLeft + w * f / 2, pillTop + h * f / 2, w * f / 2, h * f / 2);
+            _refraction.P1 = new System.Windows.Media.Media3D.Point4D(radius, pw, ph, strength);
+            _refraction.P2 = new System.Windows.Media.Media3D.Point4D(bevel, blur, -2.35, Math.Clamp(_settings.GlassTint, 0, 0.9));
+            _refraction.P3 = new System.Windows.Media.Media3D.Point4D(Math.Clamp(_settings.GlassShine, 0, 1), 0.06, 1.25, 0);
+        }
 
         Canvas.SetLeft(GlassImage, px / f);
         Canvas.SetTop(GlassImage, py / f);
@@ -1933,8 +1966,40 @@ public partial class MainWindow : Window
 
     // ---------------------------------------------------------------- hover / click
 
+    // ---- Peek-through: hold Ctrl over the island and it fades and lets clicks pass to the window behind.
+    private readonly DispatcherTimer _peekTimer = new() { Interval = TimeSpan.FromMilliseconds(40) };
+    private bool _peeking;
+
+    private void PeekTick()
+    {
+        var want = false;
+        var inside = false;
+        if (_settings.CtrlPeek && !IslandHidden && GetIslandScreenRect() is { } r && NativeMethods.GetCursorPos(out var c))
+        {
+            inside = c.X >= r.Left && c.X <= r.Right && c.Y >= r.Top && c.Y <= r.Bottom;
+            want = inside && (NativeMethods.GetAsyncKeyState(NativeMethods.VK_CONTROL) & 0x8000) != 0;
+        }
+        SetPeek(want);
+        if (!inside && !_peeking) _peekTimer.Stop();
+    }
+
+    private void SetPeek(bool peek)
+    {
+        if (peek == _peeking) return;
+        _peeking = peek;
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd != IntPtr.Zero)
+        {
+            var ex = NativeMethods.GetExStyle(hwnd);
+            NativeMethods.SetExStyle(hwnd, peek ? ex | NativeMethods.WS_EX_TRANSPARENT : ex & ~(long)NativeMethods.WS_EX_TRANSPARENT);
+        }
+        if (peek) SetExpanded(false);
+        if (!IslandHidden) FadeRoot(peek ? 0.12 : 1, peek ? 120 : 180);
+    }
+
     private void OnRootMouseEnter(object sender, MouseEventArgs e)
     {
+        if (_settings.CtrlPeek) _peekTimer.Start();
         if (_settings.ExpandOnHover && !_state.IsExpanded && !_hoverSuppressed) _hoverTimer.Start();
     }
 

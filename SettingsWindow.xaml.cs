@@ -132,6 +132,10 @@ public partial class SettingsWindow : Window
         Check(interaction, "Expand on hover (click always works)", () => s.ExpandOnHover, v => s.ExpandOnHover = v);
         Slider(interaction, "Hover delay", 0, 1000, 10, () => s.HoverDelayMs, v => s.HoverDelayMs = (int)v, v => $"{v:0} ms");
         Slider(interaction, "Collapse delay", 0, 1500, 10, () => s.CollapseDelayMs, v => s.CollapseDelayMs = (int)v, v => $"{v:0} ms");
+        Check(interaction, "Magic Shake: shake the mouse quickly to hide / show the island", () => s.MagicShake, v => s.MagicShake = v);
+        Check(interaction, "Peek-through: hold Ctrl over the island to click through to what's behind it", () => s.CtrlPeek, v => s.CtrlPeek = v);
+        Choice(interaction, "Shake sensitivity", new[] { (ShakeSensitivity.Low, "Low"), (ShakeSensitivity.Medium, "Medium"), (ShakeSensitivity.High, "High") },
+            () => s.ShakeSensitivity, v => s.ShakeSensitivity = v);
 
         var animation = Section("ANIMATION");
         Slider(animation, "Speed", 0.5, 2.5, 0.1, () => s.AnimationSpeed, v => s.AnimationSpeed = v, v => $"{v:0.0}×");
@@ -308,12 +312,15 @@ public partial class SettingsWindow : Window
                     v => v == 0 ? "Clear" : v >= 1 ? "Frosted" : $"{v * 100:0}%");
                 Slider(_materialOptions, "Shininess", 0, 1, 0.05, () => s.GlassShine, v => s.GlassShine = v,
                     v => v == 0 ? "Matte" : $"{v * 100:0}%");
+                Slider(_materialOptions, "Refraction", 0, 1, 0.05, () => s.GlassRefraction, v => s.GlassRefraction = v,
+                    v => v == 0 ? "None" : $"{v * 100:0}%");
                 Slider(_materialOptions, "Tint", 0, 0.9, 0.02, () => s.GlassTint, v => s.GlassTint = v, v => v == 0 ? "None" : $"{v * 100:0}%");
                 Choice(_materialOptions, "Blur engine", new[]
                 {
                     (GlassEngine.Auto, "Auto"),
                     (GlassEngine.Gpu, "GPU"),
                     (GlassEngine.ScreenCapture, "Screen capture"),
+                    (GlassEngine.Refraction, "Refraction (beta)"),
                 }, () => s.GlassEngine, v => s.GlassEngine = v);
                 Note(_materialOptions,
                     "GPU: Windows draws what's behind the island and the GPU blurs it. Near-zero CPU, and the island " +
@@ -918,7 +925,16 @@ public partial class SettingsWindow : Window
         };
         Sections.Children.Add(header);
         var panel = new StackPanel();
-        Sections.Children.Add(panel);
+        // Each section sits on a rounded card.
+        Sections.Children.Add(new Border
+        {
+            Background = Frozen(Color.FromArgb(0xFF, 0x1F, 0x1F, 0x23)),
+            BorderBrush = Frozen(Color.FromArgb(0x1A, 0xFF, 0xFF, 0xFF)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(14),
+            Padding = new Thickness(16, 8, 16, 8),
+            Child = panel,
+        });
         // "WALLPAPER ENGINE" → "Wallpaper Engine"
         AddNavItem(navLabel ?? System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(title.ToLowerInvariant()), header);
         return panel;

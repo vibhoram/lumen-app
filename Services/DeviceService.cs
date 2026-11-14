@@ -111,7 +111,7 @@ public sealed class DeviceService : IDisposable
 
     private async void Report(string id)
     {
-        var device = _devices[id];
+        if (!_devices.TryGetValue(id, out var device)) return; // removed while we were waiting
         int? battery = null;
         if (device.Connected && _ready) battery = await BatteryAsync(id);
         Raise(device.Name, device.Kind, device.Connected, battery);

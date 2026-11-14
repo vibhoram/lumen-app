@@ -49,6 +49,12 @@
     <None Include="Identity\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- Compiled pixel shader for the Liquid Glass refraction (source: Shaders\LiquidGlass.fx). -->
+  <ItemGroup>
+    <Resource Include="Shaders\LiquidGlass.ps" />
+    <None Include="Shaders\LiquidGlass.fx" />
+  </ItemGroup>
+
   <!-- Licence, privacy statement and third-party notices travel with every build (Settings > About links them). -->
   <ItemGroup>
     <None Include="LICENSE.txt;NOTICE.txt;PRIVACY.txt;THIRD-PARTY-NOTICES.txt" CopyToOutputDirectory="PreserveNewest" />

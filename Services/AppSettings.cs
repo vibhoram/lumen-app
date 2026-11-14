@@ -31,6 +31,8 @@ public enum GlassEngine
     Gpu,
     /// <summary>Screen copy + blur; hides the island from screenshots while blurring.</summary>
     ScreenCapture,
+    /// <summary>Screen copy bent through the island's shape by a pixel shader (true refraction).</summary>
+    Refraction,
 }
 
 public enum AccentSource
@@ -91,6 +93,9 @@ public sealed class AppSettings
 
     /// <summary>Liquid Glass edge highlight and top sheen, 0 = matte, 1 = very glossy.</summary>
     public double GlassShine { get; set; } = 0.3;
+
+    /// <summary>How strongly the Refraction engine bends the background at the island's rim.</summary>
+    public double GlassRefraction { get; set; } = 0.6;
 
     /// <summary>Soft shadow behind text and icons so they stay readable over see-through materials.</summary>
     public bool TextShadow { get; set; } = true;
@@ -172,6 +177,14 @@ public sealed class AppSettings
     public double TopOffset { get; set; }
 
     public bool HideVolumeFlyout { get; set; }
+
+    /// <summary>Shake the mouse quickly left and right to hide / show the island.</summary>
+    public bool MagicShake { get; set; } = true;
+
+    /// <summary>Hold Ctrl over the island and it fades and lets clicks through to the window behind (e.g. browser tabs).</summary>
+    public bool CtrlPeek { get; set; } = true;
+
+    public ShakeSensitivity ShakeSensitivity { get; set; } = ShakeSensitivity.Medium;
 
     /// <summary>System-wide shortcut that hides / shows the island, e.g. "Ctrl+Alt+I"; empty = none.</summary>
     public string ToggleHotkey { get; set; } = "Ctrl+Alt+I";
@@ -310,6 +323,7 @@ public sealed class AppSettings
         GlassBlur = d.GlassBlur;
         GlassEngine = d.GlassEngine;
         GlassShine = d.GlassShine;
+        GlassRefraction = d.GlassRefraction;
         TextShadow = d.TextShadow;
         IslandScale = d.IslandScale;
         CornerRoundness = d.CornerRoundness;
