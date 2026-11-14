@@ -17,6 +17,8 @@ public sealed class TimerService
     }
 
     public bool IsActive { get; private set; }
+    /// <summary>The length the timer was started with (plus any added minutes), for progress rings.</summary>
+    public TimeSpan Total { get; private set; }
     public bool IsPaused { get; private set; }
 
     public TimeSpan Remaining =>
@@ -33,6 +35,7 @@ public sealed class TimerService
     public void Start(TimeSpan duration)
     {
         _endUtc = DateTime.UtcNow + duration;
+        Total = duration;
         IsActive = true;
         IsPaused = false;
         _tick.Start();
@@ -61,6 +64,7 @@ public sealed class TimerService
     public void Add(TimeSpan amount)
     {
         if (!IsActive) return;
+        Total += amount;
         if (IsPaused) _pausedRemaining += amount;
         else _endUtc += amount;
         Tick?.Invoke();

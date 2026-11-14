@@ -706,6 +706,21 @@
             <Ellipse x:Name="ActivityBubbleBack" Fill="#F00B0B0C" />
             <Ellipse x:Name="ActivityBubbleArt" Margin="5" Visibility="Collapsed" />
             <TextBlock x:Name="ActivityBubbleGlyph" Style="{StaticResource Glyph}" FontSize="15" Text="&#xE916;" />
+            <Path x:Name="ActivityBubbleRing" StrokeThickness="2.4" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                  IsHitTestVisible="False" />
+        </Grid>
+
+        <!-- Third activity: a second bubble after the first. -->
+        <Grid x:Name="ActivityBubble2" HorizontalAlignment="Left" VerticalAlignment="Top" Width="36" Height="36"
+              Visibility="Collapsed" RenderTransformOrigin="0,0.5" Cursor="Hand">
+            <Grid.RenderTransform>
+                <ScaleTransform />
+            </Grid.RenderTransform>
+            <Ellipse Fill="#F00B0B0C" />
+            <Ellipse x:Name="ActivityBubbleArt2" Margin="5" Visibility="Collapsed" />
+            <TextBlock x:Name="ActivityBubbleGlyph2" Style="{StaticResource Glyph}" FontSize="15" Text="&#xE916;" />
+            <Path x:Name="ActivityBubbleRing2" StrokeThickness="2.4" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                  IsHitTestVisible="False" />
         </Grid>
 
         <!-- Mic (orange) / camera (green) in use, just right of the collapsed pill like the iPhone's

@@ -79,6 +79,9 @@ public sealed class StateController
     /// <summary>The next activity after the one in the pill, shown as a bubble beside it (like the iPhone's split island).</summary>
     public IslandView? SecondaryView => Activities().Skip(1).Select(v => (IslandView?)v).FirstOrDefault();
 
+    /// <summary>The third running activity, shown as a second bubble.</summary>
+    public IslandView? TertiaryView => Activities().Skip(2).Select(v => (IslandView?)v).FirstOrDefault();
+
     public IslandView CurrentView => _transient ?? PersistentView;
 
     /// <summary>

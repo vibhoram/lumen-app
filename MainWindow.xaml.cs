@@ -1396,11 +1396,12 @@ public partial class MainWindow : Window
 
         // The second-activity bubble sits just right of the pill, as tall as it; the privacy dot after it.
         var right = (BaseWidth + w) / 2;
-        if (ActivityBubble.Visibility == Visibility.Visible)
+        foreach (var bubble in new[] { ActivityBubble, ActivityBubble2 })
         {
+            if (bubble.Visibility != Visibility.Visible) continue;
             var size = Math.Max(26, h);
-            ActivityBubble.Width = ActivityBubble.Height = size;
-            ActivityBubble.Margin = new Thickness(right + 7, PillTop + (h - size) / 2, 0, 0);
+            bubble.Width = bubble.Height = size;
+            bubble.Margin = new Thickness(right + 7, PillTop + (h - size) / 2, 0, 0);
             right += 7 + size;
         }
         if (PrivacyDot.Visibility == Visibility.Visible)
@@ -1535,7 +1536,7 @@ public partial class MainWindow : Window
         {
             // The lens ring reads the screen through Desktop Duplication (a GPU texture), sampling only outside the island's own shape.
             var wantLens = _settings.GlassEngine == GlassEngine.Lens && !_lensFailed;
-            if (wantLens && !(_gpuBlur.SetLens(true, (float)(_settings.GlassRefraction * 30 * VisualTreeHelper.GetDpi(this).DpiScaleX * Scale), (float)_settings.GlassShine)))
+            if (wantLens && !(_gpuBlur.SetLens(true, (float)(_settings.GlassRefraction * 52 * VisualTreeHelper.GetDpi(this).DpiScaleX * Scale), (float)_settings.GlassShine)))
             {
                 _lensFailed = true; // keep the plain blur from now on
             }
@@ -3598,6 +3599,7 @@ public partial class MainWindow : Window
         var text = TimerService.Format(_timer.Remaining);
         TimerTextSmall.Text = text;
         TimerTextLarge.Text = text;
+        UpdateBubbleRings();
     }
 
     private void OnTimerStateChanged()
@@ -3726,52 +3728,70 @@ public partial class MainWindow : Window
     /// </summary>
     private Artwork? _bubbleArt;
 
+    private Artwork? _bubbleArt2;
+
     private void UpdateSecondActivity()
     {
-        var secondary = _settings.ShowSecondActivity && !_state.IsExpanded && _state.Transient is null
-            ? _state.SecondaryView
-            : null;
-        var show = secondary is not null;
-        var wasShown = ActivityBubble.Visibility == Visibility.Visible;
+        var allowed = _settings.ShowSecondActivity && !_state.IsExpanded && _state.Transient is null;
+        var second = allowed ? _state.SecondaryView : null;
+        var third = allowed ? _state.TertiaryView : null;
 
-        if (secondary == IslandView.Media)
+        FillBubble(ActivityBubble, ActivityBubbleArt, ActivityBubbleGlyph, second, ref _bubbleArt);
+        FillBubble(ActivityBubble2, ActivityBubbleArt2, ActivityBubbleGlyph2, third, ref _bubbleArt2);
+        var changed = ShowBubble(ActivityBubble, second is not null);
+        changed |= ShowBubble(ActivityBubble2, third is not null);
+        UpdateBubbleRings();
+        if (changed) ApplyGeometry(); // positions, and move the privacy dot past them
+    }
+
+    /// <summary>Puts the right content (artwork or a glyph) into a bubble for the given activity.</summary>
+    private void FillBubble(Grid bubble, Ellipse artEllipse, TextBlock glyph, IslandView? view, ref Artwork? cachedArt)
+    {
+        if (view is null) return;
+        if (view == IslandView.Media)
         {
             // Build the brush only when the artwork changes (state changes are frequent; animated
             // artwork would restart on every new brush).
-            if (!ReferenceEquals(_bubbleArt, _shownArt))
+            if (!ReferenceEquals(cachedArt, _shownArt))
             {
-                _bubbleArt = _shownArt;
-                ActivityBubbleArt.Fill = _shownArt?.CreateBrush();
+                cachedArt = _shownArt;
+                artEllipse.Fill = _shownArt?.CreateBrush();
             }
-            var art = ActivityBubbleArt.Fill;
-            ActivityBubbleArt.Visibility = art is null ? Visibility.Collapsed : Visibility.Visible;
-            ActivityBubbleGlyph.Text = ""; // music note, if no art
-            ActivityBubbleGlyph.Foreground = (Brush)FindResource("Secondary");
-            ActivityBubbleGlyph.Visibility = art is null ? Visibility.Visible : Visibility.Collapsed;
-            ActivityBubble.ToolTip = _media.Current?.Title;
+            var art = artEllipse.Fill;
+            artEllipse.Visibility = art is null ? Visibility.Collapsed : Visibility.Visible;
+            glyph.Text = "\uE8D6"; // music note, if no art
+            glyph.Foreground = (Brush)FindResource("Secondary");
+            glyph.Visibility = art is null ? Visibility.Visible : Visibility.Collapsed;
+            bubble.ToolTip = _media.Current?.Title;
         }
-        else if (secondary is { } activity)
+        else
         {
-            ActivityBubbleArt.Visibility = Visibility.Collapsed;
-            ActivityBubbleGlyph.Visibility = Visibility.Visible;
-            ActivityBubbleGlyph.Text = "";
-            ActivityBubbleGlyph.Foreground = (Brush)FindResource(activity == IslandView.Timer ? "Orange" : "Cyan");
-            ActivityBubble.ToolTip = activity == IslandView.Timer ? TimerService.Format(_timer.Remaining) : "Stopwatch";
+            var focus = _focusSession.Phase != FocusPhase.Idle && view == IslandView.Timer;
+            artEllipse.Visibility = Visibility.Collapsed;
+            glyph.Visibility = Visibility.Visible;
+            glyph.Text = "\uE916";
+            glyph.Foreground = (Brush)FindResource(focus ? "Green" : view == IslandView.Timer ? "Orange" : "Cyan");
+            bubble.ToolTip = focus ? "Focus · " + TimerService.Format(_timer.Remaining)
+                : view == IslandView.Timer ? TimerService.Format(_timer.Remaining) : "Stopwatch";
         }
+    }
 
-        if (show == wasShown) return;
-        ActivityBubble.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+    /// <summary>Shows or hides a bubble; one that appears pops out of the pill's edge. Returns true if it changed.</summary>
+    private bool ShowBubble(Grid bubble, bool show)
+    {
+        var wasShown = bubble.Visibility == Visibility.Visible;
+        if (show == wasShown) return false;
+        bubble.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
         if (show)
         {
-            // Pops out of the pill's edge, like the iPhone's island splitting in two.
             var time = TimeSpan.FromMilliseconds(320 / SpeedFactor);
             var pop = new DoubleAnimation(0.2, 1, time) { EasingFunction = new BackEase { Amplitude = 0.35, EasingMode = EasingMode.EaseOut } };
             Timeline.SetDesiredFrameRate(pop, FrameRateCap);
-            var scale = (ScaleTransform)ActivityBubble.RenderTransform;
+            var scale = (ScaleTransform)bubble.RenderTransform;
             scale.BeginAnimation(ScaleTransform.ScaleXProperty, pop);
             scale.BeginAnimation(ScaleTransform.ScaleYProperty, pop);
         }
-        ApplyGeometry(); // position, and move the privacy dot past it
+        return true;
     }
 
     /// <summary>Opens the app that's playing (click on the collapsed music activity, when enabled).</summary>

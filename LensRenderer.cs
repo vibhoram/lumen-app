@@ -169,7 +169,7 @@ internal sealed class LensRenderer : IDisposable
         {
             _origX = screenLeft - _monLeft;
             _origY = screenTop - _monTop;
-            var bevel = Math.Clamp(Math.Min(w, h) * 0.30f, 9f, 34f);
+            var bevel = Math.Clamp(Math.Min(w, h) * 0.55f, 16f, 64f);
             _params = new Params
             {
                 RectX = x + w / 2, RectY = y + h / 2, RectW = w / 2, RectH = h / 2,

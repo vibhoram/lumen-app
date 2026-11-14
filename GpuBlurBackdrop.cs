@@ -269,7 +269,7 @@ internal sealed class GpuBlurBackdrop : IDisposable
         _blur.SetStandardDeviation(Math.Max(0.01f, blurRadius / 3f));
         _root3?.SetOpacity(Math.Clamp(opacity, 0, 1));
         _device.Commit();
-        _lens?.SetShape(x, y, width, height, radius, _bounds.Left, _bounds.Top, blurRadius * 0.6f, _lensStrength, 0.07f, _lensShine);
+        _lens?.SetShape(x, y, width, height, radius, _bounds.Left, _bounds.Top, Math.Min(4f, blurRadius * 0.25f), _lensStrength, 0.07f, _lensShine);
     }
 
     public void Dispose()

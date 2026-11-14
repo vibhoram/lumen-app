@@ -49,14 +49,14 @@ float4 main(float4 sv : SV_Position) : SV_Target
     float depth = max(-d, 0);
     float bevel = max(p1.y, 2);
     float t = saturate(1 - depth / bevel);           // 1 at the rim, 0 at the inner edge of the bevel
-    float lens = t * t * t;                          // strong only near the very edge, flat inside
-    lens = lens * 0.85 + t * t * 0.15;
+    float lens = t * t;                              // grows steadily toward the rim
+    lens = lens * 0.8 + t * t * t * t * 0.2;
 
     // Bend. The screen copy contains the island itself, so the lens never samples under the pill: it
     // reads the background just OUTSIDE the edge, along the outward normal, and squeezes it into the
     // bevel (like the rim of a thick glass dome gathering the surroundings). Samples reach farther out the
     // deeper the pixel is, which compresses a wide band of background into the thin rim.
-    float reach = p1.z * lens + depth * 1.7 + 2.0;
+    float reach = p1.z * lens + depth * 2.6 + 3.0;
     float2 mon = pos + p2.zw;
     float2 invMon = 1.0 / p2.xy;
     float disp = p3.y;
@@ -71,7 +71,7 @@ float4 main(float4 sv : SV_Position) : SV_Target
     col = lerp(col, float3(0.086, 0.086, 0.102), 0.12); // keep the same graphite core as the island fill
 
     // How much of the lens shows: full at the rim, fading into the blurred middle.
-    float ringA = smoothstep(0.0, 0.5, t);
+    float ringA = smoothstep(0.0, 0.85, t);
 
     // Specular edge: crisp line on the lit side (top-left), softer on the far side, plus a wide glow.
     float2 L = float2(cos(p1.w), sin(p1.w));
@@ -84,7 +84,7 @@ float4 main(float4 sv : SV_Position) : SV_Target
     float unlit = pow(saturate(-facing), 1.6);
     float shine = 0.35 + 0.65 * p3.z;
     float spec = rimSharp * (lit * 0.85 + unlit * 0.40) * shine
-               + rimWide * (lit * 0.28 + unlit * 0.12) * shine;
+               + rimWide * (lit * 0.13 + unlit * 0.05) * shine;
 
     float a = saturate(ringA + spec) * mask;
     float3 rgb = (col * ringA + spec.xxx) * mask;
