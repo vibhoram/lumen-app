@@ -1177,15 +1177,56 @@ public partial class MainWindow : Window
             tab.Button.ToolTip = selected ? null : PageTitle(tab.Page);
             tab.Button.Padding = dots ? new Thickness(5, 6, 5, 6) : new Thickness(7, 3, selected ? 9 : 7, 3);
             // the selected tab is a glass pill: light fill, thin rim lit from the top-left (same as the other buttons)
-            var glassTab = !dots && selected;
-            tab.Button.Background = glassTab ? (Brush)FindResource("GlassFill") : Brushes.Transparent;
-            tab.Button.BorderBrush = glassTab ? (Brush)FindResource("GlassRim") : Brushes.Transparent;
-            tab.Button.BorderThickness = new Thickness(glassTab ? 1 : 0);
+            // (drawn by TabLozenge, which glides from tab to tab; the Home lens may paint its own background on top)
+            tab.Button.Background = Brushes.Transparent;
+            tab.Button.BorderBrush = Brushes.Transparent;
+            tab.Button.BorderThickness = new Thickness(0);
             if (tab.Dot is not null) tab.Dot.Fill = selected ? Brushes.White : new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF));
             if (tab.Glyph is not null) tab.Glyph.Foreground = selected ? Brushes.White : secondary;
             if (tab.Label is not null) tab.Label.Visibility = selected ? Visibility.Visible : Visibility.Collapsed;
         }
-        Dispatcher.InvokeAsync(UpdateHomeLens, DispatcherPriority.Loaded);
+        Dispatcher.InvokeAsync(() => { MoveTabLozenge(); UpdateHomeLens(); }, DispatcherPriority.Loaded);
+    }
+
+    private bool _lozengePlaced;
+
+    /// <summary>Glides the glass pill to the selected tab with a soft spring; the first placement is instant.</summary>
+    private void MoveTabLozenge()
+    {
+        var tab = _tabs.FirstOrDefault(t => t.Page == _page);
+        if (tab is null || _settings.PageNavigation == PageNavigation.Dots || !tab.Button.IsLoaded || tab.Button.ActualWidth < 4)
+        {
+            TabLozenge.Visibility = Visibility.Collapsed;
+            _lozengePlaced = false;
+            return;
+        }
+        PageNav.UpdateLayout(); // label visibility changed the tab widths: measure the settled layout
+        // Layout position only: the dock-style hover magnification moves/scales the buttons' render transforms.
+        double x = PageTabs.Margin.Left;
+        foreach (var t in _tabs)
+        {
+            if (t == tab) break;
+            x += t.Button.ActualWidth + t.Button.Margin.Left + t.Button.Margin.Right;
+        }
+        x += tab.Button.Margin.Left;
+        double w = tab.Button.ActualWidth, h = tab.Button.ActualHeight;
+        var margin = new Thickness(x, Math.Max(0, (PageNav.ActualHeight - h) / 2), 0, 0);
+        TabLozenge.Visibility = Visibility.Visible;
+        TabLozenge.CornerRadius = new CornerRadius(h / 2);
+        TabLozenge.Height = h;
+        if (!_lozengePlaced || !_state.IsExpanded)
+        {
+            TabLozenge.BeginAnimation(FrameworkElement.MarginProperty, null);
+            TabLozenge.BeginAnimation(FrameworkElement.WidthProperty, null);
+            TabLozenge.Margin = margin;
+            TabLozenge.Width = w;
+            _lozengePlaced = true;
+            return;
+        }
+        var ease = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.35 };
+        var time = TimeSpan.FromMilliseconds(340);
+        TabLozenge.BeginAnimation(FrameworkElement.MarginProperty, new ThicknessAnimation(margin, time) { EasingFunction = ease });
+        TabLozenge.BeginAnimation(FrameworkElement.WidthProperty, new DoubleAnimation(w, time) { EasingFunction = ease });
     }
 
     /// <summary>
