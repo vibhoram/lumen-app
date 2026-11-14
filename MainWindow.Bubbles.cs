@@ -47,6 +47,14 @@ public partial class MainWindow
                 brush = RingStopwatch;
                 break;
         }
+        if (view == IslandView.Timer)
+        {
+            var g = ReferenceEquals(bubble, ActivityBubble) ? ActivityBubbleGlyph : ActivityBubbleGlyph2;
+            g.FontFamily = new FontFamily("Segoe UI Variable Text, Segoe UI");
+            g.FontSize = 10.5;
+            g.FontWeight = FontWeights.SemiBold;
+            g.Text = TimerService.Format(_timer.Remaining);
+        }
         ring.Stroke = brush;
         ring.Data = RingGeometry(Math.Max(26, bubble.ActualWidth > 0 ? bubble.ActualWidth : bubble.Width), Math.Clamp(fraction, 0, 1));
     }

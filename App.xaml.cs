@@ -60,7 +60,8 @@ public partial class App : Application
             () => Dispatcher.InvokeAsync(OpenSettings, DispatcherPriority.Background),
             () => _window.IslandHidden,
             hidden => _window.SetIslandHidden(hidden),
-            Shutdown);
+            Shutdown,
+            id => Dispatcher.InvokeAsync(() => _window.TrayCommand(id)));
 
         _openSettingsSignal = new EventWaitHandle(false, EventResetMode.AutoReset, OpenSettingsEventName);
         _openSettingsWait = ThreadPool.RegisterWaitForSingleObject(_openSettingsSignal,

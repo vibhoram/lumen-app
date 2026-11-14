@@ -11,12 +11,12 @@
     <AssemblyName>DIsland</AssemblyName>
     <RootNamespace>DIsland</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <ApplicationIcon>DIsland.ico</ApplicationIcon>
-    <Product>D-Island</Product>
+    <ApplicationIcon>Lumen.ico</ApplicationIcon>
+    <Product>Lumen</Product>
     <Version>1.2.1</Version>
-    <Description>A Dynamic Island for Windows</Description>
-    <Authors>h7</Authors>
-    <Company>ibuildrigs</Company>
+    <Description>Lumen, a personal island for Windows</Description>
+    <Authors>me</Authors>
+    <Company>me</Company>
     <Copyright>Copyright (c) 2026 h7 (ibuildrigs). Licensed under the D-Island License 1.0.</Copyright>
     <PackageProjectUrl>https://github.com/H7gamer/d-island</PackageProjectUrl>
     <!-- WinForms' DPI analyzer; WPF owns DPI here and reads it from app.manifest. -->

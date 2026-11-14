@@ -14,7 +14,7 @@ public sealed class TrayIcon : IDisposable
     private readonly NotifyIcon _notifyIcon;
     private readonly Icon _icon;
 
-    public TrayIcon(AppSettings settings, Action onOpenSettings, Func<bool> isHidden, Action<bool> setHidden, Action onExit)
+    public TrayIcon(AppSettings settings, Action onOpenSettings, Func<bool> isHidden, Action<bool> setHidden, Action onExit, Action<string>? command = null)
     {
         _icon = CreateIcon();
 
@@ -42,18 +42,31 @@ public sealed class TrayIcon : IDisposable
             startup.Checked = StartupManager.IsEnabled;
         };
 
+        ToolStripMenuItem Cmd(string text, string id, string? shortcut = null)
+        {
+            var item = new ToolStripMenuItem(text) { ShortcutKeyDisplayString = shortcut };
+            item.Click += (_, _) => command?.Invoke(id);
+            return item;
+        }
+        var quiet = new ToolStripMenuItem("Quiet mode");
+        quiet.DropDownItems.AddRange(new ToolStripItem[] { Cmd("30 minutes", "quiet30"), Cmd("1 hour", "quiet60"), Cmd("Until I turn it off", "quietforever"), Cmd("Off", "quietoff") });
+        var pet = new ToolStripMenuItem("Pet") { CheckOnClick = true };
+        pet.Click += (_, _) => { settings.PetEnabled = pet.Checked; settings.NotifyChanged(); settings.Save(); };
+
         var exit = new ToolStripMenuItem("Exit");
         exit.Click += (_, _) => onExit();
 
         menu.Items.AddRange(new ToolStripItem[]
         {
-            open, hide, new ToolStripSeparator(), hideFlyout, startup, new ToolStripSeparator(), exit,
+            Cmd("Ask Clara", "clara", settings.AssistantHotkey), Cmd("Quick paste", "paste", settings.QuickPasteHotkey), Cmd("Start a 25 minute focus session", "focus"), quiet,
+            new ToolStripSeparator(), hide, pet, new ToolStripSeparator(), open, hideFlyout, startup, new ToolStripSeparator(), exit,
         });
 
         // Settings can also change from the settings window; sync checkmarks each time the menu opens.
         menu.Opening += (_, _) =>
         {
             hide.Checked = isHidden();
+            pet.Checked = settings.PetEnabled;
             hide.ShortcutKeyDisplayString = settings.ToggleHotkey;
             hideFlyout.Checked = settings.HideVolumeFlyout;
             startup.Checked = StartupManager.IsEnabled;
@@ -62,7 +75,7 @@ public sealed class TrayIcon : IDisposable
         _notifyIcon = new NotifyIcon
         {
             Icon = _icon,
-            Text = "D-Island",
+            Text = "Lumen",
             ContextMenuStrip = menu,
             Visible = true,
         };
@@ -77,7 +90,7 @@ public sealed class TrayIcon : IDisposable
         _icon.Dispose();
     }
 
-    /// <summary>Draws a small black pill so no .ico asset is needed.</summary>
+    /// <summary>The Lumen mark: a violet rounded square with a glass pill and a cyan dot (same as the app icon).</summary>
     private static Icon CreateIcon()
     {
         using var bmp = new Bitmap(32, 32);
@@ -85,22 +98,19 @@ public sealed class TrayIcon : IDisposable
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.Clear(Color.Transparent);
-
-            using var path = new GraphicsPath();
-            var r = new RectangleF(2, 9, 28, 14);
-            const float d = 14;
-            path.AddArc(r.X, r.Y, d, d, 90, 180);
-            path.AddArc(r.Right - d, r.Y, d, d, 270, 180);
-            path.CloseFigure();
-
-            using var fill = new SolidBrush(Color.FromArgb(255, 16, 16, 16));
-            using var pen = new Pen(Color.FromArgb(220, 255, 255, 255), 1.5f);
-            using var dot = new SolidBrush(Color.FromArgb(255, 48, 209, 88));
-            g.FillPath(fill, path);
-            g.DrawPath(pen, path);
-            g.FillEllipse(dot, 20, 13, 6, 6);
+            using var square = new GraphicsPath();
+            const float r = 7;
+            square.AddArc(0, 0, 2 * r, 2 * r, 180, 90); square.AddArc(32 - 2 * r, 0, 2 * r, 2 * r, 270, 90);
+            square.AddArc(32 - 2 * r, 32 - 2 * r, 2 * r, 2 * r, 0, 90); square.AddArc(0, 32 - 2 * r, 2 * r, 2 * r, 90, 90); square.CloseFigure();
+            using var bg = new LinearGradientBrush(new RectangleF(0, 0, 32, 32), Color.FromArgb(255, 32, 24, 86), Color.FromArgb(255, 124, 92, 255), 55f);
+            g.FillPath(bg, square);
+            using var pill = new GraphicsPath();
+            pill.AddArc(5.5f, 11.5f, 9.6f, 9.6f, 90, 180); pill.AddArc(16.9f, 11.5f, 9.6f, 9.6f, 270, 180); pill.CloseFigure();
+            using var pf = new LinearGradientBrush(new RectangleF(5.5f, 11.5f, 21, 9.6f), Color.FromArgb(235, 255, 255, 255), Color.FromArgb(150, 214, 224, 255), 90f);
+            g.FillPath(pf, pill);
+            using var dot = new SolidBrush(Color.FromArgb(255, 45, 212, 255));
+            g.FillEllipse(dot, 19.3f, 13.6f, 4.2f, 4.2f);
         }
-
         var handle = bmp.GetHicon();
         using var temp = Icon.FromHandle(handle);
         var icon = (Icon)temp.Clone();

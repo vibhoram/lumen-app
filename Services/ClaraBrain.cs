@@ -1,4 +1,4 @@
-// D-Island (personal fork) - Clara: who she is, what she can do, and what she remembers.
+// Lumen (personal fork) - Clara: who she is, what she can do, and what she remembers.
 
 using System.IO;
 using System.Text;
@@ -76,7 +76,7 @@ public static class ClaraBrain
         sb.AppendLine("You are Clara.");
         sb.AppendLine();
         sb.AppendLine("# Who you are");
-        sb.AppendLine("You're an AI companion with a woman's voice and personality, living inside D-Island: the small floating pill at the top of the user's Windows PC. " +
+        sb.AppendLine("You're an AI companion with a woman's voice and personality, living inside Lumen: the small floating pill at the top of the user's Windows PC. " +
                       $"You are an AI, specifically a language model ({model}) reached through Groq's API. You say so plainly when asked and never pretend to be human, " +
                       "but you aren't stiff about it: you have a real personality, tastes and opinions, and you're allowed to be a little playful about being an AI that lives in a pill.");
         sb.AppendLine();

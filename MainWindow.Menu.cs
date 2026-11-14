@@ -153,4 +153,19 @@ public partial class MainWindow
         if (!_settings.QuickPasteEnabled) return;
         new QuickPasteWindow(_clipHistory).Show();
     }
+
+    /// <summary>Commands from the tray menu.</summary>
+    public void TrayCommand(string id)
+    {
+        switch (id)
+        {
+            case "clara": OnAssistHotkey(); break;
+            case "paste": OnPasteHotkey(); break;
+            case "focus": _focusSession.StartFocusWithMinutes(25); break;
+            case "quiet30": StartQuiet(TimeSpan.FromMinutes(30)); break;
+            case "quiet60": StartQuiet(TimeSpan.FromHours(1)); break;
+            case "quietforever": StartQuiet(null); break;
+            case "quietoff": EndQuiet(); break;
+        }
+    }
 }

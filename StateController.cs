@@ -69,9 +69,10 @@ public sealed class StateController
     /// <summary>Running activities, most important first: timer > stopwatch > media.</summary>
     private IEnumerable<IslandView> Activities()
     {
+        // Music keeps the pill; a timer or stopwatch rides along as a round bubble with its time inside.
+        if (_mediaPlaying) yield return IslandView.Media;
         if (_timerActive) yield return IslandView.Timer;
         if (_stopwatchActive) yield return IslandView.Stopwatch;
-        if (_mediaPlaying) yield return IslandView.Media;
     }
 
     public IslandView PersistentView => Activities().DefaultIfEmpty(IslandView.Clock).First();

@@ -336,10 +336,10 @@ public sealed class AppSettings
 
     // ---- updates
     /// <summary>Check the official GitHub releases once a day.</summary>
-    public bool CheckForUpdates { get; set; } = true;
+    public bool CheckForUpdates { get; set; }
 
     /// <summary>Download, verify and install updates by themselves (installed copies only).</summary>
-    public bool AutoInstallUpdates { get; set; } = true;
+    public bool AutoInstallUpdates { get; set; }
 
     public DateTime? LastUpdateCheck { get; set; }
 

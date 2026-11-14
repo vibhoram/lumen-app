@@ -4010,6 +4010,8 @@ public partial class MainWindow : Window
     private void FillBubble(Grid bubble, Ellipse artEllipse, TextBlock glyph, IslandView? view, ref Artwork? cachedArt)
     {
         if (view is null) return;
+        glyph.ClearValue(TextBlock.FontFamilyProperty); // back to the icon font (a timer bubble shows its time in text)
+        glyph.ClearValue(TextBlock.FontWeightProperty);
         if (view == IslandView.Media)
         {
             // Build the brush only when the artwork changes (state changes are frequent; animated
@@ -4031,6 +4033,7 @@ public partial class MainWindow : Window
             var focus = _focusSession.Phase != FocusPhase.Idle && view == IslandView.Timer;
             artEllipse.Visibility = Visibility.Collapsed;
             glyph.Visibility = Visibility.Visible;
+            glyph.FontSize = 15;
             glyph.Text = "\uE916";
             glyph.Foreground = (Brush)FindResource(focus ? "Green" : view == IslandView.Timer ? "Orange" : "Cyan");
             bubble.ToolTip = focus ? "Focus · " + TimerService.Format(_timer.Remaining)

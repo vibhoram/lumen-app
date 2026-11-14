@@ -133,6 +133,7 @@ public partial class MainWindow
             var s = (ScaleTransform)group.Children[0];
             var tr = (TranslateTransform)group.Children[1];
             s.ScaleX = s.ScaleY = scale[i];
+            System.Windows.Controls.Panel.SetZIndex(_tabs[i].Button, (int)(scale[i] * 100));
             tr.X = offset[i] - anchor;
             tr.Y = -(scale[i] - 1) * 7; // rises a little, like a Dock icon
         }
