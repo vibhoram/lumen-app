@@ -124,7 +124,9 @@ public sealed class AssistantPanel : Grid
         _chip = new Border
         {
             CornerRadius = new CornerRadius(10),
-            Background = B("#1FFFFFFF"),
+            Background = GlassFillBrush(),
+            BorderBrush = GlassRimBrush(),
+            BorderThickness = new Thickness(1),
             Padding = new Thickness(4),
             HorizontalAlignment = HorizontalAlignment.Left,
             Margin = new Thickness(0, 8, 0, 0),
@@ -196,9 +198,9 @@ public sealed class AssistantPanel : Grid
         _inputBox = new Border
         {
             CornerRadius = new CornerRadius(20),
-            Background = B("#1AFFFFFF"),
-            BorderBrush = B("#14FFFFFF"),
-            BorderThickness = new Thickness(1),
+            Background = GlassFillBrush(),
+            BorderBrush = GlassRimBrush(),
+            BorderThickness = new Thickness(1.2),
             Padding = new Thickness(14, 6, 5, 5),
             Margin = new Thickness(0, 8, 0, 0),
             Child = inputGrid,
@@ -499,7 +501,7 @@ public sealed class AssistantPanel : Grid
             slide.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(-1, 0, TimeSpan.FromMilliseconds(1100)) { RepeatBehavior = RepeatBehavior.Forever });
             _inputBox.BorderBrush = shimmer;
         }
-        else _inputBox.BorderBrush = _focused ? AccentGradient() : B("#14FFFFFF");
+        else _inputBox.BorderBrush = _focused ? AccentGradient() : GlassRimBrush();
     }
 
     private void SetBusy(bool busy)
@@ -969,6 +971,17 @@ public sealed class AssistantPanel : Grid
         return null;
     }
 
+    /// <summary>Liquid Glass fill and rim for chat-box controls (same look as the App.xaml button styles).</summary>
+    internal static Brush GlassFillBrush() => new LinearGradientBrush(new GradientStopCollection
+    {
+        new GradientStop(Color.FromArgb(0x3C, 255, 255, 255), 0), new GradientStop(Color.FromArgb(0x16, 255, 255, 255), 0.5), new GradientStop(Color.FromArgb(0x22, 255, 255, 255), 1),
+    }, 90);
+
+    internal static Brush GlassRimBrush() => new LinearGradientBrush(new GradientStopCollection
+    {
+        new GradientStop(Color.FromArgb(0x8C, 255, 255, 255), 0), new GradientStop(Color.FromArgb(0x20, 255, 255, 255), 0.45), new GradientStop(Color.FromArgb(0x3D, 255, 255, 255), 1),
+    }, 70);
+
     internal static Border Chip(string glyph, string text, Action click)
     {
         var row = new StackPanel { Orientation = Orientation.Horizontal };
@@ -976,10 +989,12 @@ public sealed class AssistantPanel : Grid
             row.Children.Add(new TextBlock { Text = glyph, FontFamily = IconFont, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, text.Length > 0 ? 6 : 0, 0) });
         if (text.Length > 0)
             row.Children.Add(new TextBlock { Text = text, FontSize = 12, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
-        var normal = B("#1FFFFFFF");
+        var normal = GlassFillBrush();
         var hover = B("#33FFFFFF");
         var chip = new Border
         {
+            BorderBrush = GlassRimBrush(),
+            BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(13),
             Padding = new Thickness(text.Length > 0 ? 10 : 8, 5, text.Length > 0 ? 11 : 8, 5),
             Background = normal,

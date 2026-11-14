@@ -360,6 +360,44 @@ public partial class SettingsWindow : Window
         Dispatcher.InvokeAsync(UpdateNavSelection, DispatcherPriority.Loaded); // after layout
     }
 
+    private static readonly (string Name, double Blur, double Shine, double Rim, double Vibrancy, double Bend, double Tint)[] GlassPresets =
+    {
+        ("Crystal", 0.30, 0.95, 0.15, 0.75, 0.70, 0.18),
+        ("Frosted", 0.85, 0.70, 0.08, 0.55, 0.40, 0.30),
+        ("Clear", 0.05, 1.00, 0.20, 0.50, 0.85, 0.06),
+        ("Smoke", 0.60, 0.45, 0.05, 0.30, 0.35, 0.55),
+        ("Vivid", 0.40, 0.90, 0.18, 1.00, 0.65, 0.20),
+    };
+
+    private void GlassPresetRow(Panel panel)
+    {
+        var wrap = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
+        foreach (var preset in GlassPresets)
+        {
+            var chip = new Button { Style = (Style)FindResource("ChipButton"), Content = preset.Name, Margin = new Thickness(0, 0, 6, 4) };
+            var captured = preset;
+            chip.Click += (_, _) => ApplyGlassPreset(captured);
+            wrap.Children.Add(chip);
+        }
+        panel.Children.Add(wrap);
+    }
+
+    /// <summary>A preset sets all the glass sliders at once; null restores the shipped defaults.</summary>
+    private void ApplyGlassPreset((string Name, double Blur, double Shine, double Rim, double Vibrancy, double Bend, double Tint)? preset)
+    {
+        var d = new AppSettings();
+        Update(() =>
+        {
+            _settings.GlassBlur = preset?.Blur ?? d.GlassBlur;
+            _settings.GlassShine = preset?.Shine ?? d.GlassShine;
+            _settings.GlassRim = preset?.Rim ?? d.GlassRim;
+            _settings.GlassVibrancy = preset?.Vibrancy ?? d.GlassVibrancy;
+            _settings.GlassRefraction = preset?.Bend ?? d.GlassRefraction;
+            _settings.GlassTint = preset?.Tint ?? d.GlassTint;
+        });
+        BuildMaterialOptions();
+    }
+
     /// <summary>The slider(s) that apply to the chosen material.</summary>
     private void BuildMaterialOptions()
     {
@@ -374,6 +412,7 @@ public partial class SettingsWindow : Window
                 Slider(_materialOptions, "Opacity", 0.15, 1, 0.05, () => s.BackgroundOpacity, v => s.BackgroundOpacity = v, v => $"{v * 100:0}%");
                 break;
             case IslandMaterial.LiquidGlass:
+                GlassPresetRow(_materialOptions);
                 Slider(_materialOptions, "Blur", 0, 1, 0.05, () => s.GlassBlur, v => s.GlassBlur = v,
                     v => v == 0 ? "Clear" : v >= 1 ? "Frosted" : $"{v * 100:0}%");
                 Slider(_materialOptions, "Shininess", 0, 1, 0.05, () => s.GlassShine, v => s.GlassShine = v,
@@ -390,6 +429,9 @@ public partial class SettingsWindow : Window
                     (GlassEngine.ScreenCapture, "Screen capture"),
                     (GlassEngine.Lens, "Liquid lens (GPU)"),
                 }, () => s.GlassEngine, v => s.GlassEngine = v);
+                var resetGlass = new Button { Style = (Style)FindResource("ChipButton"), Content = "Reset glass to defaults", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 8, 0, 2) };
+                resetGlass.Click += (_, _) => ApplyGlassPreset(null);
+                _materialOptions.Children.Add(resetGlass);
                 Note(_materialOptions,
                     "GPU: Windows draws what's behind the island and the GPU blurs it. Near-zero CPU, and the island " +
                     "stays visible in screenshots. It uses an undocumented Windows API, so it's tested on each Windows " +

@@ -296,11 +296,11 @@
                                VerticalAlignment="Top" TextTrimming="CharacterEllipsis" Foreground="{StaticResource Secondary}" />
                     <!-- Dismiss / snooze, shown while the cursor is over the alert. -->
                     <StackPanel x:Name="NotifActions" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Visibility="Collapsed">
-                        <Border x:Name="NotifSnooze" Width="26" Height="26" CornerRadius="13" Background="#33FFFFFF" Cursor="Hand" ToolTip="Snooze"
+                        <Border x:Name="NotifSnooze" Width="26" Height="26" CornerRadius="13" Background="{StaticResource GlassFill}" BorderBrush="{StaticResource GlassRim}" BorderThickness="1" Cursor="Hand" ToolTip="Snooze"
                                 MouseLeftButtonUp="OnNotifSnoozeClick" Margin="0,0,5,0">
                             <TextBlock Style="{StaticResource Glyph}" Text="&#xE916;" FontSize="12" />
                         </Border>
-                        <Border x:Name="NotifDismiss" Width="26" Height="26" CornerRadius="13" Background="#33FFFFFF" Cursor="Hand" ToolTip="Dismiss"
+                        <Border x:Name="NotifDismiss" Width="26" Height="26" CornerRadius="13" Background="{StaticResource GlassFill}" BorderBrush="{StaticResource GlassRim}" BorderThickness="1" Cursor="Hand" ToolTip="Dismiss"
                                 MouseLeftButtonUp="OnNotifDismissClick">
                             <TextBlock Style="{StaticResource Glyph}" Text="&#xE711;" FontSize="11" />
                         </Border>
@@ -332,7 +332,7 @@
                     <TextBlock x:Name="TimerDoneText" Text="Timer finished" FontSize="14" FontWeight="SemiBold"
                                VerticalAlignment="Center" MaxWidth="240" TextTrimming="CharacterEllipsis" />
                     <StackPanel x:Name="AlarmActions" Orientation="Horizontal" Margin="12,0,0,0" Visibility="Collapsed">
-                        <Border CornerRadius="13" Padding="11,5" Background="#33FFFFFF" Cursor="Hand" Margin="0,0,6,0" MouseLeftButtonUp="OnAlarmSnoozeClick">
+                        <Border CornerRadius="13" Padding="11,5" Background="{StaticResource GlassFill}" BorderBrush="{StaticResource GlassRim}" BorderThickness="1" Cursor="Hand" Margin="0,0,6,0" MouseLeftButtonUp="OnAlarmSnoozeClick">
                             <TextBlock x:Name="AlarmSnoozeText" Text="Snooze" FontSize="12" FontWeight="SemiBold" />
                         </Border>
                         <Border CornerRadius="13" Padding="11,5" Background="#FFFF453A" Cursor="Hand" MouseLeftButtonUp="OnAlarmStopClick">
@@ -453,7 +453,7 @@
                         <!-- Lyrics button: only when synced lyrics were found for this song. -->
                         <Border x:Name="LyricsToggle" Grid.Row="2" HorizontalAlignment="Right" VerticalAlignment="Center"
                                 Margin="0,8,0,0" CornerRadius="15" Padding="11,6" Cursor="Hand" Visibility="Collapsed"
-                                Background="#26FFFFFF" MouseLeftButtonUp="OnLyricsToggleClick" RenderTransformOrigin="0.5,0.5">
+                                Background="{StaticResource GlassFill}" BorderBrush="{StaticResource GlassRim}" BorderThickness="1" MouseLeftButtonUp="OnLyricsToggleClick" RenderTransformOrigin="0.5,0.5">
                             <Border.RenderTransform><ScaleTransform x:Name="LyricsToggleScale" /></Border.RenderTransform>
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Style="{StaticResource Glyph}" Text="&#xE8D6;" FontSize="12" Margin="0,0,6,0" />

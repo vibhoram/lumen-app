@@ -325,7 +325,7 @@ public partial class MainWindow
         LyricsToggle.Visibility = ready ? Visibility.Visible : Visibility.Collapsed;
         LyricsToggle.Background = open
             ? new LinearGradientBrush(Color.FromRgb(0x8B, 0x6C, 0xFF), Color.FromRgb(0x2D, 0xD4, 0xFF), 35)
-            : new SolidColorBrush(Color.FromArgb(0x26, 255, 255, 255));
+            : (Brush)FindResource("GlassFill");
         var wasOpen = LyricsInlineHost.Visibility == Visibility.Visible;
         LyricsInlineHost.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
         if (open && !wasOpen) MusicTick();

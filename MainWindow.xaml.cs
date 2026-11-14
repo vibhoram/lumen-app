@@ -3857,17 +3857,28 @@ public partial class MainWindow : Window
     private Button AppTile(FrameworkElement icon, string name, double width, double height)
     {
         icon.HorizontalAlignment = HorizontalAlignment.Center;
+        // each icon sits on a little glass plate (the icon itself stays pixel-exact on top)
+        var plate = new Border
+        {
+            Background = (Brush)FindResource("GlassFill"),
+            BorderBrush = (Brush)FindResource("GlassRim"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(Math.Max(10, icon.Width * 0.3)),
+            Padding = new Thickness(6),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Child = icon,
+        };
         return new Button
         {
             Style = (Style)FindResource("IconButton"),
             Width = width,
-            Height = height,
+            Height = height + 12,
             ToolTip = name,
             Content = new StackPanel
             {
                 Children =
                 {
-                    icon,
+                    plate,
                     new TextBlock
                     {
                         Text = name,
