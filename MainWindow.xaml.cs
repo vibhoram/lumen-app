@@ -4045,6 +4045,7 @@ public partial class MainWindow : Window
         _pet.Music = media?.IsPlaying == true;
         UpdateMediaBubbles();
         MusicTrackChanged(media);
+        UpdateMediaSources();
         UpdateSecondActivity(); // the bubble may show this artwork
         UpdateMotionArtwork(media);
         ApplyTheme();

@@ -1,6 +1,7 @@
 // D-Island (personal fork) - music extras: progress bar looks, time on the collapsed pill, real album art, synced lyrics.
 
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
 using DIsland.Services;
@@ -147,6 +148,36 @@ public partial class MainWindow
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) { App.LogError(ex); }
+    }
+
+    /// <summary>When more than one app has media, the expanded view lists them as chips (playing ones lit) and you pick which to show.</summary>
+    private void UpdateMediaSources()
+    {
+        var sources = _media.Sources;
+        var many = sources.Count > 1;
+        MediaSources.Visibility = many ? Visibility.Visible : Visibility.Collapsed;
+        MediaSourceBadge.Visibility = many ? Visibility.Visible : Visibility.Collapsed;
+        MediaSourceBadgeText.Text = sources.Count.ToString();
+        if (!many) return;
+        MediaSources.Children.Clear();
+        var current = _media.Current?.AppId;
+        foreach (var source in sources)
+        {
+            var selected = source.AppId == current;
+            var dot = new System.Windows.Shapes.Ellipse { Width = 6, Height = 6, Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center, Fill = source.IsPlaying ? (Brush)FindResource("Green") : new SolidColorBrush(Color.FromArgb(0x66, 255, 255, 255)) };
+            var chip = new Border
+            {
+                CornerRadius = new CornerRadius(11),
+                Padding = new Thickness(8, 3, 10, 3),
+                Margin = new Thickness(0, 0, 5, 3),
+                Cursor = System.Windows.Input.Cursors.Hand,
+                Background = selected ? new LinearGradientBrush(Color.FromArgb(0x99, 0x8B, 0x6C, 0xFF), Color.FromArgb(0x99, 0x2D, 0xD4, 0xFF), 35) : new SolidColorBrush(Color.FromArgb(0x26, 255, 255, 255)),
+                Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { dot, new TextBlock { Text = source.Name, FontSize = 11, FontWeight = FontWeights.SemiBold } } },
+            };
+            var id = source.AppId;
+            chip.MouseLeftButtonUp += (_, e) => { e.Handled = true; _media.ChooseSource(id); };
+            MediaSources.Children.Add(chip);
+        }
     }
 
     private void MusicTick()

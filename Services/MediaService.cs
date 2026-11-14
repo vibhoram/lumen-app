@@ -11,6 +11,9 @@ using Session = Windows.Media.Control.GlobalSystemMediaTransportControlsSession;
 
 namespace DIsland.Services;
 
+/// <summary>One app that has media going (Spotify, a browser, ...).</summary>
+public sealed record MediaSource(string AppId, string Name, bool IsPlaying);
+
 public sealed record MediaInfo(
     string AppId,
     string AppName,
@@ -61,6 +64,21 @@ public sealed class MediaService : IDisposable
     private int _version;
 
     public MediaInfo? Current { get; private set; }
+
+    /// <summary>Every app with a media session, so the island can show a switcher when more than one is open.</summary>
+    public IReadOnlyList<MediaSource> Sources { get; private set; } = Array.Empty<MediaSource>();
+
+    private string? _pinnedApp;
+
+    /// <summary>The app the user chose to show (null = automatic: whatever is playing).</summary>
+    public string? PinnedSource => _pinnedApp;
+
+    /// <summary>Show this app's media even if another app is playing, until it closes or <paramref name="appId"/> is null.</summary>
+    public void ChooseSource(string? appId)
+    {
+        _pinnedApp = appId;
+        SelectSession();
+    }
 
     public event Action? Changed;
 
@@ -170,6 +188,16 @@ public sealed class MediaService : IDisposable
     {
         var sessions = _manager!.GetSessions().Where(s => !IsIgnored(s)).ToList();
         if (sessions.Count == 0) return null;
+
+        Sources = sessions.Select(s => new MediaSource(s.SourceAppUserModelId ?? "", FriendlyAppName(s.SourceAppUserModelId ?? ""), IsPlaying(s))).ToList();
+
+        // A source the user picked wins while it is still around.
+        if (_pinnedApp is not null)
+        {
+            var pinned = sessions.FirstOrDefault(s => s.SourceAppUserModelId == _pinnedApp);
+            if (pinned is not null) return pinned;
+            _pinnedApp = null;
+        }
 
         var current = _manager.GetCurrentSession();
         if (current is not null && IsIgnored(current)) current = null;

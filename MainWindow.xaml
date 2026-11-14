@@ -393,6 +393,7 @@
                                            FontSize="24" Foreground="{StaticResource Secondary}" />
                             </Border>
                             <StackPanel Grid.Column="1" Margin="14,0,30,0" VerticalAlignment="Center">
+                                <WrapPanel x:Name="MediaSources" Margin="0,0,0,4" Visibility="Collapsed" />
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
                                     <Ellipse x:Name="MediaAppDot" Width="6" Height="6" VerticalAlignment="Center"
                                              Fill="{StaticResource Green}" />
@@ -807,6 +808,10 @@
             </Ellipse>
             <Ellipse Width="6" Height="6" Fill="#E6101014" Stroke="#66FFFFFF" StrokeThickness="0.8" />
             <Path x:Name="MediaDiscRing" StrokeThickness="2.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" IsHitTestVisible="False" />
+            <Border x:Name="MediaSourceBadge" Width="14" Height="14" CornerRadius="7" Background="#FF2DD4FF" HorizontalAlignment="Right"
+                    VerticalAlignment="Top" Margin="0,-3,-3,0" Visibility="Collapsed">
+                <TextBlock x:Name="MediaSourceBadgeText" FontSize="9" FontWeight="Bold" Foreground="#FF06222B" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
         </Grid>
 
         <!-- Music split: the equalizer as a small pulse bubble right of the title pill. -->

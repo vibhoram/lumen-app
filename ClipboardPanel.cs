@@ -280,7 +280,7 @@ public sealed class ClipboardPanel : Grid
         var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
         actions.Children.Add(Tool("", "Copy", () => CopyBack(item)));
         actions.Children.Add(Tool("", "Ask Clara", () => AskClaraRequested?.Invoke(item)));
-        actions.Children.Add(Tool("", "Expand", () => OpenDetail(item)));
+        actions.Children.Add(ToolText("AI", "Ask Google AI Mode", () => OpenAiMode(item, card0: null)));
         actions.Children.Add(Tool(item.Pinned ? "" : "", item.Pinned ? "Unpin" : "Pin", () => _history.SetPinned(item, !item.Pinned)));
         actions.Children.Add(Tool("", "Delete", () => _history.Delete(item)));
         var scrim = new Border { Background = AssistantPanel.B("#B8101014"), Opacity = 0, Child = actions };
@@ -314,11 +314,28 @@ public sealed class ClipboardPanel : Grid
         card.MouseLeftButtonUp += (_, e) =>
         {
             e.Handled = true;
+            if (e.ClickCount >= 2) { OpenDetail(item); return; } // double-click expands
             CopyBack(item);
             Flash(card, "Copied");
         };
         return card;
     }
+
+    private static Border ToolText(string text, string tip, Action click)
+    {
+        var tool = Tool("", tip, click);
+        tool.Child = new TextBlock { Text = text, FontSize = 9.5, FontWeight = FontWeights.Bold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        return tool;
+    }
+
+    private void OpenAiMode(ClipItem item, Border? card0)
+    {
+        var message = GoogleAiMode.Open(item, _history);
+        AiModeUsed?.Invoke(message);
+    }
+
+    /// <summary>A short status line after handing something to Google AI Mode.</summary>
+    public event Action<string>? AiModeUsed;
 
     private static Border Tool(string glyph, string tip, Action click)
     {
@@ -401,6 +418,7 @@ public sealed class ClipboardPanel : Grid
         Add("", "Back", CloseDetail);
         Add("", "Copy", () => CopyBack(item));
         Add("", "Ask Clara", () => AskClaraRequested?.Invoke(item));
+        Add("✦", "Google AI Mode", () => OpenAiMode(item, null));
         if (item.Kind == ClipKind.Image) Add("", "Search image", () => SearchImage(item));
         else if (item.Kind == ClipKind.Link) Add("", "Open", () => OpenUrl(item.Text.Trim()));
         else if (item.Kind == ClipKind.Text) Add("", "Search web", () => OpenUrl("https://www.google.com/search?q=" + Uri.EscapeDataString(item.Text.Trim()[..Math.Min(200, item.Text.Trim().Length)])));

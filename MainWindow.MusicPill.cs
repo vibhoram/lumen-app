@@ -60,6 +60,7 @@ public partial class MainWindow
     private int _carryCount;
     private ExpandedPage _carryPage = ExpandedPage.Notifications;
     private string? _carryApp;
+    private System.Windows.Media.Imaging.BitmapSource? _carryImage;
 
     private bool CarryVisible => CarryBubble.Visibility == Visibility.Visible;
 
@@ -74,6 +75,7 @@ public partial class MainWindow
         _carryCount = _carryApp == n.AppName && CarryVisible && _carryPage == ExpandedPage.Notifications ? _carryCount + 1 : 1;
         _carryApp = n.AppName;
         _carryPage = ExpandedPage.Notifications;
+        _carryImage = null;
         if (n.AppIcon is { } icon)
         {
             CarryIcon.Fill = new ImageBrush(icon) { Stretch = Stretch.UniformToFill };
@@ -96,10 +98,15 @@ public partial class MainWindow
         _carryCount = 0;
         _carryApp = null;
         _carryPage = ExpandedPage.Clipboard;
+        _carryImage = null;
+        if (copy.Kind == ClipboardKind.Image)
+        {
+            try { if (Clipboard.ContainsImage() && Clipboard.GetImage() is { } img) { var frozen = new System.Windows.Media.Imaging.WriteableBitmap(img); frozen.Freeze(); _carryImage = frozen; } } catch (Exception) { }
+        }
         CarryIcon.Visibility = Visibility.Collapsed;
         CarryGlyph.Visibility = Visibility.Visible;
         CarryGlyph.Text = copy.Kind switch { ClipboardKind.Image => "\uEB9F", ClipboardKind.Files => "\uE8B7", _ => "\uE77F" };
-        CarryBubble.ToolTip = copy.Kind == ClipboardKind.Image ? "Copied an image" : "Copied: " + (copy.Preview ?? "text");
+        CarryBubble.ToolTip = copy.Kind == ClipboardKind.Image ? "Copied an image. Click to ask Clara about it" : "Copied: " + (copy.Preview ?? "text");
         Carry();
     }
 
@@ -124,8 +131,18 @@ public partial class MainWindow
     {
         e.Handled = true;
         var page = _carryPage;
+        var note = _carryPage == ExpandedPage.Notifications ? _shownNotification : null;
+        var image = _carryImage;
         HideCarry();
+        if (note is { AppId.Length: > 0 }) { OpenNotificationApp(note); return; }
         SetExpanded(true);
+        if (image is not null && AvailablePages().Contains(ExpandedPage.Assistant))
+        {
+            // a fresh screenshot or image copy: one click and Clara has it
+            ShowPage(ExpandedPage.Assistant, animate: false);
+            _assistant.AttachImage(image);
+            return;
+        }
         if (AvailablePages().Contains(page)) ShowPage(page, animate: false);
     }
 }

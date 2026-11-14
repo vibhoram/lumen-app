@@ -1,6 +1,7 @@
 // D-Island (personal fork) - dismiss and snooze for notifications and alarms.
 
 using System.Windows;
+using DIsland.Interop;
 using System.Windows.Input;
 using System.Windows.Threading;
 using DIsland.Services;
@@ -22,8 +23,44 @@ public partial class MainWindow
             foreach (var s in due) { _snoozed.Remove(s); OnNotificationArrived(s.Note); }
             if (_snoozed.Count == 0) _snoozeTimer.Stop();
         };
+        NotificationView.MouseLeftButtonUp += (_, e) =>
+        {
+            if (_shownNotification is not { } n || n.AppId is not { Length: > 0 }) return;
+            e.Handled = true;
+            _state.DismissTransient();
+            OpenNotificationApp(n);
+        };
         NotificationView.MouseEnter += (_, _) => { if (_pendingCode is null) { NotifActions.Visibility = Visibility.Visible; NotifApp.Visibility = Visibility.Collapsed; } };
         NotificationView.MouseLeave += (_, _) => { NotifActions.Visibility = Visibility.Collapsed; if (_pendingCode is null) NotifApp.Visibility = Visibility.Visible; };
+    }
+
+    /// <summary>
+    /// Opens (or brings forward) the app a notification came from. Windows doesn't tell other programs which chat or
+    /// page a toast was for, so this opens the app, not the exact conversation.
+    /// </summary>
+    private void OpenNotificationApp(IslandNotification n)
+    {
+        if (n.AppId is not { Length: > 0 } appId) return;
+        _hoverSuppressed = true;
+        SetExpanded(false);
+        ActivateApp(appId);
+    }
+
+    private void ActivateApp(string appId)
+    {
+        if (appId.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+        {
+            foreach (var process in System.Diagnostics.Process.GetProcessesByName(System.IO.Path.GetFileNameWithoutExtension(appId)))
+            {
+                var hwnd = process.MainWindowHandle;
+                process.Dispose();
+                if (hwnd == IntPtr.Zero) continue;
+                if (NativeMethods.IsIconic(hwnd)) NativeMethods.ShowWindow(hwnd, 9 /* SW_RESTORE */);
+                SetForegroundWindow(hwnd);
+                return;
+            }
+        }
+        QuickAppsService.Launch(appId);
     }
 
     private void OnNotifDismissClick(object sender, MouseButtonEventArgs e)

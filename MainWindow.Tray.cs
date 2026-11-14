@@ -32,33 +32,21 @@ public partial class MainWindow
         return p.X >= -8 && p.X <= element.ActualWidth + 8 && p.Y >= -8 && p.Y <= element.ActualHeight + 8;
     }
 
+    /// <summary>Pinned items always wait in the tray; after them, whatever was copied in the last two minutes.</summary>
     private IEnumerable<ClipItem> RecentClips() =>
-        _clipHistory.Items.Where(i => (DateTime.Now - i.Time).TotalSeconds < 120).Take(3);
+        _clipHistory.Items.Where(i => i.Pinned).Take(3)
+            .Concat(_clipHistory.Items.Where(i => !i.Pinned && (DateTime.Now - i.Time).TotalSeconds < 120).Take(3))
+            .Take(4);
 
     private bool RecentNotification() => _shownNotification is not null && CarryVisible;
 
     /// <summary>True when there is something worth showing in the tray.</summary>
-    private bool TrayHasContent() => _media.Current is not null || RecentClips().Any() || RecentNotification();
+    private bool TrayHasContent() => RecentClips().Any() || RecentNotification();
 
     private void ShowTray()
     {
         TrayRow.Children.Clear();
-        var hasMedia = _media.Current is { } media;
-        if (hasMedia)
-        {
-            TrayRow.Children.Add(TrayButton("\uE892", "Previous", () => _media.Previous()));
-            var playing = _media.Current!.IsPlaying;
-            var play = TrayButton(playing ? "\uE769" : "\uE768", playing ? "Pause" : "Play", () => { });
-            play.MouseLeftButtonUp += (_, _) =>
-            {
-                _media.TogglePlayPause();
-                // flip the glyph at once; the real state follows
-                ((TextBlock)play.Child).Text = ((TextBlock)play.Child).Text == "\uE769" ? "\uE768" : "\uE769";
-            };
-            TrayRow.Children.Add(play);
-            TrayRow.Children.Add(TrayButton("\uE893", "Next", () => _media.Next()));
-        }
-
+        var hasMedia = false;
         var clips = RecentClips().ToList();
         if (clips.Count > 0 || RecentNotification())
         {
@@ -131,8 +119,7 @@ public partial class MainWindow
         {
             e.Handled = true;
             HideTray();
-            SetExpanded(true);
-            if (AvailablePages().Contains(ExpandedPage.Notifications)) ShowPage(ExpandedPage.Notifications, animate: false);
+            OpenNotificationApp(n);
         };
         return tile;
     }
