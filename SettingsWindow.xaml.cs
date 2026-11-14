@@ -340,6 +340,9 @@ public partial class SettingsWindow : Window
         Check(ai, "Show the Clara page", () => s.AssistantEnabled, v => s.AssistantEnabled = v);
         Check(ai, "Live screen: attach a fresh screenshot to every message", () => s.AssistantLiveScreen, v => s.AssistantLiveScreen = v);
         Check(ai, "Let Clara know the time, what's playing, battery and weather", () => s.ClaraContext, v => s.ClaraContext = v);
+        Choice(ai, "Cloud brain", new[] { (CloudProvider.Groq, "Groq"), (CloudProvider.Gemini, "Gemini (free, no card)") }, () => s.CloudProvider, v => s.CloudProvider = v);
+        TextRow(ai, "Gemini API key", () => s.GeminiApiKey, v => s.GeminiApiKey = v.Trim());
+        Note(ai, "Gemini is free with just a Google sign-in: get a key at aistudio.google.com/apikey, paste it here and pick Gemini above. It also reads screenshots.");
         TextRow(ai, "Groq API key", () => s.GroqApiKey, v => { if (v.Trim().Length > 0 || s.GroqApiKey.Length == 0) s.GroqApiKey = v.Trim(); }); // an accidental empty field never wipes a saved key
         TextRow(ai, "Model", () => s.GroqModel, v => s.GroqModel = v.Trim());
         var forget = new Button { Style = (Style)FindResource("ChipButton"), Content = "Clear Clara's memory", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 6, 0, 2) };

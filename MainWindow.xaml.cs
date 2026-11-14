@@ -485,6 +485,7 @@ public partial class MainWindow : Window
 
         Root.LayoutTransform = Math.Abs(Scale - 1) < 0.001 ? Transform.Identity : new ScaleTransform(Scale, Scale);
         Width = BaseWidth * Scale;
+        Reposition(); // the width just changed (scale, DPI): keep the island centred on its screen
         UpdateWindowHeight();
         FontFamily = new FontFamily($"{_settings.FontFamily}, Segoe UI");
 

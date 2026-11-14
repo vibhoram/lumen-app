@@ -7,6 +7,8 @@ using System.Text.Json.Serialization;
 
 namespace DIsland.Services;
 
+public enum CloudProvider { Groq, Gemini }
+
 public enum IslandMode
 {
     /// <summary>Floating pill just below the top edge.</summary>
@@ -282,6 +284,19 @@ public sealed class AppSettings
 
     /// <summary>Clipboard items older than this many hours are removed (0 = keep until the 100-item limit). Pinned items stay.</summary>
     public int ClipboardKeepHours { get; set; }
+
+    /// <summary>Which cloud brain handles pictures (and text when offline isn't available). Gemini has a free tier with no card.</summary>
+    public CloudProvider CloudProvider { get; set; } = CloudProvider.Groq;
+
+    /// <summary>Google AI Studio key (free, no card): aistudio.google.com/apikey.</summary>
+    public string GeminiApiKey { get; set; } = "";
+
+    /// <summary>Gemini model used when the provider is Gemini.</summary>
+    public string GeminiModel { get; set; } = "gemini-2.0-flash";
+
+    public string CloudKey => CloudProvider == CloudProvider.Gemini ? GeminiApiKey : GroqApiKey;
+    public string CloudModel => CloudProvider == CloudProvider.Gemini ? (string.IsNullOrWhiteSpace(GeminiModel) ? "gemini-2.0-flash" : GeminiModel) : GroqModel;
+    public string CloudEndpoint => CloudProvider == CloudProvider.Gemini ? "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions" : "";
 
     /// <summary>Show every slider (otherwise just presets and the essentials).</summary>
     public bool ShowAdvanced { get; set; }

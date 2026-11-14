@@ -74,7 +74,7 @@ public sealed class AssistantPanel : Grid
         string? local = _settings.AssistantUseLocalAi ? await LocalAi.PickModelAsync(_settings) : null;
         if (_busy) return;
         if (local is not null) SetEngine(true, local.Split(':')[0]);
-        else SetEngine(false, "groq");
+        else SetEngine(false, _settings.CloudProvider == CloudProvider.Gemini ? "gemini" : "groq");
     }
     private bool _focused;
     private string? _pendingText;
@@ -393,7 +393,7 @@ public sealed class AssistantPanel : Grid
             var quote = _pendingText;
             if (text.Length == 0 && _pending is null && quote is null && !grabScreen) return;
             // No Groq key is fine for plain text if an offline model is available; pictures need the key.
-            if (string.IsNullOrWhiteSpace(_settings.GroqApiKey)
+            if (string.IsNullOrWhiteSpace(_settings.CloudKey)
                 && (_pending is not null || grabScreen || _settings.AssistantLiveScreen || !_settings.AssistantUseLocalAi || await LocalAi.PickModelAsync(_settings) is null))
             {
                 ShowNoKey();
@@ -440,10 +440,10 @@ public sealed class AssistantPanel : Grid
         // Which brain answers: text-only chats run offline on this PC (Ollama); anything with a picture, or right after one, goes to Groq.
         var cloudNeeded = image is not null; // only the picture you are sending right now needs the cloud; text follow-ups stay offline
         var localModel = !cloudNeeded && _settings.AssistantUseLocalAi ? await LocalAi.PickModelAsync(_settings) : null;
-        if (localModel is null && string.IsNullOrWhiteSpace(_settings.GroqApiKey)) { ShowNoKey(); SetBusy(false); return; }
+        if (localModel is null && string.IsNullOrWhiteSpace(_settings.CloudKey)) { ShowNoKey(); SetBusy(false); return; }
         var useLocal = localModel is not null;
-        SetEngine(useLocal, useLocal ? localModel!.Split(':')[0] : "groq");
-        var engineModel = useLocal ? localModel! : _settings.GroqModel;
+        SetEngine(useLocal, useLocal ? localModel!.Split(':')[0] : _settings.CloudProvider == CloudProvider.Gemini ? "gemini" : "groq");
+        var engineModel = useLocal ? localModel! : _settings.CloudModel;
         try
         {
             // A turn can need several rounds: the model asks for tools, we run them, it then answers.
@@ -456,7 +456,7 @@ public sealed class AssistantPanel : Grid
                 system += Environment.NewLine + Environment.NewLine + "REMINDER: answer in one short casual line unless they asked for detail. No long explanations, no lists unless needed.";
                 var turn = new StringBuilder();
                 List<ToolCall>? calls = null;
-                await foreach (var ev in GroqService.StreamAsync(useLocal ? null : _settings.GroqApiKey, engineModel, system, _history.ToList(), offerTools ? tools : null, _cts.Token, useLocal ? LocalAi.ChatEndpoint : null, useLocal ? 220 : 700))
+                await foreach (var ev in GroqService.StreamAsync(useLocal ? null : _settings.CloudKey, engineModel, system, _history.ToList(), offerTools ? tools : null, _cts.Token, useLocal ? LocalAi.ChatEndpoint : _settings.CloudEndpoint is { Length: > 0 } cloudUrl ? cloudUrl : null, useLocal ? 220 : 700))
                 {
                     if (ev.Text is { } text)
                     {
@@ -653,8 +653,8 @@ public sealed class AssistantPanel : Grid
             {
                 Children =
                 {
-                    new TextBlock { Text = "Add your Groq API key", FontWeight = FontWeights.SemiBold, FontSize = 13 },
-                    new TextBlock { Text = "Paste it in Settings > AI Assistant (free at console.groq.com).", FontSize = 12, Opacity = 0.7, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0) },
+                    new TextBlock { Text = "Add a free cloud key", FontWeight = FontWeights.SemiBold, FontSize = 13 },
+                    new TextBlock { Text = "Gemini is free with a Google sign-in (aistudio.google.com/apikey), or use Groq. Paste a key in Settings > Clara.", FontSize = 12, Opacity = 0.7, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0) },
                     open,
                 },
             },
