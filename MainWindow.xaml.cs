@@ -2134,7 +2134,7 @@ public partial class MainWindow : Window
 
         // Text shadow wherever the background can be see-through.
         var seeThrough = glass || _settings.Material == IslandMaterial.Translucent || strength < 1;
-        _useTextShadow = _settings.TextShadow && seeThrough;
+        _useTextShadow = false; // the shadow popped in a second after every page change (it was suspended during motion); text stays clean instead
         RestoreTextShadow();
 
         // Outline: glass gets the specular rim; other materials an optional flat outline.
