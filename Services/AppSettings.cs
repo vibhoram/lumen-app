@@ -13,6 +13,8 @@ public enum IslandMode
     DynamicIsland,
     /// <summary>Attached to the top edge with flared shoulders, like a laptop notch.</summary>
     Notch,
+    /// <summary>Only a thin glass line near the top; hover it and the island appears, then it folds back into the line.</summary>
+    Bar,
 }
 
 public enum IslandMaterial
@@ -245,6 +247,15 @@ public sealed class AppSettings
 
     /// <summary>How often each timer length (minutes) was started.</summary>
     public Dictionary<string, int> TimerUse { get; set; } = new();
+
+    /// <summary>Bar mode: how long the island stays a pill after you leave it, before folding back into the thin bar.</summary>
+    public double BarRevealSeconds { get; set; } = 6;
+
+    /// <summary>Plain text chats with Clara use a model on this PC (Ollama) when one is running; pictures still go to Groq.</summary>
+    public bool AssistantUseLocalAi { get; set; } = true;
+
+    /// <summary>Which Ollama model to use offline. Empty = pick the fastest installed.</summary>
+    public string LocalModel { get; set; } = "";
 
     /// <summary>Show every slider (otherwise just presets and the essentials).</summary>
     public bool ShowAdvanced { get; set; }

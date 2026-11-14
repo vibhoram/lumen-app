@@ -109,8 +109,9 @@ public partial class SettingsWindow : Window
         BuildLookPresets();
 
         var style = Section("STYLE");
-        Choice(style, "Shape", new[] { (IslandMode.DynamicIsland, "Dynamic Island"), (IslandMode.Notch, "Notch") },
+        Choice(style, "Shape", new[] { (IslandMode.DynamicIsland, "Dynamic Island"), (IslandMode.Notch, "Notch"), (IslandMode.Bar, "Thin bar") },
             () => s.Mode, v => s.Mode = v);
+        if (s.Mode == IslandMode.Bar) Slider(style, "Stay a pill for", 2, 30, 1, () => s.BarRevealSeconds, v => s.BarRevealSeconds = v, v => $"{v:0} s");
         Slider(style, "Size", 0.75, 1.5, 0.05, () => s.IslandScale, v => s.IslandScale = v, v => $"{v * 100:0}%");
         if (s.ShowAdvanced)
         {
@@ -322,6 +323,9 @@ public partial class SettingsWindow : Window
         BuildPageOrder(order);
 
         var ai = Section("CLARA (AI ASSISTANT)", "Clara");
+        Check(ai, "Chat offline with a model on this PC (Ollama) for plain text; pictures and screenshots go to Groq", () => s.AssistantUseLocalAi, v => s.AssistantUseLocalAi = v);
+        TextRow(ai, "Offline model", () => s.LocalModel, v => s.LocalModel = v);
+        Note(ai, "Leave the offline model empty to use the fastest one installed (llama3.2:3b if you have it). Ollama unloads it after about 5 minutes idle; the page loads it ahead of your first message.");
         Check(ai, "Show the Clara page", () => s.AssistantEnabled, v => s.AssistantEnabled = v);
         Check(ai, "Live screen: attach a fresh screenshot to every message", () => s.AssistantLiveScreen, v => s.AssistantLiveScreen = v);
         Check(ai, "Let Clara know the time, what's playing, battery and weather", () => s.ClaraContext, v => s.ClaraContext = v);

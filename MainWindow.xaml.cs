@@ -140,6 +140,7 @@ public partial class MainWindow : Window
         WireClara();
         WireContext();
         WireMonitors();
+        WireBar();
         ActivityBubble.IsVisibleChanged += (_, _) => UpdateBubbleRings();
         ActivityBubble2.IsVisibleChanged += (_, _) => UpdateBubbleRings();
         ActivityBubble.SizeChanged += (_, _) => UpdateBubbleRings();
@@ -959,6 +960,23 @@ public partial class MainWindow : Window
             width = view.Width;
             height = view.Height;
             radius = IsNotch ? Math.Min(NotchCompactRadius, height / 2) : height / 2;
+            if (BarIsIdle)
+            {
+                // Bar mode at rest: just a thin glass line
+                width = BarWidth;
+                height = BarHeight;
+                radius = BarHeight / 2;
+            }
+        }
+        if (view == ClockView)
+        {
+            // the clock hides inside the thin line; clear any running fade first, or it would hold the old value
+            var wanted = BarIsIdle ? 0.0 : 1.0;
+            if (Math.Abs(ClockView.Opacity - wanted) > 0.01 || BarIsIdle)
+            {
+                ClockView.BeginAnimation(OpacityProperty, null);
+                ClockView.Opacity = wanted;
+            }
         }
 
         SwitchTo(view);
@@ -4208,7 +4226,7 @@ public partial class MainWindow : Window
 
     private void UpdateSecondActivity()
     {
-        var allowed = _settings.ShowSecondActivity && !_state.IsExpanded && _state.Transient is null;
+        var allowed = _settings.ShowSecondActivity && !_state.IsExpanded && _state.Transient is null && !BarIsIdle;
         var second = allowed ? _state.SecondaryView : null;
         var third = allowed ? _state.TertiaryView : null;
 

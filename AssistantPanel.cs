@@ -58,6 +58,8 @@ public sealed class AssistantPanel : Grid
 
         // ---- header
         var header = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+        // load the offline model as soon as the page opens, so the first reply isn't slow
+        IsVisibleChanged += (_, _) => { if (IsVisible) _ = LocalAi.WarmUpAsync(_settings); };
         _orb = MakeAvatar(34);
         _status = new TextBlock { Text = "online", FontSize = 10.5, Opacity = 0.55 };
         var title = new StackPanel { Orientation = Orientation.Horizontal };
@@ -361,7 +363,9 @@ public sealed class AssistantPanel : Grid
             var text = (preset ?? _input.Text).Trim();
             var quote = _pendingText;
             if (text.Length == 0 && _pending is null && quote is null && !grabScreen) return;
-            if (string.IsNullOrWhiteSpace(_settings.GroqApiKey))
+            // No Groq key is fine for plain text if an offline model is available; pictures need the key.
+            if (string.IsNullOrWhiteSpace(_settings.GroqApiKey)
+                && (_pending is not null || grabScreen || _settings.AssistantLiveScreen || !_settings.AssistantUseLocalAi || await LocalAi.PickModelAsync(_settings) is null))
             {
                 ShowNoKey();
                 return;
@@ -402,16 +406,25 @@ public sealed class AssistantPanel : Grid
         _cts = new CancellationTokenSource();
         var reply = new StringBuilder();
         var tools = ClaraBrain.Tools();
+
+        // Which brain answers: text-only chats run offline on this PC (Ollama); anything with a picture, or right after one, goes to Groq.
+        var cloudNeeded = image is not null || _history.TakeLast(6).Any(m => m.ImageDataUrl is not null);
+        var localModel = !cloudNeeded && _settings.AssistantUseLocalAi ? await LocalAi.PickModelAsync(_settings) : null;
+        if (localModel is null && string.IsNullOrWhiteSpace(_settings.GroqApiKey)) { ShowNoKey(); SetBusy(false); return; }
+        var useLocal = localModel is not null;
+        _status.Text = useLocal ? $"offline · {localModel}" : "online";
+        var engineModel = useLocal ? localModel! : _settings.GroqModel;
         try
         {
             // A turn can need several rounds: the model asks for tools, we run them, it then answers.
             for (var round = 0; round < 5; round++)
             {
                 var context = _settings.ClaraContext ? ContextProvider?.Invoke() : null;
-                var system = ClaraBrain.SystemPrompt(_settings.GroqModel, context, ClaraMemory.Shared.Facts);
+                var system = ClaraBrain.SystemPrompt(useLocal ? $"{engineModel}, running offline on this PC" : engineModel, context, ClaraMemory.Shared.Facts);
+                var offerTools = useLocal ? (LocalAi.LooksActionable(userText) || round > 0) : true;
                 var turn = new StringBuilder();
                 List<ToolCall>? calls = null;
-                await foreach (var ev in GroqService.StreamAsync(_settings.GroqApiKey, _settings.GroqModel, system, _history.ToList(), tools, _cts.Token))
+                await foreach (var ev in GroqService.StreamAsync(useLocal ? null : _settings.GroqApiKey, engineModel, system, _history.ToList(), offerTools ? tools : null, _cts.Token, useLocal ? LocalAi.ChatEndpoint : null))
                 {
                     if (ev.Text is { } text)
                     {

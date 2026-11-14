@@ -38,7 +38,7 @@ public partial class MainWindow
     private void PlacePet(double w, double h)
     {
         if (_pet is null) return;
-        var show = _settings.PetEnabled && !_state.IsExpanded && !IslandHidden && w > 40 && h < 80 && QuickTray.Visibility != Visibility.Visible;
+        var show = _settings.PetEnabled && !_state.IsExpanded && !IslandHidden && !BarIsIdle && w > 40 && h < 80 && QuickTray.Visibility != Visibility.Visible;
         if (!show)
         {
             if (_pet.Visibility == Visibility.Visible) { _pet.Visibility = Visibility.Collapsed; _pet.Running = false; _petWatch.Stop(); }

@@ -47,8 +47,8 @@ public static class GroqService
 
     /// <summary>Streams one model turn: reply text as it arrives, then any tool calls the model made.</summary>
     public static async IAsyncEnumerable<GroqEvent> StreamAsync(
-        string apiKey, string model, string system, IReadOnlyList<ChatMessage> history, JsonArray? tools,
-        [EnumeratorCancellation] CancellationToken cancel)
+        string? apiKey, string model, string system, IReadOnlyList<ChatMessage> history, JsonArray? tools,
+        [EnumeratorCancellation] CancellationToken cancel, string? endpoint = null)
     {
         // Only the newest image goes out: older screenshots would burn tokens and the model's image limit.
         var lastImage = -1;
@@ -104,11 +104,11 @@ public static class GroqService
             body["tool_choice"] = "auto";
         }
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, Endpoint)
+        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint ?? Endpoint)
         {
             Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json"),
         };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey.Trim());
+        if (!string.IsNullOrWhiteSpace(apiKey)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey.Trim());
         request.Headers.UserAgent.ParseAdd("D-Island");
 
         using var response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancel);
