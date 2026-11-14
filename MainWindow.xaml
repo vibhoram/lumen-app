@@ -377,7 +377,7 @@
                     </Grid>
 
                     <!-- One page visible at a time; switching slides between them (SwitchPage). -->
-                    <Grid x:Name="PageHost" ClipToBounds="True">
+                    <Grid x:Name="PageHost" ClipToBounds="False">
                     <StackPanel x:Name="HomePage">
 
                     <Grid x:Name="MediaSection">
@@ -728,7 +728,7 @@
 
                     <!-- Quick-launch apps; tiles are built in code from the QuickApps setting. -->
                     <ScrollViewer x:Name="AppsPage" Style="{StaticResource SlimScroll}" MaxHeight="232">
-                        <WrapPanel x:Name="QuickAppsRow" HorizontalAlignment="Center" />
+                        <WrapPanel x:Name="QuickAppsRow" HorizontalAlignment="Center" Margin="0,6,0,6" />
                     </ScrollViewer>
 
                     <StackPanel x:Name="WallpaperPage">

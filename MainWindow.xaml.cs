@@ -161,6 +161,9 @@ public partial class MainWindow : Window
         ApplyMusicLayout();
         FocusPage.Children.Add(new FocusPanel(_focusSession, _settings, _timer));
         WireVitals();
+        // Buttons lift and swell on hover; clip the pages a few pixels outside their box so no edge of a button is cut off
+        // (the clip is still needed while pages slide past each other).
+        PageHost.SizeChanged += (_, e) => PageHost.Clip = new RectangleGeometry(new Rect(-8, -8, e.NewSize.Width + 16, e.NewSize.Height + 16));
         WireAlarmRow();
         _clipPanel = new ClipboardPanel(_clipHistory);
         ClipboardPage.Children.Add(_clipPanel);
