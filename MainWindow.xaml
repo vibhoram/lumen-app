@@ -224,14 +224,27 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock x:Name="OsdIcon" Style="{StaticResource Glyph}" HorizontalAlignment="Left"
                                FontSize="16" Text="&#xE767;" />
-                    <Border Grid.Column="1" Height="6" Margin="8,0" CornerRadius="3" Background="#33FFFFFF"
-                            VerticalAlignment="Center" ClipToBounds="True">
-                        <Border x:Name="OsdFill" CornerRadius="3" Background="White" RenderTransformOrigin="0,0.5">
-                            <Border.RenderTransform>
-                                <ScaleTransform ScaleX="0" />
-                            </Border.RenderTransform>
+                    <Grid Grid.Column="1" Margin="8,0" VerticalAlignment="Center" Height="18">
+                        <Border x:Name="OsdTrack" Height="9" CornerRadius="4.5" Background="#33FFFFFF" BorderBrush="#26FFFFFF" BorderThickness="1"
+                                VerticalAlignment="Center" ClipToBounds="True">
+                            <Border x:Name="OsdFill" CornerRadius="4.5" Background="White" RenderTransformOrigin="0,0.5">
+                                <Border.RenderTransform>
+                                    <ScaleTransform ScaleX="0" />
+                                </Border.RenderTransform>
+                            </Border>
                         </Border>
-                    </Border>
+                        <!-- a glass thumb riding the end of the fill; it stretches while the level moves fast -->
+                        <Ellipse x:Name="OsdKnob" Width="16" Height="16" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="-8,0,0,0"
+                                 Fill="White" Stroke="#66FFFFFF" StrokeThickness="1" IsHitTestVisible="False" RenderTransformOrigin="0.5,0.5">
+                            <Ellipse.RenderTransform>
+                                <TransformGroup>
+                                    <ScaleTransform x:Name="OsdKnobScale" />
+                                    <TranslateTransform x:Name="OsdKnobShift" />
+                                </TransformGroup>
+                            </Ellipse.RenderTransform>
+                            <Ellipse.Effect><DropShadowEffect BlurRadius="8" ShadowDepth="0" Opacity="0.45" Color="White" /></Ellipse.Effect>
+                        </Ellipse>
+                    </Grid>
                     <TextBlock x:Name="OsdPercent" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center"
                                FontSize="13" FontWeight="SemiBold" Typography.NumeralAlignment="Tabular" />
                 </Grid>

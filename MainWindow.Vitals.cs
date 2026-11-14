@@ -23,7 +23,7 @@ public partial class MainWindow
             if (result.FreedGb >= 0.3) _pet.React(PetEvent.RamFreed, $"{result.FreedGb:0.0} GB");
         };
         _vitals.HeightChanged += () => { if (_state.IsExpanded && _page == ExpandedPage.Vitals) Render(); };
-        _ramWatch.Tick += (_, _) => { CheckRam(); UpdateTrayTooltip(); };
+        _ramWatch.Tick += (_, _) => { CheckRam(); UpdateTrayTooltip(); _clipHistory.PurgeExpired(); };
         _ramWatch.Start();
     }
 

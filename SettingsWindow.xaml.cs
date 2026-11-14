@@ -303,6 +303,7 @@ public partial class SettingsWindow : Window
         var clip = Section("CLIPBOARD HISTORY", "Clipboard");
         Check(clip, "Keep a history of what I copy", () => s.ClipboardHistoryEnabled, v => s.ClipboardHistoryEnabled = v);
         Check(clip, "Show the Clipboard page", () => s.ClipboardPageEnabled, v => s.ClipboardPageEnabled = v);
+        Choice(clip, "Keep history for", new[] { (1, "1 hour"), (6, "6 hours"), (24, "1 day"), (168, "7 days"), (720, "30 days"), (0, "Until full") }, () => s.ClipboardKeepHours, v => s.ClipboardKeepHours = v);
         var wipe = new Button { Style = (Style)FindResource("ChipButton"), Content = "Clear clipboard history", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 6, 0, 2) };
         wipe.Click += (_, _) => { _clipboardHistoryClear?.Invoke(); wipe.Content = "History cleared"; };
         clip.Children.Add(wipe);

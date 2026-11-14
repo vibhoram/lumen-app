@@ -324,6 +324,19 @@ public partial class MainWindow : Window
         Loaded += OnLoaded;
         Closed += OnClosed;
         SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
+        // waking from sleep: a friendly "welcome back" that fits the time of day
+        SystemEvents.PowerModeChanged += (_, e) =>
+        {
+            if (e.Mode != PowerModes.Resume) return;
+            Dispatcher.InvokeAsync(async () =>
+            {
+                await Task.Delay(1800); // let Windows settle
+                var hour = DateTime.Now.Hour;
+                var hello = hour switch { < 5 => "Still up?", < 12 => "Good morning", < 17 => "Welcome back", < 21 => "Good evening", _ => "Welcome back" };
+                ShowInfo(TransientPriority.Device, 300, "", hello, DateTime.Now.ToString("h:mm tt"), seconds: 2.4);
+                _pet.React(PetEvent.Click);
+            });
+        };
 
         ApplySettings();
     }
@@ -444,6 +457,8 @@ public partial class MainWindow : Window
 
     private void ApplySettings()
     {
+        _clipHistory.KeepHours = _settings.ClipboardKeepHours;
+        _clipHistory.PurgeExpired();
         // Scaling stiffness by speed² and damping by speed keeps the same curve shape, just faster.
         var stiffness = BaseStiffness * SpeedFactor * SpeedFactor;
         var dampingRatio = 1.0 - 0.55 * Math.Clamp(_settings.Bounciness, 0, 1);
@@ -1928,7 +1943,12 @@ public partial class MainWindow : Window
         {
             Windows.System.Power.PowerManager.EnergySaverStatusChanged += (_, _) => Dispatcher.InvokeAsync(() =>
             {
+                var wasSaving = _energySaver;
                 _energySaver = StatusService.EnergySaverOn;
+                if (wasSaving != _energySaver)
+                    ShowInfo(TransientPriority.Device, 300, "\uE83F", "Energy Saver", _energySaver ? "On" : "Off",
+                        detailBrush: _energySaver ? new SolidColorBrush(Color.FromRgb(0xFF, 0xD6, 0x0A)) : (Brush)FindResource("Green"),
+                        glyphBrush: _energySaver ? new SolidColorBrush(Color.FromRgb(0xFF, 0xD6, 0x0A)) : (Brush)FindResource("Green"), seconds: 2.2);
                 _meterTimer.Interval = TimeSpan.FromMilliseconds(_energySaver ? 66 : 33);
                 if (_equalizerRunning) // restart the animated bars at the new rate
                 {
@@ -2910,6 +2930,38 @@ public partial class MainWindow : Window
 
     // ---------------------------------------------------------------- volume / brightness OSD
 
+    /// <summary>A quick "boing": the element swells and settles back with a spring.</summary>
+    private static void PopElement(FrameworkElement element, double from)
+    {
+        if (element.RenderTransform is not ScaleTransform scale)
+        {
+            scale = new ScaleTransform(1, 1);
+            element.RenderTransformOrigin = new Point(0.5, 0.5);
+            element.RenderTransform = scale;
+        }
+        var pop = new DoubleAnimation(from, 1, TimeSpan.FromMilliseconds(520)) { EasingFunction = new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 2, Springiness = 4 } };
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, pop);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, pop);
+    }
+
+    /// <summary>A little side-to-side shake (muted, blocked, error).</summary>
+    private static void ShakeElement(FrameworkElement element)
+    {
+        var group = element.RenderTransform as TransformGroup;
+        if (group is null)
+        {
+            var scale = element.RenderTransform as ScaleTransform ?? new ScaleTransform(1, 1);
+            group = new TransformGroup { Children = { scale, new TranslateTransform() } };
+            element.RenderTransformOrigin = new Point(0.5, 0.5);
+            element.RenderTransform = group;
+        }
+        if (group.Children.OfType<TranslateTransform>().FirstOrDefault() is not { } shift) return;
+        var shake = new DoubleAnimationUsingKeyFrames { Duration = TimeSpan.FromMilliseconds(360) };
+        foreach (var (pct, x) in new[] { (0.15, -3.5), (0.35, 3.5), (0.55, -2.5), (0.75, 2), (1.0, 0) })
+            shake.KeyFrames.Add(new EasingDoubleKeyFrame(x, KeyTime.FromPercent(pct)));
+        shift.BeginAnimation(TranslateTransform.XProperty, shake);
+    }
+
     private void ShowVolume(float level, bool muted)
     {
         var glyph = muted || level <= 0.001 ? ""
@@ -2932,15 +2984,32 @@ public partial class MainWindow : Window
             : _accent is { } accent ? new SolidColorBrush(accent) : Brushes.White;
 
         var fill = (ScaleTransform)OsdFill.RenderTransform;
+        var before = fill.ScaleX;
+        var trackWidth = Math.Max(40, OsdTrack.ActualWidth > 0 ? OsdTrack.ActualWidth : 190);
         if (_currentView == OsdView)
         {
-            fill.BeginAnimation(ScaleTransform.ScaleXProperty,
-                new DoubleAnimation(level, TimeSpan.FromMilliseconds(140)) { EasingFunction = new CubicEase() });
+            // iOS-like motion: the fill and its thumb chase the new level with a small spring, the thumb stretches along the
+            // direction of travel, and the icon and number pop
+            var time = TimeSpan.FromMilliseconds(520);
+            var spring = new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 1, Springiness = 6 };
+            fill.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(level, time) { EasingFunction = spring });
+            OsdKnobShift.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(level * trackWidth, time) { EasingFunction = spring });
+            var stretch = new DoubleAnimationUsingKeyFrames();
+            stretch.KeyFrames.Add(new EasingDoubleKeyFrame(1.0 + Math.Min(0.7, Math.Abs(level - before) * 6), KeyTime.FromPercent(0.18)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+            stretch.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromPercent(1)) { EasingFunction = new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 1, Springiness = 5 } });
+            stretch.Duration = time;
+            OsdKnobScale.BeginAnimation(ScaleTransform.ScaleXProperty, stretch);
+            PopElement(OsdIcon, 1.3);
+            PopElement(OsdPercent, 1.18);
+            if (dimmed) ShakeElement(OsdIcon);
         }
         else
         {
             fill.BeginAnimation(ScaleTransform.ScaleXProperty, null);
             fill.ScaleX = level;
+            OsdKnobShift.BeginAnimation(TranslateTransform.XProperty, null);
+            OsdKnobShift.X = level * trackWidth;
+            PopElement(OsdIcon, 1.3);
         }
 
         _state.ShowTransient(kind, TransientPriority.Osd, TimeSpan.FromSeconds(_settings.OsdSeconds));
@@ -3048,6 +3117,7 @@ public partial class MainWindow : Window
         InfoDetail.Text = detail ?? "";
         InfoDetail.Foreground = detailBrush ?? (Brush)FindResource("Secondary");
         InfoView.Width = FitInfoWidth(width);
+        PopElement(InfoGlyph, 1.5);
         _state.ShowTransient(IslandView.Info, priority, TimeSpan.FromSeconds(seconds ?? _settings.AlertSeconds));
     }
 

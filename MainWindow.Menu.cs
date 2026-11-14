@@ -166,6 +166,10 @@ public partial class MainWindow
             case "quiet60": StartQuiet(TimeSpan.FromHours(1)); break;
             case "quietforever": StartQuiet(null); break;
             case "quietoff": EndQuiet(); break;
+            case "clippause":
+                _clipHistory.Paused = !_clipHistory.Paused;
+                ShowInfo(TransientPriority.Device, 300, "", _clipHistory.Paused ? "Clipboard on hold" : "Clipboard saving again", _clipHistory.Paused ? "nothing is saved" : "", seconds: 2);
+                break;
             case "ram0": case "ram1": case "ram2":
             {
                 var mode = id == "ram0" ? RamCleanMode.Normal : id == "ram1" ? RamCleanMode.More : RamCleanMode.Maximum;

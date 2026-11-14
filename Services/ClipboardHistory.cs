@@ -51,6 +51,32 @@ public sealed class ClipboardHistory
 
     public IReadOnlyList<ClipItem> Items => _items;
 
+    /// <summary>How long items are kept, in hours (0 = until the 100-item limit). Pinned items are never expired.</summary>
+    public int KeepHours { get; set; }
+
+    private bool _paused;
+
+    /// <summary>One-time hold: while on, nothing you copy is saved (screenshots included). Not remembered after a restart.</summary>
+    public bool Paused
+    {
+        get => _paused;
+        set { if (_paused == value) return; _paused = value; PausedChanged?.Invoke(); }
+    }
+
+    public event Action? PausedChanged;
+
+    /// <summary>Removes items older than the keep time (pinned ones stay).</summary>
+    public void PurgeExpired()
+    {
+        if (KeepHours <= 0) return;
+        var cutoff = DateTime.Now.AddHours(-KeepHours);
+        var old = _items.Where(i => !i.Pinned && i.Time < cutoff).ToList();
+        if (old.Count == 0) return;
+        foreach (var item in old) { _items.Remove(item); DeleteFile(item); }
+        Save();
+        Changed?.Invoke();
+    }
+
     public event Action? Changed;
 
     public string ImagePath(ClipItem item) => Path.Combine(Folder, item.ImageFile ?? "");
@@ -58,6 +84,7 @@ public sealed class ClipboardHistory
     /// <summary>Reads whatever is on the clipboard right now and adds it (or moves an identical item to the top).</summary>
     public void CaptureCurrent()
     {
+        if (_paused) return; // on hold: save nothing
         try
         {
             ClipItem? item = null;

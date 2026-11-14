@@ -98,7 +98,7 @@ public sealed class TrayIcon : IDisposable
 
         menu.Items.AddRange(new ToolStripItem[]
         {
-            Cmd("Ask Clara", "clara", settings.AssistantHotkey), Cmd("Quick paste", "paste", settings.QuickPasteHotkey), Cmd("Start a 25 minute focus session", "focus"), timer, media, quiet,
+            Cmd("Ask Clara", "clara", settings.AssistantHotkey), Cmd("Quick paste", "paste", settings.QuickPasteHotkey), Cmd("Start a 25 minute focus session", "focus"), Cmd("Pause / resume clipboard history", "clippause"), timer, media, quiet,
             new ToolStripSeparator(), ram, pages,
             new ToolStripSeparator(), shape, look, species, hide, pet,
             new ToolStripSeparator(), open, hideFlyout, startup, new ToolStripSeparator(), exit,

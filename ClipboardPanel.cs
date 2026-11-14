@@ -53,7 +53,7 @@ public sealed class ClipboardPanel : Grid
             Foreground = Brushes.White,
             CaretBrush = Brushes.White,
             FontSize = 12.5,
-            Width = 56,
+            Width = 38,
             VerticalAlignment = VerticalAlignment.Center,
             Padding = new Thickness(0),
         };
@@ -90,8 +90,28 @@ public sealed class ClipboardPanel : Grid
 
         var clear = AssistantPanel.Chip("", "", () => { _history.Clear(keepPinned: true); });
         clear.ToolTip = "Clear history (pinned items stay)";
-        SetColumn(clear, 2);
-        top.Children.Add(clear);
+        // one-time hold: stop saving anything (screenshots too) until switched off again
+        var pauseText = new TextBlock { Text = "", FontFamily = AssistantPanel.IconFont, FontSize = 12, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+        var pause = new Border
+        {
+            CornerRadius = new CornerRadius(13), Padding = new Thickness(9, 5, 9, 5), Margin = new Thickness(0, 0, 4, 0), Cursor = Cursors.Hand,
+            Child = pauseText, ToolTip = "Stop saving everything you copy until you switch this off (this session only)",
+            BorderBrush = AssistantPanel.GlassRimBrush(), BorderThickness = new Thickness(1),
+        };
+        void ShowPause()
+        {
+            // idle: just a pause icon (saves room); on hold: a bright "On hold" label so you can't forget it is on
+            pauseText.FontFamily = _history.Paused ? new FontFamily("Segoe UI Variable Text, Segoe UI") : AssistantPanel.IconFont;
+            pauseText.Text = _history.Paused ? "On hold" : "";
+            pause.Background = _history.Paused ? new SolidColorBrush(Color.FromRgb(0xFF, 0x9F, 0x0A)) : AssistantPanel.GlassFillBrush();
+            pauseText.Foreground = _history.Paused ? new SolidColorBrush(Color.FromRgb(0x20, 0x14, 0x00)) : Brushes.White;
+        }
+        pause.MouseLeftButtonUp += (_, e) => { e.Handled = true; _history.Paused = !_history.Paused; };
+        _history.PausedChanged += () => Dispatcher.InvokeAsync(ShowPause);
+        ShowPause();
+        var right = new StackPanel { Orientation = Orientation.Horizontal, Children = { pause, clear } };
+        SetColumn(right, 2);
+        top.Children.Add(right);
         Children.Add(top);
 
         // ---- grid of cards

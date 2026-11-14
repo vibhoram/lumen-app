@@ -277,6 +277,9 @@ public sealed class AppSettings
         "torque values, safety wire, tooling, human factors, and regulations (ICAO, EASA, FAA, Transport Canada). Never reinterpret these as software, medical or other meanings unless he says so. " +
         "If a term really is ambiguous, ask once which he means.";
 
+    /// <summary>Clipboard items older than this many hours are removed (0 = keep until the 100-item limit). Pinned items stay.</summary>
+    public int ClipboardKeepHours { get; set; }
+
     /// <summary>Show every slider (otherwise just presets and the essentials).</summary>
     public bool ShowAdvanced { get; set; }
 
