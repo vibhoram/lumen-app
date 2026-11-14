@@ -262,9 +262,9 @@ public static class ClaraBrain
             },
         },
         Tool("set_todo_priority", "Change how urgent an existing to-do is.",
-            ("text", "string", "Words from the item"), required: new[] { "text", "urgency" }, extra: ("urgency", "string", "normal, high or urgent")),
+            ("text", "string", "Words from the item"), required: new[] { "text" }, extra: ("urgency", "string", "normal, high or urgent")),
         Tool("change_setting", "Change one Lumen setting by name. Use describe_app first if unsure of names. Examples: Mode=Bar, WaveStyle=Aurora, ClockLook=Outline, ClockFont=Bahnschrift Condensed, PetKind=Dragon, PetTalks=false, Material=LiquidGlass, GlassBlur=0.3, IslandScale=1.1, BarRevealSeconds=8, ShowSeconds=true.",
-            ("name", "string", "Setting name"), required: new[] { "name", "value" }, extra: ("value", "string", "New value (true/false, a number, or an option name)")),
+            ("name", "string", "Setting name"), required: new[] { "name" }, extra: ("value", "string", "New value (true/false, a number, or an option name)")),
         Tool("describe_app", "Read Lumen's current settings, pages and state, so you know what you can change.",
             ("detail", "string", "Optional; ignored"), required: Array.Empty<string>()),
         Tool("get_notifications", "Read the user's recent notifications (sender, time, text). Use when they ask what they missed or what someone said.",
@@ -318,7 +318,7 @@ public static class ClaraBrain
                 {
                     ["type"] = "object",
                     ["properties"] = properties,
-                    ["required"] = new JsonArray(needed.Select(r => (JsonNode?)r).ToArray()),
+                    ["required"] = new JsonArray(needed.Distinct().Select(r => (JsonNode?)r).ToArray()), // no duplicates: strict validators reject them
                 },
             },
         };
