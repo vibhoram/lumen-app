@@ -48,6 +48,10 @@ public partial class MainWindow
         if (_media.Current is { } m)
             sb.AppendLine($"Media: \"{m.Title}\" by {m.Artist} is {(m.IsPlaying ? "playing" : "paused")} in {m.AppName}.");
         if (_timer.IsActive) sb.AppendLine("A timer is running on the island.");
+        var (ramPercent, _, _) = VitalsService.Ram();
+        sb.AppendLine($"RAM use: {ramPercent:0}%.");
+        var nextAlarm = _settings.Alarms.Where(a => a.Enabled).OrderBy(a => a.TimeOfDay).FirstOrDefault();
+        if (nextAlarm is not null) sb.AppendLine($"Next alarm on the list: {nextAlarm.Time}{(string.IsNullOrEmpty(nextAlarm.Label) ? "" : " (" + nextAlarm.Label + ")")}.");
         sb.AppendLine($"To-do list: {_notes.OpenCount} open, {_notes.DoneCount} done.");
         if (_focusSession.Phase != FocusPhase.Idle)
             sb.AppendLine($"Focus session: {_focusSession.Phase} phase, {TimerService.Format(_focusSession.Remaining)} left, {_focusSession.TodaySessions} sessions done today.");
@@ -143,6 +147,31 @@ public partial class MainWindow
                     if (text.Length == 0) return (false, "Nothing to copy.", "");
                     Clipboard.SetText(text);
                     return (true, "Copied to the clipboard.", "Copied to clipboard");
+                }
+                case "set_alarm":
+                {
+                    var time = Str("time").Trim();
+                    if (!TimeSpan.TryParse(time, out var tod) || tod < TimeSpan.Zero || tod >= TimeSpan.FromDays(1)) return (false, "Time must look like 07:30 (24-hour).", "");
+                    var daily = doc.RootElement.TryGetProperty("daily", out var dv) && dv.ValueKind == JsonValueKind.True;
+                    var label = Str("label").Trim();
+                    _settings.Alarms.Add(new Alarm { Time = tod.ToString(@"hh\:mm"), Enabled = true, Daily = daily, Label = label.Length > 0 ? label : "Alarm" });
+                    _settings.Save();
+                    _alarms.Reschedule();
+                    return (true, $"Alarm set for {DateTime.Today.Add(tod):h:mm tt}{(daily ? ", every day" : "")}.", $"Alarm · {DateTime.Today.Add(tod):h:mm tt}");
+                }
+                case "system_status":
+                {
+                    var (percent, used, total) = VitalsService.Ram();
+                    var top = await Task.Run(() => VitalsService.TopApps(4));
+                    var apps = string.Join(", ", top.Select(a => $"{a.Name} {a.GigaBytes:0.0} GB"));
+                    return (true, $"RAM {percent:0}% used ({used:0.0} of {total:0.0} GB). Biggest memory users: {apps}.", $"RAM {percent:0}%");
+                }
+                case "free_ram":
+                {
+                    var mode = Str("level").ToLowerInvariant() switch { "deep" or "more" => RamCleanMode.More, "max" or "maximum" => RamCleanMode.Maximum, _ => RamCleanMode.Normal };
+                    var result = await VitalsService.CleanAsync(mode);
+                    _pet.React(PetEvent.RamFreed, result.FreedGb >= 0.3 ? $"{result.FreedGb:0.0} GB" : null);
+                    return (true, $"Freed about {result.FreedGb:0.0} GB. {result.Note}.", $"Freed {result.FreedGb:0.0} GB");
                 }
                 case "remember":
                 {

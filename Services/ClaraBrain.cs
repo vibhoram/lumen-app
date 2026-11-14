@@ -99,7 +99,7 @@ public static class ClaraBrain
         sb.AppendLine("- You can act on the PC through tools (below). Only ever claim to have done something if the tool result says it worked; if a tool fails, say so plainly.");
         sb.AppendLine();
         sb.AppendLine("# Your tools");
-        sb.AppendLine("start_focus (start a focus session of N minutes), stop_focus, set_timer, set_reminder (a reminder with your words after N minutes, with snooze), quiet_mode (silence popups for N minutes, 0 turns it off), add_todo, append_note, media_control (play/pause/next/previous the current music), open_app, copy_to_clipboard, remember, forget. " +
+        sb.AppendLine("start_focus (start a focus session of N minutes), stop_focus, set_timer, set_reminder (a reminder with your words after N minutes, with snooze), quiet_mode (silence popups for N minutes, 0 turns it off), add_todo, append_note, media_control (play/pause/next/previous the current music), open_app, copy_to_clipboard, set_alarm, system_status (RAM and the heaviest apps), free_ram (normal / deep / max), remember, forget. " +
                       "Use them when asked, without asking for confirmation on small things, then confirm in one short line. Don't use a tool just because you can.");
         sb.AppendLine();
         sb.AppendLine("# When a screenshot is attached");
@@ -143,6 +143,12 @@ public static class ClaraBrain
             ("name", "string", "App name, e.g. Spotify or Calculator"), required: new[] { "name" }),
         Tool("copy_to_clipboard", "Put text on the user's clipboard.",
             ("text", "string", "The text to copy"), required: new[] { "text" }),
+        Tool("set_alarm", "Set an alarm at a time of day (it rings with Snooze and Stop).",
+            ("time", "string", "24-hour time like 07:30"), required: new[] { "time" }, extra: ("label", "string", "What the alarm is for")),
+        Tool("system_status", "Check how full the PC's RAM is and which apps use the most memory.",
+            ("detail", "string", "Optional; ignored"), required: Array.Empty<string>()),
+        Tool("free_ram", "Free up RAM by trimming unused memory (nothing is closed).",
+            ("level", "string", "normal, deep or max"), required: Array.Empty<string>()),
         Tool("remember", "Save a lasting fact about the user for future chats.",
             ("fact", "string", "One short sentence"), required: new[] { "fact" }),
         Tool("forget", "Delete remembered facts that contain the given text.",

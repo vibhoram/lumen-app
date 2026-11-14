@@ -88,7 +88,7 @@ public sealed class AssistantPanel : Grid
         _scroll = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
-            MaxHeight = 206,
+            MaxHeight = 250,
             MinHeight = 92,
             Content = _messages,
         };
@@ -311,7 +311,7 @@ public sealed class AssistantPanel : Grid
     private void UpdateLive()
     {
         var on = _settings.AssistantLiveScreen;
-        _liveChip.Background = on ? AccentGradient() : B("#1FFFFFFF");
+        _liveChip.Background = on ? AccentGradient() : GlassFillBrush();
         _liveChip.ToolTip = on ? "Live screen: every message includes your current screen" : "Turn on to include your screen with every message";
     }
 
@@ -625,6 +625,18 @@ public sealed class AssistantPanel : Grid
         })
         {
             var chip = Chip("", label, () => Send(prompt, grabScreen: true));
+            chip.Margin = new Thickness(3);
+            chips.Children.Add(chip);
+        }
+        foreach (var (label, prompt) in new[]
+        {
+            ("Plan my day", "Help me plan my day. Ask me what's on my list, then suggest an order and offer to start a focus session."),
+            ("Study buddy", "I'm about to study. Ask me what I'm working on and set me up with a focus session."),
+            ("Why is my PC slow?", "Check my system status and tell me what's using memory; offer to free some RAM."),
+            ("Free RAM", "Free up some RAM for me."),
+        })
+        {
+            var chip = Chip("", label, () => Send(prompt, grabScreen: false));
             chip.Margin = new Thickness(3);
             chips.Children.Add(chip);
         }
