@@ -31,6 +31,8 @@ public sealed class AssistantPanel : Grid
     private readonly Border _inputBox;
     private readonly Border _chip;
     private readonly Image _chipImage;
+    private readonly Border _chipThumb;
+    private readonly TextBlock _chipText;
     private readonly Border _send;
     private readonly TextBlock _sendGlyph;
     private readonly StackPanel _empty;
@@ -39,6 +41,8 @@ public sealed class AssistantPanel : Grid
     private BitmapSource? _pending;
     private CancellationTokenSource? _cts;
     private bool _busy;
+    private bool _focused;
+    private string? _pendingText;
 
     public AssistantPanel(AppSettings settings)
     {
@@ -77,28 +81,39 @@ public sealed class AssistantPanel : Grid
         _scroll = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
-            MaxHeight = 190,
-            MinHeight = 84,
+            MaxHeight = 206,
+            MinHeight = 92,
             Content = _messages,
         };
         _scroll.PreviewMouseWheel += (_, e) =>
         {
             if (_scroll.ScrollableHeight <= 0) return;
-            _scroll.ScrollToVerticalOffset(_scroll.VerticalOffset - e.Delta);
+            var at = _scroll.VerticalOffset;
+            _scroll.BeginAnimation(OffsetProperty, null);
+            _scroll.ScrollToVerticalOffset(at - e.Delta);
             e.Handled = true; // don't flip pages while reading a long answer
         };
         _empty = BuildEmpty();
         var stack = new Grid();
         stack.Children.Add(_scroll);
         stack.Children.Add(_empty);
-        SetRow(stack, 1);
-        Children.Add(stack);
+        // A soft dark well behind the conversation keeps text readable over any wallpaper or window.
+        var well = new Border
+        {
+            Background = B("#59000000"),
+            CornerRadius = new CornerRadius(16),
+            Padding = new Thickness(10, 10, 10, 2),
+            Child = stack,
+        };
+        SetRow(well, 1);
+        Children.Add(well);
 
         // ---- attachment chip
-        _chipImage = new Image { Width = 44, Height = 28, Stretch = Stretch.UniformToFill };
-        var chipText = new TextBlock { Text = "Screen attached", FontSize = 11.5, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0), Opacity = 0.85 };
+        _chipImage = new Image { Width = 56, Height = 34, Stretch = Stretch.UniformToFill };
+        _chipThumb = new Border { CornerRadius = new CornerRadius(7), Child = _chipImage, ClipToBounds = true };
+        _chipText = new TextBlock { FontSize = 11.5, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0), Opacity = 0.9, MaxWidth = 240, TextTrimming = TextTrimming.CharacterEllipsis };
         var remove = new TextBlock { Text = "", FontFamily = IconFont, FontSize = 10, VerticalAlignment = VerticalAlignment.Center, Cursor = Cursors.Hand, Opacity = 0.7, Margin = new Thickness(0, 0, 4, 0) };
-        remove.MouseLeftButtonUp += (_, e) => { _pending = null; UpdateChip(); e.Handled = true; };
+        remove.MouseLeftButtonUp += (_, e) => { _pending = null; _pendingText = null; UpdateChip(); e.Handled = true; };
         _chip = new Border
         {
             CornerRadius = new CornerRadius(10),
@@ -112,8 +127,8 @@ public sealed class AssistantPanel : Grid
                 Orientation = Orientation.Horizontal,
                 Children =
                 {
-                    new Border { CornerRadius = new CornerRadius(6), Child = _chipImage, ClipToBounds = true },
-                    chipText,
+                    _chipThumb,
+                    _chipText,
                     remove,
                 },
             },
@@ -186,8 +201,8 @@ public sealed class AssistantPanel : Grid
 
         _input.TextChanged += (_, _) => _placeholder.Visibility = _input.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
         _input.PreviewMouseLeftButtonDown += (_, _) => BeginTypingRequested?.Invoke(_input);
-        _input.GotKeyboardFocus += (_, _) => _inputBox.BorderBrush = AccentGradient();
-        _input.LostKeyboardFocus += (_, _) => _inputBox.BorderBrush = B("#14FFFFFF");
+        _input.GotKeyboardFocus += (_, _) => { _focused = true; UpdateBorder(); };
+        _input.LostKeyboardFocus += (_, _) => { _focused = false; UpdateBorder(); };
         _input.PreviewKeyDown += OnInputKeyDown;
 
         UpdateLive();
@@ -201,6 +216,33 @@ public sealed class AssistantPanel : Grid
     public Func<Task<BitmapSource?>>? ScreenRequested { get; set; }
 
     public TextBox Input => _input;
+
+#if DEBUG
+    /// <summary>Fills the page with sample content (DISLAND_ASSIST_DEMO=1) to check layout and growth.</summary>
+    public void DebugDemo()
+    {
+        var wb = new WriteableBitmap(320, 180, 96, 96, PixelFormats.Bgr32, null);
+        var px = new byte[320 * 180 * 4];
+        for (var i = 0; i < px.Length; i += 4) { px[i] = 200; px[i + 1] = (byte)(i / 4 % 320); px[i + 2] = 90; }
+        wb.WritePixels(new Int32Rect(0, 0, 320, 180), px, 320 * 4, 0);
+        ShowEmpty(false);
+        AddUser("What does this error mean?", wb);
+        var bubble = new AssistantBubble(this);
+        _messages.Children.Add(bubble.Root);
+        bubble.SetText("**The build failed** because a file is missing.\n\n- Check the path in `settings.json`\n- Re-run the installer\n\n```\ndotnet build --no-incremental\n```\n\nIf it still fails, paste the full log and I'll dig in. This longer answer makes the area scroll so the layout can be checked.");
+        bubble.Finish();
+        AttachImage(wb);
+        AttachText("Selected text from the page");
+    }
+#endif
+
+    /// <summary>Attaches a piece of text (selection, clipboard item) as context for the next message.</summary>
+    public void AttachText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return;
+        _pendingText = text.Trim();
+        UpdateChip();
+    }
 
     /// <summary>Attaches a screenshot to the next message.</summary>
     public void AttachImage(BitmapSource? image)
@@ -270,14 +312,22 @@ public sealed class AssistantPanel : Grid
 
     private void UpdateChip()
     {
-        if (_pending is null)
+        if (_pending is null && _pendingText is null)
         {
             _chip.Visibility = Visibility.Collapsed;
             return;
         }
+        var wasHidden = _chip.Visibility != Visibility.Visible;
         _chipImage.Source = _pending;
+        _chipThumb.Visibility = _pending is null ? Visibility.Collapsed : Visibility.Visible;
+        _chipText.Text = (_pending, _pendingText) switch
+        {
+            (not null, not null) => "Screen + selected text",
+            (not null, null) => "Screen attached",
+            _ => "\u201C" + _pendingText!.Replace('\n', ' ') + "\u201D",
+        };
         _chip.Visibility = Visibility.Visible;
-        Appear(_chip, 6);
+        if (wasHidden) Appear(_chip, 6);
     }
 
     // ------------------------------------------------------------------ sending
@@ -294,7 +344,8 @@ public sealed class AssistantPanel : Grid
                 return;
             }
             var text = (preset ?? _input.Text).Trim();
-            if (text.Length == 0 && _pending is null && !grabScreen) return;
+            var quote = _pendingText;
+            if (text.Length == 0 && _pending is null && quote is null && !grabScreen) return;
             if (string.IsNullOrWhiteSpace(_settings.GroqApiKey))
             {
                 ShowNoKey();
@@ -308,12 +359,14 @@ public sealed class AssistantPanel : Grid
             if (text.Length == 0) text = "What's going on here? Explain it briefly.";
 
             _pending = null;
+            _pendingText = null;
             UpdateChip();
             _input.Clear();
             var dataUrl = image is null ? null : await Task.Run(() => GroqService.ToDataUrl(image));
             ShowEmpty(false);
-            AddUser(text, image);
-            _history.Add(new ChatMessage("user", text, dataUrl));
+            AddUser(text, image, quote);
+            var sent = quote is null ? text : $"About this text:\n\"\"\"\n{quote}\n\"\"\"\n\n{text}";
+            _history.Add(new ChatMessage("user", sent, dataUrl));
             await RunAsync(text, image);
         }
         catch (Exception ex)
@@ -375,9 +428,35 @@ public sealed class AssistantPanel : Grid
         }
     }
 
+    private void UpdateBorder()
+    {
+        if (_busy)
+        {
+            // A soft light sweeps along the edge while the model is working.
+            var shimmer = new LinearGradientBrush
+            {
+                StartPoint = new Point(0, 0),
+                EndPoint = new Point(1, 0),
+                SpreadMethod = GradientSpreadMethod.Repeat,
+                GradientStops =
+                {
+                    new GradientStop(Color.FromArgb(0x30, 0x8B, 0x6C, 0xFF), 0),
+                    new GradientStop(AccentB, 0.5),
+                    new GradientStop(Color.FromArgb(0x30, 0x8B, 0x6C, 0xFF), 1),
+                },
+            };
+            var slide = new TranslateTransform();
+            shimmer.RelativeTransform = slide;
+            slide.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(-1, 0, TimeSpan.FromMilliseconds(1100)) { RepeatBehavior = RepeatBehavior.Forever });
+            _inputBox.BorderBrush = shimmer;
+        }
+        else _inputBox.BorderBrush = _focused ? AccentGradient() : B("#14FFFFFF");
+    }
+
     private void SetBusy(bool busy)
     {
         _busy = busy;
+        UpdateBorder();
         _sendGlyph.Text = busy ? "" : "";
         _placeholder.Text = busy ? "Thinking…" : "Ask anything…";
         var pulse = busy
@@ -393,9 +472,18 @@ public sealed class AssistantPanel : Grid
 
     // ------------------------------------------------------------------ message UI
 
-    private void AddUser(string text, BitmapSource? image)
+    private void AddUser(string text, BitmapSource? image, string? quote = null)
     {
         var body = new StackPanel();
+        if (quote is not null)
+            body.Children.Add(new Border
+            {
+                Background = B("#26000000"),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(8, 5, 8, 5),
+                Margin = new Thickness(0, 0, 0, 5),
+                Child = new TextBlock { Text = quote.Length > 160 ? quote[..160] + "…" : quote, FontSize = 11.5, Opacity = 0.85, TextWrapping = TextWrapping.Wrap },
+            });
         if (image is not null)
             body.Children.Add(new Border
             {
@@ -421,7 +509,20 @@ public sealed class AssistantPanel : Grid
         ScrollDown();
     }
 
-    private void ScrollDown() => Dispatcher.BeginInvoke(() => _scroll.ScrollToEnd(), DispatcherPriority.Background);
+    private static readonly DependencyProperty OffsetProperty = DependencyProperty.RegisterAttached(
+        "SmoothOffset", typeof(double), typeof(AssistantPanel),
+        new PropertyMetadata(0.0, (d, e) => ((ScrollViewer)d).ScrollToVerticalOffset((double)e.NewValue)));
+
+    private void ScrollDown() => Dispatcher.BeginInvoke(() =>
+    {
+        var target = _scroll.ScrollableHeight;
+        if (Math.Abs(target - _scroll.VerticalOffset) < 1) return;
+        _scroll.SetValue(OffsetProperty, _scroll.VerticalOffset);
+        _scroll.BeginAnimation(OffsetProperty, new DoubleAnimation(target, TimeSpan.FromMilliseconds(220))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+        });
+    }, DispatcherPriority.Background);
 
     private void ShowNoKey()
     {
@@ -688,7 +789,16 @@ public sealed class AssistantPanel : Grid
 
     private static Brush AccentGradient() => new LinearGradientBrush(AccentA, AccentB, 35);
 
-    private static Border MakeOrb() => new()
+    private static Border MakeOrb()
+    {
+        var orb = MakeOrbCore();
+        if (orb.Effect is System.Windows.Media.Effects.DropShadowEffect glow)
+            glow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.OpacityProperty,
+                new DoubleAnimation(0.4, 0.95, TimeSpan.FromSeconds(2.2)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() });
+        return orb;
+    }
+
+    private static Border MakeOrbCore() => new()
     {
         Width = 22,
         Height = 22,

@@ -47,6 +47,7 @@ public partial class MainWindow : Window
     private readonly MouseShakeService _shake = new();
     private readonly Hotkey _assistHotkey = new(2);
     private AssistantPanel _assistant = null!;
+    private bool _assistFit;
     private readonly BatteryService _battery = new();
     private readonly WallpaperEngineService _wallpaper = new();
     private readonly DeviceService _devices = new();
@@ -127,6 +128,17 @@ public partial class MainWindow : Window
         _assistant.EndTypingRequested += () => EndTyping(restoreFocus: true);
         _assistant.OpenSettingsRequested += () => SettingsRequested?.Invoke();
         _assistant.ScreenRequested = CaptureScreenAsync;
+        // The chat grows and shrinks (attachment, long answers, multi-line input): re-fit the island.
+        AssistantPage.SizeChanged += (_, _) =>
+        {
+            if (_assistFit) return;
+            _assistFit = true;
+            Dispatcher.BeginInvoke(() =>
+            {
+                _assistFit = false;
+                if (_state.IsExpanded && _page == ExpandedPage.Assistant) Render();
+            }, DispatcherPriority.Background);
+        };
         _windows = new WindowEventWatcher(TimeSpan.FromMilliseconds(30));
         _background = new BackgroundDetector(GetIslandScreenRect, _windows);
         _windows.Changed += () =>
@@ -552,6 +564,7 @@ public partial class MainWindow : Window
             _leavePoll.Tick += (_, _) => _msOutside = 0;
             SetExpanded(true);
             if (Enum.TryParse<ExpandedPage>(expand, true, out var page)) ShowPage(page, animate: false);
+            if (Environment.GetEnvironmentVariable("DISLAND_ASSIST_DEMO") == "1") _assistant.DebugDemo();
         }
         if (Environment.GetEnvironmentVariable("DISLAND_DEVICE") is { Length: > 0 } deviceName)
         {
@@ -1156,7 +1169,7 @@ public partial class MainWindow : Window
             if (_wheelSpeed < 0.4 * _wheelPeak) _wheelMomentumFaded = true;
         }
 
-        for (var d = e.OriginalSource as DependencyObject; d is not null && d != Root; d = VisualTreeHelper.GetParent(d))
+        for (var d = e.OriginalSource as DependencyObject; d is not null && d != Root; d = ParentOf(d))
         {
             if (d is ScrollViewer { ScrollableHeight: > 0 } scroller
                 && (delta < 0 ? scroller.VerticalOffset < scroller.ScrollableHeight - 0.5 : scroller.VerticalOffset > 0.5))
@@ -1183,6 +1196,10 @@ public partial class MainWindow : Window
         _lastWheelFlip = now;
         ShowPage(pages[index], animate: true);
     }
+
+    /// <summary>Visual parent; text inlines (Run, Span) aren't visuals, so they step up the logical tree.</summary>
+    private static DependencyObject? ParentOf(DependencyObject d) =>
+        d is Visual or System.Windows.Media.Media3D.Visual3D ? VisualTreeHelper.GetParent(d) : LogicalTreeHelper.GetParent(d);
 
     private double MeasureExpandedHeight()
     {
