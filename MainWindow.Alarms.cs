@@ -4,6 +4,7 @@
 
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -41,8 +42,7 @@ public partial class MainWindow
 
     private void WireAlarmRow()
     {
-        var now = DateTime.Now;
-        _alarmMinutes = ((now.Hour * 60 + now.Minute) / 30 + 1) * 30 % 1440; // the next half hour
+        _alarmMinutes = (int)SmartTime.DefaultAlarm(_settings, DateTime.Now).TotalMinutes % 1440; // your usual time, else the next half hour
 
         _aHour = Segment("Scroll (or click top/bottom) to change the hour", d => Nudge(d * 60), 30);
         _aMinute = Segment("Scroll (or click top/bottom) to change the minutes", d => Nudge(d * 5), 30);
@@ -71,7 +71,9 @@ public partial class MainWindow
         row.Children.Add(actions);
 
         _alarmChips = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(24, 5, 0, 0) };
+        _alarmSuggest = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
         AlarmRow.Children.Add(row);
+        AlarmRow.Children.Add(_alarmSuggest);
         AlarmRow.Children.Add(_alarmChips);
         _settings.Changed += BuildAlarmChips;
         BuildStopwatchIdle();
@@ -98,10 +100,58 @@ public partial class MainWindow
 
     private void AddAlarmFromRow()
     {
-        _settings.Alarms.Add(new Alarm { Time = TimeSpan.FromMinutes(_alarmMinutes).ToString(@"hh\:mm"), Enabled = true, Daily = _alarmDaily, Label = "Alarm" });
+        AddAlarm(TimeSpan.FromMinutes(_alarmMinutes), _alarmDaily);
+    }
+
+    private void AddAlarm(TimeSpan timeOfDay, bool daily)
+    {
+        _settings.Alarms.Add(new Alarm { Time = timeOfDay.ToString(@"hh\:mm"), Enabled = true, Daily = daily, Label = "Alarm" });
+        SmartTime.RecordAlarm(_settings, timeOfDay);
         _settings.Save();
         _alarms.Reschedule();
         BuildAlarmChips();
+    }
+
+    private WrapPanel _alarmSuggest = null!;
+    private string? _alarmSuggestKey;
+    private string? _timerSuggestKey;
+
+    /// <summary>"Smart" one-tap alarms for right now (sleep cycles at night, soon-ish during the day, your usual times).</summary>
+    private void BuildAlarmSuggestions()
+    {
+        if (_alarmSuggest is null) return;
+        var items = SmartTime.AlarmSuggestions(_settings, DateTime.Now);
+        var key = string.Join('|', items.Select(i => i.Label + i.Reason)) + _settings.Alarms.Count;
+        if (key == _alarmSuggestKey) return;
+        _alarmSuggestKey = key;
+        _alarmSuggest.Children.Clear();
+        foreach (var item in items)
+        {
+            var text = new TextBlock { VerticalAlignment = VerticalAlignment.Center };
+            text.Inlines.Add(new Run(item.Label) { FontWeight = FontWeights.SemiBold });
+            text.Inlines.Add(new Run("  " + item.Reason) { FontSize = 10.5, Foreground = new SolidColorBrush(Color.FromArgb(0xA0, 255, 255, 255)) });
+            var chip = new Button { Style = (Style)FindResource("ChipButton"), Content = text, Margin = new Thickness(0, 0, 6, 6), ToolTip = "Set this alarm" };
+            var captured = item;
+            chip.Click += (_, _) => AddAlarm(captured.TimeOfDay, daily: false);
+            _alarmSuggest.Children.Add(chip);
+        }
+        _alarmSuggest.Visibility = items.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>Timer lengths: the basics plus what you use most and what fits the time of day.</summary>
+    private void BuildTimerPresets()
+    {
+        var items = SmartTime.TimerSuggestions(_settings, DateTime.Now, _focusSession.TodaySessions);
+        var key = string.Join('|', items.Select(i => i.Label + i.Reason));
+        if (key == _timerSuggestKey) return;
+        _timerSuggestKey = key;
+        TimerPresetRow.Children.Clear();
+        foreach (var item in items)
+        {
+            var chip = new Button { Style = (Style)FindResource("ChipButton"), Content = item.Label, Tag = item.Minutes.ToString(), ToolTip = item.Reason.Length > 0 ? item.Reason : null };
+            chip.Click += OnTimerPresetClick;
+            TimerPresetRow.Children.Add(chip);
+        }
     }
 
     /// <summary>One quiet line: "Alarms  7:30 AM ✕  · 8:00 AM daily ✕". Nothing at all when there are none.</summary>
@@ -150,6 +200,8 @@ public partial class MainWindow
     /// <summary>Shows only the options of the current mode (no animation: used on every refresh).</summary>
     private void ApplyClockMode()
     {
+        if (_clockMode == ClockMode.Timer) BuildTimerPresets();
+        if (_clockMode == ClockMode.Alarm) BuildAlarmSuggestions();
         var shown = RegionFor(_clockMode);
         foreach (var region in new FrameworkElement[] { AlarmRow, TimerPresets, TimerActivePanel, StopwatchPanel, StopwatchIdlePanel })
         {

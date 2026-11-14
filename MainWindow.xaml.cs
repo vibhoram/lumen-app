@@ -4085,7 +4085,11 @@ public partial class MainWindow : Window
     private void OnTimerPresetClick(object sender, RoutedEventArgs e)
     {
         if (sender is Button { Tag: string tag } && int.TryParse(tag, out var minutes))
+        {
             _timer.Start(TimeSpan.FromMinutes(minutes));
+            SmartTime.RecordTimer(_settings, minutes);
+            _settings.Save();
+        }
     }
 
     private void OnTimerAddClick(object sender, RoutedEventArgs e) => _timer.Add(TimeSpan.FromMinutes(1));

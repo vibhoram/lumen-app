@@ -495,13 +495,7 @@
                             <TextBlock Text="Timer" FontSize="13" FontWeight="SemiBold" Margin="8,0,0,0"
                                        VerticalAlignment="Center" />
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="-5,0,0,0">
-                            <Button Style="{StaticResource ChipButton}" Tag="1" Content="1m" Click="OnTimerPresetClick" />
-                            <Button Style="{StaticResource ChipButton}" Tag="5" Content="5m" Click="OnTimerPresetClick" />
-                            <Button Style="{StaticResource ChipButton}" Tag="10" Content="10m" Click="OnTimerPresetClick" />
-                            <Button Style="{StaticResource ChipButton}" Tag="15" Content="15m" Click="OnTimerPresetClick" />
-                            <Button Style="{StaticResource ChipButton}" Tag="25" Content="25m" Click="OnTimerPresetClick" />
-                            <Button Style="{StaticResource ChipButton}" Tag="60" Content="1h" Click="OnTimerPresetClick" />
+                        <StackPanel x:Name="TimerPresetRow" Orientation="Horizontal" HorizontalAlignment="Left" Margin="-5,0,0,0">
                         </StackPanel>
                     </Grid>
 

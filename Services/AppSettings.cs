@@ -240,6 +240,12 @@ public sealed class AppSettings
     /// <summary>With several screens, the island moves to the one the cursor stays on.</summary>
     public bool FollowCursorMonitor { get; set; } = true;
 
+    /// <summary>How often each alarm time ("07:00") was set; the smart suggestions learn from it.</summary>
+    public Dictionary<string, int> AlarmUse { get; set; } = new();
+
+    /// <summary>How often each timer length (minutes) was started.</summary>
+    public Dictionary<string, int> TimerUse { get; set; } = new();
+
     /// <summary>Show every slider (otherwise just presets and the essentials).</summary>
     public bool ShowAdvanced { get; set; }
 
