@@ -986,10 +986,7 @@ public partial class MainWindow : Window
 #endif
         ClockSection.Visibility = media is null ? Visibility.Visible : Visibility.Collapsed;
         ProgressRow.Visibility = media is { Duration.Ticks: > 0 } ? Visibility.Visible : Visibility.Collapsed;
-        TimerPresets.Visibility = _timer.IsActive ? Visibility.Collapsed : Visibility.Visible;
-        TimerActivePanel.Visibility = _timer.IsActive ? Visibility.Visible : Visibility.Collapsed;
-        StopwatchPanel.Visibility = _stopwatch.IsActive ? Visibility.Visible : Visibility.Collapsed;
-        StopwatchStartButton.Visibility = _stopwatch.IsActive ? Visibility.Collapsed : Visibility.Visible;
+        ApplyClockMode();
         if (_stopwatch.IsActive) StopwatchTextLarge.Text = StopwatchService.Format(_stopwatch.Elapsed, tenths: true);
         UpdateProgress();
     }
@@ -4326,6 +4323,8 @@ public partial class MainWindow : Window
                 UpdatePalette();
             }
             PlayPauseGlyph.Text = media.IsPlaying ? "" : "";
+            PauseShape.Visibility = media.IsPlaying ? Visibility.Visible : Visibility.Collapsed;
+            PlayShape.Visibility = media.IsPlaying ? Visibility.Collapsed : Visibility.Visible;
             PrevButton.IsEnabled = media.CanPrevious;
             NextButton.IsEnabled = media.CanNext;
             ProgressHit.Cursor = media.CanSeek ? Cursors.Hand : null;

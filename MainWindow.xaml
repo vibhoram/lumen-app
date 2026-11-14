@@ -443,15 +443,24 @@
                         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0">
                             <Button x:Name="PrevButton" Style="{StaticResource IconButton}" Width="44" Height="40"
                                     Click="OnPreviousClick" ToolTip="Previous">
-                                <TextBlock Style="{StaticResource Glyph}" Text="&#xE892;" FontSize="18" />
+                                <!-- filled double-triangle rewind (iOS style) -->
+                                <Path Fill="White" Stroke="White" StrokeThickness="1.8" StrokeLineJoin="Round"
+                                      Data="M12,1.5 L1.5,10 L12,18.5 Z M22.5,1.5 L12,10 L22.5,18.5 Z" />
                             </Button>
                             <Button x:Name="PlayPauseButton" Style="{StaticResource IconButton}" Width="52" Height="44"
                                     Margin="14,0" Click="OnPlayPauseClick">
-                                <TextBlock x:Name="PlayPauseGlyph" Style="{StaticResource Glyph}" Text="&#xE768;" FontSize="24" />
+                                <Grid Width="24" Height="26">
+                                    <TextBlock x:Name="PlayPauseGlyph" Visibility="Collapsed" />
+                                    <Path x:Name="PlayShape" Fill="White" Stroke="White" StrokeThickness="2.4" StrokeLineJoin="Round"
+                                          Data="M5,2.5 L21,13 L5,23.5 Z" Visibility="Collapsed" />
+                                    <Path x:Name="PauseShape" Fill="White"
+                                          Data="M3.5,1 H6.5 A2.5,2.5 0 0 1 9,3.5 V22.5 A2.5,2.5 0 0 1 6.5,25 H3.5 A2.5,2.5 0 0 1 1,22.5 V3.5 A2.5,2.5 0 0 1 3.5,1 Z M17.5,1 H20.5 A2.5,2.5 0 0 1 23,3.5 V22.5 A2.5,2.5 0 0 1 20.5,25 H17.5 A2.5,2.5 0 0 1 15,22.5 V3.5 A2.5,2.5 0 0 1 17.5,1 Z" />
+                                </Grid>
                             </Button>
                             <Button x:Name="NextButton" Style="{StaticResource IconButton}" Width="44" Height="40"
                                     Click="OnNextClick" ToolTip="Next">
-                                <TextBlock Style="{StaticResource Glyph}" Text="&#xE893;" FontSize="18" />
+                                <Path Fill="White" Stroke="White" StrokeThickness="1.8" StrokeLineJoin="Round"
+                                      Data="M1.5,1.5 L12,10 L1.5,18.5 Z M12,1.5 L22.5,10 L12,18.5 Z" />
                             </Button>
                         </StackPanel>
                         <!-- Lyrics button: only when synced lyrics were found for this song. -->
@@ -476,26 +485,28 @@
 
                     <Border Height="1" Background="#22FFFFFF" Margin="0,14,0,12" />
 
+                    <!-- Alarm is the main thing; Timer and Stopwatch sit on the side and swap the options below (MainWindow.Alarms.cs). -->
+                    <Grid x:Name="ClockModeBar" Margin="0,0,0,8" />
+
                     <Grid x:Name="TimerPresets">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center" Visibility="Collapsed">
                             <TextBlock Style="{StaticResource Glyph}" Text="&#xE916;" FontSize="14"
                                        Foreground="{StaticResource Orange}" />
                             <TextBlock Text="Timer" FontSize="13" FontWeight="SemiBold" Margin="8,0,0,0"
                                        VerticalAlignment="Center" />
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="-5,0,0,0">
                             <Button Style="{StaticResource ChipButton}" Tag="1" Content="1m" Click="OnTimerPresetClick" />
                             <Button Style="{StaticResource ChipButton}" Tag="5" Content="5m" Click="OnTimerPresetClick" />
                             <Button Style="{StaticResource ChipButton}" Tag="10" Content="10m" Click="OnTimerPresetClick" />
                             <Button Style="{StaticResource ChipButton}" Tag="15" Content="15m" Click="OnTimerPresetClick" />
                             <Button Style="{StaticResource ChipButton}" Tag="25" Content="25m" Click="OnTimerPresetClick" />
                             <Button Style="{StaticResource ChipButton}" Tag="60" Content="1h" Click="OnTimerPresetClick" />
-                            <Button x:Name="StopwatchStartButton" Style="{StaticResource ChipButton}" Click="OnStopwatchStartClick"
-                                    ToolTip="Start a stopwatch">
-                                <TextBlock Style="{StaticResource Glyph}" Text="&#xE916;" FontSize="12" Foreground="{StaticResource Cyan}" />
-                            </Button>
                         </StackPanel>
                     </Grid>
+
+                    <!-- Stopwatch, not started: a 3-second countdown button (built in code). -->
+                    <Grid x:Name="StopwatchIdlePanel" Margin="0,2,0,0" Visibility="Collapsed" />
 
                     <!-- Running / paused stopwatch. -->
                     <Grid x:Name="StopwatchPanel" Margin="0,8,0,0">

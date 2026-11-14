@@ -6,7 +6,7 @@
         Title="Lumen Settings"
         Width="700" Height="780" MinHeight="400" MinWidth="560" ResizeMode="CanResize"
         WindowStartupLocation="CenterScreen"
-        Background="#FF141416" Foreground="White"
+        Background="#FF141416" Foreground="White" UseLayoutRounding="True"
         FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13">
 
     <Window.Resources>
@@ -58,17 +58,17 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="RadioButton">
-                        <Border x:Name="Pill" CornerRadius="14" Padding="13,5" Background="#14FFFFFF"
-                                BorderBrush="#12FFFFFF" BorderThickness="1">
+                        <Border x:Name="Pill" CornerRadius="15" Padding="14,5" Background="{StaticResource GlassFill}"
+                                BorderBrush="{StaticResource GlassRim}" BorderThickness="1">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Pill" Property="Background" Value="#26FFFFFF" />
+                                <Setter TargetName="Pill" Property="Background" Value="#33FFFFFF" />
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
                                 <Setter TargetName="Pill" Property="Background" Value="{StaticResource Accent}" />
-                                <Setter TargetName="Pill" Property="BorderBrush" Value="#33FFFFFF" />
+                                <Setter TargetName="Pill" Property="BorderBrush" Value="#66FFFFFF" />
                                 <Setter Property="Foreground" Value="White" />
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -129,16 +129,16 @@
         </Style>
 
         <Style TargetType="TextBox">
-            <Setter Property="Background" Value="#FF2C2C2E" />
+            <Setter Property="Background" Value="#33000000" />
             <Setter Property="Foreground" Value="White" />
-            <Setter Property="BorderBrush" Value="#FF48484A" />
+            <Setter Property="BorderBrush" Value="#33FFFFFF" />
             <Setter Property="CaretBrush" Value="White" />
             <Setter Property="Padding" Value="6,3" />
         </Style>
     </Window.Resources>
 
     <DockPanel>
-        <Border DockPanel.Dock="Bottom" Background="#FF161618" BorderBrush="#FF2C2C2E" BorderThickness="0,1,0,0">
+        <Border x:Name="FooterBar" DockPanel.Dock="Bottom" Background="#99121214" BorderBrush="#1FFFFFFF" BorderThickness="0,1,0,0">
             <Grid Margin="16,10">
                 <TextBlock x:Name="CreditText" VerticalAlignment="Center" FontSize="12" Foreground="#80FFFFFF" />
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
@@ -148,7 +148,7 @@
             </Grid>
         </Border>
         <!-- Section index: jumps to a section; the current one is highlighted while scrolling. -->
-        <Border DockPanel.Dock="Left" Width="168" Background="#FF161618" BorderBrush="#FF2C2C2E" BorderThickness="0,0,1,0">
+        <Border x:Name="NavBar" DockPanel.Dock="Left" Width="176" Background="#8C121214" BorderBrush="#1FFFFFFF" BorderThickness="0,0,1,0">
             <ScrollViewer x:Name="NavScroller" VerticalScrollBarVisibility="Auto">
                 <StackPanel x:Name="Nav" Margin="10,14,10,14" />
             </ScrollViewer>

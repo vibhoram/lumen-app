@@ -61,7 +61,38 @@ public partial class SettingsWindow : Window
         SettingsScroller.ScrollChanged += (_, _) => UpdateNavSelection();
         Loaded += (_, _) => UpdateNavSelection();
 
+        SourceInitialized += (_, _) => ApplyBackdrop();
+        _backdropOn = Environment.OSVersion.Version.Build >= 22621;
         Build();
+    }
+
+    // ---------------------------------------------------------------- backdrop
+
+    private bool _backdropOn;
+
+    [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
+    private static extern int DwmExtendFrameIntoClientArea(IntPtr hwnd, ref Margins margins);
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct Margins { public int Left, Right, Top, Bottom; }
+
+    /// <summary>Windows 11: dark title bar and an Acrylic backdrop behind the whole window (native, near-zero GPU).</summary>
+    private void ApplyBackdrop()
+    {
+        if (!_backdropOn) return;
+        try
+        {
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            var dark = 1;
+            DIsland.Interop.NativeMethods.DwmSetWindowAttribute(hwnd, 20 /* USE_IMMERSIVE_DARK_MODE */, ref dark, sizeof(int));
+            var acrylic = 3; // DWMSBT_TRANSIENTWINDOW
+            if (DIsland.Interop.NativeMethods.DwmSetWindowAttribute(hwnd, 38 /* SYSTEMBACKDROP_TYPE */, ref acrylic, sizeof(int)) != 0) { _backdropOn = false; return; }
+            var margins = new Margins { Left = -1, Right = -1, Top = -1, Bottom = -1 };
+            DwmExtendFrameIntoClientArea(hwnd, ref margins);
+            System.Windows.Interop.HwndSource.FromHwnd(hwnd)!.CompositionTarget.BackgroundColor = Colors.Transparent;
+            Background = Brushes.Transparent;
+        }
+        catch (Exception) { _backdropOn = false; }
     }
 
     // ---------------------------------------------------------------- layout
@@ -1133,11 +1164,12 @@ public partial class SettingsWindow : Window
         // Each section sits on a rounded card.
         Sections.Children.Add(new Border
         {
-            Background = Frozen(Color.FromArgb(0xFF, 0x1F, 0x1F, 0x23)),
-            BorderBrush = Frozen(Color.FromArgb(0x1A, 0xFF, 0xFF, 0xFF)),
+            // a glass card: light gathered at the top, a thin lit rim
+            Background = _backdropOn ? (Brush)FindResource("GlassFill") : Frozen(Color.FromArgb(0xFF, 0x1F, 0x1F, 0x23)),
+            BorderBrush = _backdropOn ? (Brush)FindResource("GlassRim") : Frozen(Color.FromArgb(0x1A, 0xFF, 0xFF, 0xFF)),
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(14),
-            Padding = new Thickness(16, 8, 16, 8),
+            CornerRadius = new CornerRadius(18),
+            Padding = new Thickness(18, 10, 18, 10),
             Child = panel,
         });
         // "WALLPAPER ENGINE" → "Wallpaper Engine"

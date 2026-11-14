@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using DIsland.Services;
 
 namespace DIsland;
@@ -60,7 +61,6 @@ public partial class MainWindow
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition());
-        row.Children.Add(new TextBlock { Style = (Style)FindResource("Glyph"), Text = "", FontSize = 14, Foreground = (Brush)FindResource("Orange"), Margin = new Thickness(0, 0, 10, 0) });
         Grid.SetColumn(time, 1);
         row.Children.Add(time);
         var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
@@ -74,6 +74,7 @@ public partial class MainWindow
         AlarmRow.Children.Add(row);
         AlarmRow.Children.Add(_alarmChips);
         _settings.Changed += BuildAlarmChips;
+        BuildStopwatchIdle();
         UpdateAlarmRow();
         BuildAlarmChips();
     }
@@ -128,4 +129,194 @@ public partial class MainWindow
         _alarmChips.Visibility = list.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         if (IsLoaded && _state.IsExpanded && _page == ExpandedPage.Home) Dispatcher.InvokeAsync(Render);
     }
+
+    // ------------------------------------------------------------------ Alarm / Timer / Stopwatch switcher
+
+    private enum ClockMode { Alarm, Timer, Stopwatch }
+
+    private ClockMode _clockMode = ClockMode.Alarm;
+    private System.Windows.Threading.DispatcherTimer? _swCountdown;
+    private int _swCount;
+    private Border? _swStartPill;
+    private TextBlock? _swStartText;
+
+    private FrameworkElement RegionFor(ClockMode mode) => mode switch
+    {
+        ClockMode.Timer => _timer.IsActive ? TimerActivePanel : TimerPresets,
+        ClockMode.Stopwatch => _stopwatch.IsActive ? StopwatchPanel : StopwatchIdlePanel,
+        _ => AlarmRow,
+    };
+
+    /// <summary>Shows only the options of the current mode (no animation: used on every refresh).</summary>
+    private void ApplyClockMode()
+    {
+        var shown = RegionFor(_clockMode);
+        foreach (var region in new FrameworkElement[] { AlarmRow, TimerPresets, TimerActivePanel, StopwatchPanel, StopwatchIdlePanel })
+        {
+            if (region == _leavingClockRegion) continue; // still fading out
+            region.Visibility = region == shown ? Visibility.Visible : Visibility.Collapsed;
+        }
+        UpdateModeBar();
+    }
+
+    private FrameworkElement? _leavingClockRegion;
+
+    private static TranslateTransform ShiftOf(FrameworkElement e)
+    {
+        if (e.RenderTransform is TransformGroup { Children.Count: 2 } g && g.Children[1] is TranslateTransform t) return t;
+        var scale = new ScaleTransform(1, 1);
+        var shift = new TranslateTransform();
+        e.RenderTransformOrigin = new Point(0.5, 0.2);
+        e.RenderTransform = new TransformGroup { Children = { scale, shift } };
+        return shift;
+    }
+
+    private static ScaleTransform ScaleOf(FrameworkElement e)
+    {
+        ShiftOf(e);
+        return (ScaleTransform)((TransformGroup)e.RenderTransform).Children[0];
+    }
+
+    /// <summary>Swaps the options with a fluid hand-over: the old ones fade up and away, the new ones spring in, and the island grows or shrinks with a spring to fit.</summary>
+    private void SetClockMode(ClockMode mode)
+    {
+        if (mode == _clockMode) return;
+        var order = (int)mode - (int)_clockMode; // direction of travel decides which way things slide
+        var old = RegionFor(_clockMode);
+        _clockMode = mode;
+        var incoming = RegionFor(mode);
+
+        // outgoing: stays on screen for a moment without taking layout room (same trick as page changes)
+        if (_state.IsExpanded && old.Visibility == Visibility.Visible && old.ActualHeight > 0)
+        {
+            _leavingClockRegion = old;
+            old.IsHitTestVisible = false;
+            old.Margin = new Thickness(old.Margin.Left, old.Margin.Top, old.Margin.Right, -old.ActualHeight);
+            var oldShift = ShiftOf(old);
+            var fade = new DoubleAnimation(0, TimeSpan.FromMilliseconds(150)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
+            fade.Completed += (_, _) =>
+            {
+                if (_leavingClockRegion == old) _leavingClockRegion = null;
+                old.BeginAnimation(OpacityProperty, null);
+                oldShift.BeginAnimation(TranslateTransform.XProperty, null);
+                old.Opacity = 1;
+                old.IsHitTestVisible = true;
+                old.Margin = new Thickness(old.Margin.Left, old.Margin.Top, old.Margin.Right, 0);
+                if (old != RegionFor(_clockMode)) old.Visibility = Visibility.Collapsed;
+            };
+            old.BeginAnimation(OpacityProperty, fade);
+            oldShift.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0, -18 * Math.Sign(order), TimeSpan.FromMilliseconds(150)));
+        }
+
+        ApplyClockMode();
+        if (_state.IsExpanded)
+        {
+            var shift = ShiftOf(incoming);
+            var scale = ScaleOf(incoming);
+            var spring = new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 1, Springiness = 5 };
+            incoming.Opacity = 0;
+            incoming.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(260)) { BeginTime = TimeSpan.FromMilliseconds(60), EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+            shift.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(22 * Math.Sign(order), 0, TimeSpan.FromMilliseconds(520)) { BeginTime = TimeSpan.FromMilliseconds(40), EasingFunction = spring });
+            shift.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(8, 0, TimeSpan.FromMilliseconds(420)) { BeginTime = TimeSpan.FromMilliseconds(40), EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.94, 1, TimeSpan.FromMilliseconds(520)) { BeginTime = TimeSpan.FromMilliseconds(40), EasingFunction = spring });
+            scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.94, 1, TimeSpan.FromMilliseconds(520)) { BeginTime = TimeSpan.FromMilliseconds(40), EasingFunction = spring });
+            Dispatcher.InvokeAsync(Render); // the island springs to the new height
+        }
+    }
+
+    private static readonly string[] ModeNames = { "Alarm", "Timer", "Stopwatch" };
+
+    /// <summary>Header row: the current mode on the left, the other two as small glass pills on the right.</summary>
+    private ClockMode? _barMode;
+
+    private void UpdateModeBar()
+    {
+        if (_barMode == _clockMode && ClockModeBar.Children.Count > 0) return; // keep the pills (and their animation state)
+        _barMode = _clockMode;
+        ClockModeBar.Children.Clear();
+        ClockModeBar.ColumnDefinitions.Clear();
+        ClockModeBar.ColumnDefinitions.Add(new ColumnDefinition());
+        ClockModeBar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var glyph = _clockMode switch { ClockMode.Timer => "\uE916", ClockMode.Stopwatch => "\uE916", _ => "\uE121" };
+        var tint = _clockMode == ClockMode.Stopwatch ? (Brush)FindResource("Cyan") : (Brush)FindResource("Orange");
+        var title = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        title.Children.Add(new TextBlock { Style = (Style)FindResource("Glyph"), Text = glyph, FontSize = 14, Foreground = tint, Margin = new Thickness(0, 0, 8, 0) });
+        title.Children.Add(new TextBlock { Text = ModeNames[(int)_clockMode], FontSize = 13, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+        ClockModeBar.Children.Add(title);
+
+        var others = new StackPanel { Orientation = Orientation.Horizontal };
+        foreach (ClockMode m in Enum.GetValues<ClockMode>())
+        {
+            if (m == _clockMode) continue;
+            var mode = m;
+            var pill = Pill(ModeNames[(int)m], () => SetClockMode(mode));
+            pill.RenderTransformOrigin = new Point(0.5, 0.5);
+            pill.RenderTransform = new ScaleTransform(1, 1);
+            // soft hover swell, like the other buttons
+            pill.MouseEnter += (_, _) => PopPill(pill, 1.07);
+            pill.MouseLeave += (_, _) => PopPill(pill, 1);
+            others.Children.Add(pill);
+        }
+        Grid.SetColumn(others, 1);
+        ClockModeBar.Children.Add(others);
+    }
+
+    private static void PopPill(Border pill, double to)
+    {
+        if (pill.RenderTransform is not ScaleTransform st) return;
+        var a = new DoubleAnimation(to, TimeSpan.FromMilliseconds(320)) { EasingFunction = new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 1, Springiness = 5 } };
+        st.BeginAnimation(ScaleTransform.ScaleXProperty, a);
+        st.BeginAnimation(ScaleTransform.ScaleYProperty, a);
+    }
+
+    /// <summary>The idle stopwatch: one big Start button that counts 3-2-1 before it begins.</summary>
+    private void BuildStopwatchIdle()
+    {
+        var hint = new TextBlock { Text = "Starts after a 3 second countdown", FontSize = 12, Opacity = 0.6, VerticalAlignment = VerticalAlignment.Center };
+        _swStartText = new TextBlock { Text = "Start", FontSize = 14, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(0x15, 0x16, 0x1B)), HorizontalAlignment = HorizontalAlignment.Center, MinWidth = 54, TextAlignment = TextAlignment.Center };
+        _swStartPill = new Border
+        {
+            CornerRadius = new CornerRadius(18),
+            Padding = new Thickness(18, 8, 18, 8),
+            Cursor = Cursors.Hand,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Background = new LinearGradientBrush(Color.FromRgb(0xF7, 0xF8, 0xFC), Color.FromRgb(0xDD, 0xE2, 0xEE), 90),
+            RenderTransformOrigin = new Point(0.5, 0.5),
+            RenderTransform = new ScaleTransform(1, 1),
+            Child = _swStartText,
+        };
+        _swStartPill.MouseEnter += (_, _) => PopPill(_swStartPill, 1.06);
+        _swStartPill.MouseLeave += (_, _) => PopPill(_swStartPill, 1);
+        _swStartPill.MouseLeftButtonUp += (_, e) => { e.Handled = true; StartStopwatchCountdown(); };
+        StopwatchIdlePanel.Children.Add(hint);
+        StopwatchIdlePanel.Children.Add(_swStartPill);
+    }
+
+    private void StartStopwatchCountdown()
+    {
+        if (_swCountdown is { IsEnabled: true } || _swStartText is null || _swStartPill is null) return;
+        _swCount = 3;
+        void Show()
+        {
+            _swStartText.Text = _swCount.ToString();
+            // each number pops in and settles
+            var st = (ScaleTransform)_swStartPill.RenderTransform;
+            var pop = new DoubleAnimation(1.28, 1, TimeSpan.FromMilliseconds(520)) { EasingFunction = new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 2, Springiness = 4 } };
+            st.BeginAnimation(ScaleTransform.ScaleXProperty, pop);
+            st.BeginAnimation(ScaleTransform.ScaleYProperty, pop);
+        }
+        Show();
+        _swCountdown = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _swCountdown.Tick += (_, _) =>
+        {
+            _swCount--;
+            if (_swCount > 0) { Show(); return; }
+            _swCountdown!.Stop();
+            _swStartText.Text = "Start";
+            _stopwatch.Start();
+            if (_state.IsExpanded) Dispatcher.InvokeAsync(() => { ApplyClockMode(); Render(); });
+        };
+        _swCountdown.Start();
+    }
 }
+
