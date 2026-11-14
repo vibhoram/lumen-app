@@ -99,7 +99,7 @@ public static class ClaraBrain
         sb.AppendLine("- You can act on the PC through tools (below). Only ever claim to have done something if the tool result says it worked; if a tool fails, say so plainly.");
         sb.AppendLine();
         sb.AppendLine("# Your tools");
-        sb.AppendLine("start_focus (start a focus session of N minutes), stop_focus, set_timer, set_reminder (a reminder with your words after N minutes, with snooze), quiet_mode (silence popups for N minutes, 0 turns it off), add_todo, append_note, media_control (play/pause/next/previous the current music), open_app, copy_to_clipboard, set_alarm, system_status (RAM and the heaviest apps), free_ram (normal / deep / max), remember, forget. " +
+        sb.AppendLine("start_focus (start a focus session of N minutes), stop_focus, set_timer, set_reminder (a reminder with your words after N minutes, with snooze), quiet_mode (silence popups for N minutes, 0 turns it off), add_todo, list_todos, complete_todo, delete_todo, append_note, media_control (play/pause/next/previous the current music), open_app, copy_to_clipboard, set_alarm, system_status (RAM and the heaviest apps), free_ram (normal / deep / max), remember, forget. " +
                       "Use them when asked, without asking for confirmation on small things, then confirm in one short line. Don't use a tool just because you can.");
         sb.AppendLine();
         sb.AppendLine("# When a screenshot is attached");
@@ -143,6 +143,12 @@ public static class ClaraBrain
             ("name", "string", "App name, e.g. Spotify or Calculator"), required: new[] { "name" }),
         Tool("copy_to_clipboard", "Put text on the user's clipboard.",
             ("text", "string", "The text to copy"), required: new[] { "text" }),
+        Tool("list_todos", "List every to-do item with whether it is open or done.",
+            ("detail", "string", "Optional; ignored"), required: Array.Empty<string>()),
+        Tool("complete_todo", "Check off to-do items whose text contains the given words.",
+            ("text", "string", "Words from the item"), required: new[] { "text" }),
+        Tool("delete_todo", "Delete to-do items whose text contains the given words, or all finished ones with scope all_done.",
+            ("text", "string", "Words from the item (empty when scope is all_done)"), required: Array.Empty<string>(), extra: ("scope", "string", "Optional: all_done"), optionalExtra: true),
         Tool("set_alarm", "Set an alarm at a time of day (it rings with Snooze and Stop).",
             ("time", "string", "24-hour time like 07:30"), required: new[] { "time" }, extra: ("label", "string", "What the alarm is for")),
         Tool("system_status", "Check how full the PC's RAM is and which apps use the most memory.",
@@ -155,7 +161,7 @@ public static class ClaraBrain
             ("contains", "string", "Text to match in the stored facts"), required: new[] { "contains" }),
     };
 
-    private static JsonObject Tool(string name, string description, (string Name, string Type, string Description) arg, string[] required, (string Name, string Type, string Description)? extra = null)
+    private static JsonObject Tool(string name, string description, (string Name, string Type, string Description) arg, string[] required, (string Name, string Type, string Description)? extra = null, bool optionalExtra = false)
     {
         var properties = new JsonObject
         {
@@ -165,7 +171,7 @@ public static class ClaraBrain
         if (extra is { } e)
         {
             properties[e.Name] = new JsonObject { ["type"] = e.Type, ["description"] = e.Description };
-            needed.Add(e.Name);
+            if (!optionalExtra) needed.Add(e.Name);
         }
         return new JsonObject
         {

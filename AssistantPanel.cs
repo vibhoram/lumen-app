@@ -708,8 +708,12 @@ public sealed class AssistantPanel : Grid
             var avatar = MakeAvatar(22);
             avatar.VerticalAlignment = VerticalAlignment.Top;
             avatar.Margin = new Thickness(0, 2, 8, 0);
-            var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 24, 8) };
+            // a grid, so the bubble is limited to the room that is actually there (a stack panel let it run off the right edge)
+            var row = new Grid { HorizontalAlignment = HorizontalAlignment.Stretch, Margin = new Thickness(0, 0, 14, 8) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             row.Children.Add(avatar);
+            SetColumn(_bubble, 1);
             row.Children.Add(_bubble);
             Root = row;
             _render.Tick += (_, _) =>

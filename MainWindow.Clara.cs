@@ -148,6 +148,27 @@ public partial class MainWindow
                     Clipboard.SetText(text);
                     return (true, "Copied to the clipboard.", "Copied to clipboard");
                 }
+                case "list_todos":
+                {
+                    var items = _notes.Todos;
+                    if (items.Count == 0) return (true, "The to-do list is empty.", "To-dos checked");
+                    return (true, string.Join("\n", items.Select(t => (t.Done ? "[done] " : "[open] ") + t.Text)), $"{items.Count} to-dos");
+                }
+                case "complete_todo":
+                case "delete_todo":
+                {
+                    var match = Str("text").Trim();
+                    var all = Str("scope").Equals("all_done", StringComparison.OrdinalIgnoreCase);
+                    var targets = _notes.Todos.Where(t => all ? t.Done : (match.Length > 0 && t.Text.Contains(match, StringComparison.OrdinalIgnoreCase))).ToList();
+                    if (targets.Count == 0) return (false, "No to-do matches that.", "");
+                    foreach (var t in targets)
+                    {
+                        if (name == "complete_todo") _notes.SetDone(t.Id, true);
+                        else _notes.Remove(t.Id);
+                    }
+                    var verb = name == "complete_todo" ? "Checked off" : "Deleted";
+                    return (true, $"{verb} {targets.Count} to-do(s).", $"{verb} {targets.Count}");
+                }
                 case "set_alarm":
                 {
                     var time = Str("time").Trim();
