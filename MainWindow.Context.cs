@@ -16,8 +16,9 @@ public partial class MainWindow
     [DllImport("shell32.dll")]
     private static extern int SHQueryUserNotificationState(out NotificationState state);
 
-    private readonly DispatcherTimer _contextTimer = new() { Interval = TimeSpan.FromSeconds(2) };
+    private readonly DispatcherTimer _contextTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private bool _autoHidden;
+    private int _fullscreenTicks;
 
     private void WireContext()
     {
@@ -35,7 +36,10 @@ public partial class MainWindow
         }
         if (SHQueryUserNotificationState(out var state) != 0) return;
         var fullscreen = state is NotificationState.RunningD3DFullScreen or NotificationState.PresentationMode;
-        if (fullscreen && !IslandHidden)
+        // The screenshot overlay (Win+Shift+S, Print Screen) briefly looks like a full-screen app: only a state
+        // that lasts a few seconds counts, and the island shows again the moment it ends.
+        _fullscreenTicks = fullscreen ? _fullscreenTicks + 1 : 0;
+        if (fullscreen && !IslandHidden && _fullscreenTicks >= 4)
         {
             _autoHidden = true;
             SetIslandHidden(true);

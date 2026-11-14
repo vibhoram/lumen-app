@@ -124,7 +124,7 @@ public sealed class LyricsPanel : Grid
                 FontSize = _size,
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 4, 0, 4),
-                Opacity = 0.32,
+                Opacity = 0.5,
                 Cursor = Cursors.Hand,
                 Tag = line.Time,
             };
@@ -180,7 +180,8 @@ public sealed class LyricsPanel : Grid
         for (var i = 0; i < _blocks.Count; i++)
         {
             var distance = _current < 0 ? i + 1 : Math.Abs(i - _current);
-            var to = distance == 0 ? 1.0 : Math.Max(0.16, 0.58 - 0.14 * (distance - 1));
+            // gentle falloff with a readable floor, so the whole song stays legible while scrolling
+            var to = distance == 0 ? 1.0 : Math.Max(0.42, 0.7 - 0.1 * (distance - 1));
             _blocks[i].BeginAnimation(OpacityProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(260)) { EasingFunction = ease });
         }
     }

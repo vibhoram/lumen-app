@@ -147,7 +147,7 @@ public partial class MainWindow : Window
         _lyricsPanel = new LyricsPanel();
         LyricsPage.Children.Add(_lyricsPanel);
         _lyricsPanel.SeekRequested += time => _media.Seek(time);
-        _lyricsInline = new LyricsPanel(viewHeight: 150, header: false);
+        _lyricsInline = new LyricsPanel(viewHeight: 190, header: false);
         LyricsInlineHost.Child = _lyricsInline;
         _lyricsInline.SeekRequested += time => _media.Seek(time);
         _focusSession = new FocusSession(_settings, _timer);
@@ -1297,8 +1297,9 @@ public partial class MainWindow : Window
         _wheelDelta = 0;
 
         var pages = AvailablePages();
-        var index = pages.IndexOf(_page) + step;
-        if (index < 0 || index >= pages.Count) return;
+        if (pages.Count < 2) return;
+        var current = pages.IndexOf(_page);
+        var index = current < 0 ? 0 : ((current + step) % pages.Count + pages.Count) % pages.Count; // loops around
         _wheelGestureFlipped = true;
         _lastWheelFlip = now;
         ShowPage(pages[index], animate: true);
@@ -2804,6 +2805,37 @@ public partial class MainWindow : Window
         _state.ShowTransient(IslandView.Battery, priority, TimeSpan.FromSeconds(_settings.AlertSeconds));
     }
 
+    // ---------------------------------------------------------------- scenario-specific widths
+
+    private static double NaturalWidth(TextBlock t, double max)
+    {
+        if (string.IsNullOrEmpty(t.Text) || t.Visibility == Visibility.Collapsed) return 0;
+        var saved = t.MaxWidth;
+        t.MaxWidth = double.PositiveInfinity;
+        t.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        t.MaxWidth = saved;
+        return Math.Min(max, Math.Ceiling(t.DesiredSize.Width));
+    }
+
+    /// <summary>Info alerts hug their text: icon + title + detail + breathing room (never the old fixed stretch).</summary>
+    private double FitInfoWidth(double requested)
+    {
+        var title = NaturalWidth(InfoTitle, 260);
+        var detail = NaturalWidth(InfoDetail, 190);
+        var glyph = string.IsNullOrEmpty(InfoGlyph.Text) ? 0 : 20;
+        var width = 18 + glyph + 10 + title + (detail > 0 ? 14 + detail : 0) + 20 + 8;
+        return Math.Clamp(width, 150, Math.Max(requested, 150) + 40);
+    }
+
+    /// <summary>Notifications: icon + the longer of title/body + the app name or Copy button, with room for the round ends.</summary>
+    private double FitNotificationWidth()
+    {
+        var text = Math.Max(NaturalWidth(NotifTitle, 280), NaturalWidth(NotifBody, 280));
+        double right = _pendingCode is not null ? 92 : Math.Max(NaturalWidth(NotifApp, 90), 57);
+        var width = 13 + 32 + 11 + text + 14 + right + 26;
+        return Math.Clamp(width, 270, 460);
+    }
+
     // ---------------------------------------------------------------- info alerts
 
     /// <summary>Fills in and shows the shared info pill, unless a higher-priority alert is on screen.</summary>
@@ -2817,7 +2849,7 @@ public partial class MainWindow : Window
         InfoTitle.Text = title;
         InfoDetail.Text = detail ?? "";
         InfoDetail.Foreground = detailBrush ?? (Brush)FindResource("Secondary");
-        InfoView.Width = width;
+        InfoView.Width = FitInfoWidth(width);
         _state.ShowTransient(IslandView.Info, priority, TimeSpan.FromSeconds(seconds ?? _settings.AlertSeconds));
     }
 
@@ -2947,6 +2979,7 @@ public partial class MainWindow : Window
         if (_pendingCode is not null) { NotifTitle.Text = "Code  " + _pendingCode; NotifBody.Text = n.AppName + " · " + FirstLine(n.Body); }
         NotifBody.Visibility = NotifBody.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
         NotifApp.Text = hide ? "now" : n.AppName;
+        NotificationView.Width = FitNotificationWidth();
         var seconds = Math.Clamp(_settings.NotificationSeconds, 2, 15);
         if (_pendingCode is not null) seconds = Math.Max(seconds, 8); // long enough to reach for the Copy button
         SetAlertPage(ExpandedPage.Notifications, seconds);

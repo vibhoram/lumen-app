@@ -260,6 +260,10 @@ public sealed class PetWidget : Canvas
 
     private void Build()
     {
+        // _eye and _mouth live inside the old head canvas; detach them or the rebuild throws
+        // ("already a child of another visual") and leaves the pet headless and frozen.
+        foreach (var shared in new FrameworkElement[] { _eye, _mouth })
+            if (VisualTreeHelper.GetParent(shared) is Canvas oldParent) oldParent.Children.Remove(shared);
         _sprite.Children.Clear();
         _legs.Clear();
         var (body, dark, belly, earInner) = _kind switch

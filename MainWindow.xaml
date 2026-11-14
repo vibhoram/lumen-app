@@ -279,7 +279,7 @@
 
             <!-- Another app's notification (icon, title, text, app). -->
             <Grid x:Name="NotificationView" Style="{StaticResource IslandView}" Width="370" Height="58">
-                <Grid Margin="13,0,18,0">
+                <Grid Margin="13,0,24,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
