@@ -23,6 +23,8 @@ public enum IslandMaterial
     LiquidGlass,
 }
 
+public enum EqualizerLook { Silver, Song, Mint, Sunset }
+
 public enum CompactTime { Off, Elapsed, Remaining }
 
 public enum GlassEngine
@@ -101,7 +103,7 @@ public sealed class AppSettings
     public double GlassShine { get; set; } = 0.9;
 
     /// <summary>The bright line along the glass edge and the soft light just inside it (0 = none).</summary>
-    public double GlassRim { get; set; } = 0.2;
+    public double GlassRim { get; set; } = 0.1;
 
     /// <summary>How vivid the background looks through the glass (0 = as it is, 1 = very rich colour).</summary>
     public double GlassVibrancy { get; set; } = 0.65;
@@ -203,6 +205,8 @@ public sealed class AppSettings
 
     /// <summary>Collapsed music: the album art becomes a spinning disc and the equalizer a pulse bubble, separate from the title pill.</summary>
     public bool MusicSplit { get; set; } = true;
+    /// <summary>How the audio-reactive bars look.</summary>
+    public EqualizerLook EqualizerLook { get; set; } = EqualizerLook.Silver;
     /// <summary>A notification or copy leaves a small bubble beside the pill for this many seconds (0 = off).</summary>
     public int CarrySeconds { get; set; } = 8;
 

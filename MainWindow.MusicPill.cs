@@ -42,16 +42,8 @@ public partial class MainWindow
         var changed = ShowBubble(MediaDiscBubble, show);
         changed |= ShowBubble(MediaPulseBubble, show);
 
-        // the disc turns only while music plays and it is on screen: a running animation keeps the window rendering
-        var spin = show && _media.Current?.IsPlaying == true;
-        if (spin != _discSpinning)
-        {
-            _discSpinning = spin;
-            if (spin)
-                MediaDiscSpin.BeginAnimation(RotateTransform.AngleProperty,
-                    new DoubleAnimation(0, 360, TimeSpan.FromSeconds(9)) { RepeatBehavior = RepeatBehavior.Forever });
-            else MediaDiscSpin.BeginAnimation(RotateTransform.AngleProperty, null);
-        }
+        // the disc stays still (it used to spin, which was distracting)
+        MediaDiscSpin.BeginAnimation(RotateTransform.AngleProperty, null);
         if (show && _media.Current is { Duration.Ticks: > 0 } media)
         {
             MediaDiscRing.Stroke = RingMedia;

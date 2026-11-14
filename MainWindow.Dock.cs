@@ -21,6 +21,18 @@ public partial class MainWindow
     private ExpandedPage? _hoverPage;
     private DateTime _hoverSince;
     private readonly Dictionary<Button, double> _dockScale = new();
+    private DateTime _dockArmedAt = DateTime.MinValue; // hover-switching stays off until this moment
+    private double _dockAnchorX = double.NaN;          // where the cursor was when hover-switching became possible
+    private bool _dockMoved;                           // the cursor really travelled along the strip since then
+
+    /// <summary>When the island opens under a resting cursor it must not jump to whichever page is below it.</summary>
+    private void ArmDock()
+    {
+        _dockArmedAt = DateTime.UtcNow.AddMilliseconds(650);
+        _dockAnchorX = double.NaN;
+        _dockMoved = false;
+        _hoverPage = null;
+    }
 
     private void WireDock()
     {
@@ -28,12 +40,19 @@ public partial class MainWindow
         {
             _dockX = e.GetPosition(PageTabs).X;
             _lastDockX = _dockX;
+            if (DateTime.UtcNow >= _dockArmedAt)
+            {
+                if (double.IsNaN(_dockAnchorX)) _dockAnchorX = _dockX;
+                else if (Math.Abs(_dockX - _dockAnchorX) > 16) _dockMoved = true;
+            }
             StartDock();
         };
         PageTabs.MouseLeave += (_, _) =>
         {
             _dockX = double.NaN;
             _hoverPage = null;
+            _dockAnchorX = double.NaN;
+            _dockMoved = false;
             StartDock(); // relax back to normal size
         };
     }
@@ -119,7 +138,7 @@ public partial class MainWindow
         }
 
         // Rest on an icon for a moment and its page opens.
-        if (hovering && _settings.HoverSwitchPages)
+        if (hovering && _settings.HoverSwitchPages && _dockMoved && now >= _dockArmedAt)
         {
             ExpandedPage? over = null;
             for (var i = 0; i < count; i++)

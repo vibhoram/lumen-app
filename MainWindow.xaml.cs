@@ -2212,6 +2212,8 @@ public partial class MainWindow : Window
             NativeMethods.SetExStyle(hwnd, peek ? ex | NativeMethods.WS_EX_TRANSPARENT : ex & ~(long)NativeMethods.WS_EX_TRANSPARENT);
         }
         if (peek) SetExpanded(false);
+        // the blur/glass window sits under the island; it must go away too, or the screen stays frosted
+        if (_gpuActive) _gpuBlur?.SetVisible(!peek);
         if (!IslandHidden) FadeRoot(peek ? 0.12 : 1, peek ? 120 : 180);
     }
 
@@ -2308,6 +2310,7 @@ public partial class MainWindow : Window
             BuildCalendar();
         }
         _state.IsExpanded = expanded;
+        if (expanded) ArmDock();
         UpdateIdleWeatherBubble();
         UpdateMediaBubbles();
         if (expanded) HideCarry();
