@@ -2060,7 +2060,7 @@ public partial class MainWindow : Window
     private void UpdateGpuShape()
     {
         if (!_gpuActive || _gpuBlur is null) return;
-        _gpuBlur.SetVibrancy(1f + (float)Math.Clamp(_settings.GlassVibrancy, 0, 1) * 1.1f);
+        _gpuBlur.SetVibrancy(0.85f + (float)Math.Clamp(_settings.GlassVibrancy, 0, 1) * 0.45f); // gentle: a strong boost turns a blue wallpaper into a blue tint
         var dpi = VisualTreeHelper.GetDpi(this);
         var f = dpi.DpiScaleX * Scale;
         var w = Math.Max(0, _width.Value);
@@ -2293,7 +2293,7 @@ public partial class MainWindow : Window
         // Background fill
         var tint = Math.Clamp(_settings.BackgroundTint, 0, 0.6);
         // Glass uses a deep graphite core (not pure black) so the material reads as glass, not a hole.
-        var core = _settings.Material == IslandMaterial.LiquidGlass ? Color.FromRgb(0x16, 0x16, 0x1A) : Colors.Black;
+        var core = _settings.Material == IslandMaterial.LiquidGlass ? Color.FromRgb(0x18, 0x18, 0x19) : Colors.Black; // neutral graphite, no blue cast
         var baseColor = accent is { } a ? ColorTools.Mix(core, a, tint) : core;
         var materialAlpha = _settings.Material switch
         {

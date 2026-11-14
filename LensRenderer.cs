@@ -193,7 +193,7 @@ internal sealed class LensRenderer : IDisposable
                 RectX = x + w / 2, RectY = y + h / 2, RectW = w / 2, RectH = h / 2,
                 Radius = radius, Bevel = bevel, Strength = strength, Light = -2.35f,
                 MonW = _monW, MonH = _monH, OriginX = _origX, OriginY = _origY,
-                Blur = blur, Dispersion = dispersion, Shine = shine, Saturation = 1.35f,
+                Blur = blur, Dispersion = dispersion, Shine = shine, Saturation = 1.12f,
             };
             _shapeSet = true;
             if (_haveFrame && Stage >= 2 && !_paused) RenderLocked();

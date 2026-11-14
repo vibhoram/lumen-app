@@ -210,6 +210,45 @@ public static class ClaraBrain
     }
 
     /// <summary>The tool definitions Clara can call (OpenAI-style function schemas).</summary>
+    private static readonly Dictionary<string, string[]> ToolParams = new()
+    {
+        ["set_timer"] = new[] { "minutes" }, ["start_focus"] = new[] { "minutes" }, ["stop_focus"] = Array.Empty<string>(),
+        ["set_reminder"] = new[] { "minutes", "text" }, ["quiet_mode"] = new[] { "minutes" }, ["add_todo"] = new[] { "text" },
+        ["append_note"] = new[] { "text" }, ["media_control"] = new[] { "action" }, ["open_app"] = new[] { "name" },
+        ["copy_to_clipboard"] = new[] { "text" }, ["remember"] = new[] { "fact" }, ["forget"] = new[] { "contains" },
+        ["set_alarm"] = new[] { "time", "label" }, ["free_ram"] = new[] { "level" }, ["apply_look"] = new[] { "name" },
+        ["set_pet"] = new[] { "species" }, ["open_page"] = new[] { "page" }, ["complete_todo"] = new[] { "text" },
+        ["delete_todo"] = new[] { "text" }, ["list_todos"] = Array.Empty<string>(), ["system_status"] = Array.Empty<string>(),
+        ["get_notifications"] = Array.Empty<string>(), ["get_clipboard"] = Array.Empty<string>(), ["describe_app"] = Array.Empty<string>(),
+    };
+
+    /// <summary>
+    /// Small local models sometimes write a tool call as plain text ("start_focus(25)" or {"name": "...", "parameters": {...}})
+    /// instead of making a real one. Find those, turn them into real calls, and return the text without them.
+    /// </summary>
+    public static (List<ToolCall> Calls, string Clean) ExtractTextCalls(string text)
+    {
+        var calls = new List<ToolCall>();
+        var clean = text;
+        var names = string.Join("|", ToolParams.Keys);
+        var json = System.Text.RegularExpressions.Regex.Matches(clean, @"\{\s*""name""\s*:\s*""(?<n>\w+)""\s*,\s*""(?:parameters|arguments)""\s*:\s*(?<a>\{[^{}]*\})\s*\}");
+        foreach (System.Text.RegularExpressions.Match m in json)
+            if (ToolParams.ContainsKey(m.Groups["n"].Value)) calls.Add(new ToolCall($"text_{calls.Count}", m.Groups["n"].Value, m.Groups["a"].Value));
+        clean = System.Text.RegularExpressions.Regex.Replace(clean, @"\{\s*""name""\s*:\s*""\w+""\s*,\s*""(?:parameters|arguments)""\s*:\s*\{[^{}]*\}\s*\}", "");
+        foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(clean, $@"\(?(?<n>{names})\s*\((?<a>[^()]*)\)\)?"))
+        {
+            var name = m.Groups["n"].Value;
+            var parts = System.Text.RegularExpressions.Regex.Split(m.Groups["a"].Value, @",(?=(?:[^""]*""[^""]*"")*[^""]*$)").Select(p => p.Trim().Trim('"', (char)39)).Where(p => p.Length > 0).ToList();
+            var obj = new JsonObject();
+            var keys = ToolParams[name];
+            for (var i = 0; i < keys.Length && i < parts.Count; i++)
+                obj[keys[i]] = double.TryParse(parts[i], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var num) && keys[i] is "minutes" ? JsonValue.Create(num) : JsonValue.Create(parts[i]);
+            calls.Add(new ToolCall($"text_{calls.Count}", name, obj.ToJsonString()));
+        }
+        clean = System.Text.RegularExpressions.Regex.Replace(clean, $@"\(?(?:{names})\s*\([^()]*\)\)?", "").Trim();
+        return (calls, clean);
+    }
+
     public static JsonArray Tools() => new()
     {
         Tool("set_timer", "Start a countdown timer on the island.",

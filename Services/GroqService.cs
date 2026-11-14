@@ -48,7 +48,7 @@ public static class GroqService
     /// <summary>Streams one model turn: reply text as it arrives, then any tool calls the model made.</summary>
     public static async IAsyncEnumerable<GroqEvent> StreamAsync(
         string? apiKey, string model, string system, IReadOnlyList<ChatMessage> history, JsonArray? tools,
-        [EnumeratorCancellation] CancellationToken cancel, string? endpoint = null)
+        [EnumeratorCancellation] CancellationToken cancel, string? endpoint = null, int maxTokens = 1400)
     {
         // Only the newest image goes out: older screenshots would burn tokens and the model's image limit.
         var lastImage = -1;
@@ -96,7 +96,7 @@ public static class GroqService
             ["messages"] = messages,
             ["stream"] = true,
             ["temperature"] = 0.7,
-            ["max_tokens"] = 1400,
+            ["max_tokens"] = maxTokens,
         };
         if (tools is not null)
         {

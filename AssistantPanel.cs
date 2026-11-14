@@ -125,17 +125,15 @@ public sealed class AssistantPanel : Grid
             MinHeight = 92,
             Content = _messages,
         };
+        var slim = new SlimScroller(_scroll);
         _scroll.PreviewMouseWheel += (_, e) =>
         {
-            if (_scroll.ScrollableHeight <= 0) return;
-            var at = _scroll.VerticalOffset;
-            _scroll.BeginAnimation(OffsetProperty, null);
-            _scroll.ScrollToVerticalOffset(at - e.Delta);
-            e.Handled = true; // don't flip pages while reading a long answer
+            slim.Wheel(e.Delta);
+            e.Handled = true; // never flips the page while you read
         };
         _empty = BuildEmpty();
         var stack = new Grid();
-        stack.Children.Add(_scroll);
+        stack.Children.Add(slim.Root);
         stack.Children.Add(_empty);
         // A soft dark well behind the conversation keeps text readable over any wallpaper or window.
         var well = new Border
@@ -454,9 +452,10 @@ public sealed class AssistantPanel : Grid
                 var context = _settings.ClaraContext ? ContextProvider?.Invoke() : null;
                 var system = ClaraBrain.SystemPrompt(useLocal ? $"{engineModel}, running offline on this PC" : engineModel, context, ClaraMemory.Shared.Facts, _settings.UserName, _settings.UserBio);
                 var offerTools = useLocal ? (LocalAi.LooksActionable(userText) || round > 0) : true;
+                system += Environment.NewLine + Environment.NewLine + "REMINDER: answer in one short casual line unless they asked for detail. No long explanations, no lists unless needed.";
                 var turn = new StringBuilder();
                 List<ToolCall>? calls = null;
-                await foreach (var ev in GroqService.StreamAsync(useLocal ? null : _settings.GroqApiKey, engineModel, system, _history.ToList(), offerTools ? tools : null, _cts.Token, useLocal ? LocalAi.ChatEndpoint : null))
+                await foreach (var ev in GroqService.StreamAsync(useLocal ? null : _settings.GroqApiKey, engineModel, system, _history.ToList(), offerTools ? tools : null, _cts.Token, useLocal ? LocalAi.ChatEndpoint : null, useLocal ? 220 : 700))
                 {
                     if (ev.Text is { } text)
                     {
@@ -468,6 +467,20 @@ public sealed class AssistantPanel : Grid
                     if (ev.Calls is { } c) calls = c.ToList();
                 }
 
+                if (calls is null && useLocal)
+                {
+                    // the local model wrote a command as text instead of calling the tool: run it, and hide the text
+                    var (found, cleaned) = ClaraBrain.ExtractTextCalls(turn.ToString());
+                    if (found.Count > 0)
+                    {
+                        reply.Length = Math.Max(0, reply.Length - turn.Length);
+                        turn.Clear();
+                        turn.Append(cleaned);
+                        reply.Append(cleaned);
+                        bubble.SetText(NoDashes(reply.ToString()));
+                        calls = found;
+                    }
+                }
                 if (calls is null)
                 {
                     if (turn.Length > 0) _history.Add(new ChatMessage("assistant", NoDashes(turn.ToString())));

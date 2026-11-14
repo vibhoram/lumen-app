@@ -68,7 +68,7 @@ float4 main(float4 sv : SV_Position) : SV_Target
 
     float luma = dot(col, float3(0.299, 0.587, 0.114));
     col = lerp(luma.xxx, col, p3.w);                 // vibrancy
-    col = lerp(col, float3(0.086, 0.086, 0.102), 0.12); // keep the same graphite core as the island fill
+    col = lerp(col, float3(0.094, 0.094, 0.096), 0.12); // keep the same graphite core as the island fill
 
     // How much of the lens shows: full at the rim, fading into the blurred middle.
     float ringA = smoothstep(0.0, 0.85, t);
