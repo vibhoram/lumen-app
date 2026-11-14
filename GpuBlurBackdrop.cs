@@ -242,6 +242,18 @@ internal sealed class GpuBlurBackdrop : IDisposable
         NativeMethods.EnumWindows((hwnd, _) =>
         {
             if (_excluded.Contains(hwnd) || !NativeMethods.IsShownOnScreen(hwnd)) return true;
+            // Click-through overlays (layered + transparent, e.g. wallpaper widgets, OSDs) draw nothing of their own, but a
+            // shared thumbnail drops their alpha and shows them as a solid black sheet: leave them out of the backdrop.
+            var exStyle = NativeMethods.GetExStyle(hwnd);
+            const long Layered = 0x00080000, ToolWindow = 0x00000080, NoActivate = 0x08000000;
+            var clickThrough = (exStyle & NativeMethods.WS_EX_TRANSPARENT) != 0 && (exStyle & Layered) != 0;
+            var overlay = (exStyle & Layered) != 0 && (exStyle & ToolWindow) != 0 && (exStyle & NoActivate) != 0; // e.g. CEF-OSC-WIDGET
+            if (clickThrough || overlay)
+            {
+                DebugLog($"skipped overlay {hwnd:X} [{ClassOf(hwnd)}] ex=0x{exStyle:X}");
+                return true;
+            }
+            DebugLog($"candidate {hwnd:X} [{ClassOf(hwnd)}] ex=0x{exStyle:X}");
 #if DEBUG
             // Debug aid: DISLAND_BLUR_ONLY=<window class> mirrors just that class (plus the desktop).
             if (Environment.GetEnvironmentVariable("DISLAND_BLUR_ONLY") is { Length: > 0 } only
