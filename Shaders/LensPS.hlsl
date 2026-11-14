@@ -56,7 +56,7 @@ float4 main(float4 sv : SV_Position) : SV_Target
     // reads the background just OUTSIDE the edge, along the outward normal, and squeezes it into the
     // bevel (like the rim of a thick glass dome gathering the surroundings). Samples reach farther out the
     // deeper the pixel is, which compresses a wide band of background into the thin rim.
-    float reach = p1.z * lens * 0.7 + depth * 0.3 + 2.0;
+    float reach = depth + 4.0 + p1.z * lens * 0.45;
     float2 mon = pos + p2.zw;
     float2 invMon = 1.0 / p2.xy;
     float disp = p3.y;
