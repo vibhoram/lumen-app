@@ -366,7 +366,16 @@ public sealed class ClipboardPanel : Grid
             Padding = new Thickness(10, 4, 10, 4),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
-            Child = new TextBlock { Text = "  " + text, FontFamily = AssistantPanel.IconFont, FontSize = 11, Foreground = Brushes.White },
+            Child = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Children =
+                {
+                    // the tick is an icon-font glyph; the word must use the normal font (in the icon font it showed as boxes)
+                    new TextBlock { Text = "", FontFamily = AssistantPanel.IconFont, FontSize = 11, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) },
+                    new TextBlock { Text = text, FontSize = 11.5, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center },
+                },
+            },
             Opacity = 0,
         };
         face.Children.Add(toast);
