@@ -253,7 +253,15 @@ public partial class MainWindow
         MediaLyricLarge.Text = line;
         if (_state.IsExpanded && _page == ExpandedPage.Lyrics) _lyricsPanel.Update(position);
         if (_state.IsExpanded && _lyricsOpen && _lyricLines is not null && _page == ExpandedPage.Home) _lyricsInline.Update(position);
-        MediaLyricLarge.Visibility = _settings.LyricsInExpanded && line.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        // The line's room is reserved for the whole song (an empty line keeps its height), so the island never jumps
+        // between lines; it resizes once, when lyrics appear or go.
+        var lyricVisibility = _settings.LyricsInExpanded && _lyricLines is not null ? Visibility.Visible : Visibility.Collapsed;
+        if (MediaLyricLarge.Visibility != lyricVisibility)
+        {
+            MediaLyricLarge.Visibility = lyricVisibility;
+            if (_state.IsExpanded && _page == ExpandedPage.Home) Dispatcher.InvokeAsync(Render);
+        }
+        if (line.Length == 0) MediaLyricLarge.Text = " ";
         var title = string.IsNullOrWhiteSpace(media.Title) ? "Unknown title" : media.Title;
         var shown = _settings.LyricsInCompact && line.Length > 0 ? "♪ " + line : title;
         var artist = _settings.ShowArtistOnPill && !(_settings.LyricsInCompact && line.Length > 0) ? media.Artist : "";

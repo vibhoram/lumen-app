@@ -60,7 +60,7 @@ public partial class MainWindow
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition());
-        row.Children.Add(new TextBlock { Style = (Style)FindResource("Glyph"), Text = "", FontSize = 14, Foreground = (Brush)FindResource("Orange"), Margin = new Thickness(0, 0, 10, 0) });
+        row.Children.Add(new TextBlock { Style = (Style)FindResource("Glyph"), Text = "", FontSize = 14, Foreground = (Brush)FindResource("Orange"), Margin = new Thickness(0, 0, 10, 0) });
         Grid.SetColumn(time, 1);
         row.Children.Add(time);
         var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
