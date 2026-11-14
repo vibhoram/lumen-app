@@ -263,6 +263,9 @@ public sealed class AppSettings
     /// <summary>Minutes between the pet's nudges (10..120).</summary>
     public int PetReminderMinutes { get; set; } = 40;
 
+    /// <summary>How the big clock on the Home page is drawn: plain, outlined or glass (like the iOS 26 lock screen).</summary>
+    public ClockLook ClockLook { get; set; } = ClockLook.Glass;
+
     /// <summary>Show every slider (otherwise just presets and the essentials).</summary>
     public bool ShowAdvanced { get; set; }
 

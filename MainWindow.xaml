@@ -479,7 +479,7 @@
                     </Grid>
 
                     <StackPanel x:Name="ClockSection">
-                        <TextBlock x:Name="BigTime" FontSize="36" FontWeight="Light" />
+                        <local:GlassText x:Name="BigTime" FontSize="44" FontWeight="Light" HorizontalAlignment="Left" />
                         <TextBlock x:Name="DateText" FontSize="13" Foreground="{StaticResource Secondary}" />
                     </StackPanel>
 

@@ -171,7 +171,9 @@ public partial class SettingsWindow : Window
         {
             ("Segoe UI Variable", "Modern"), ("Bahnschrift", "Technical"), ("Cascadia Mono", "Mono"), ("Georgia", "Serif"),
             ("Segoe Print", "Handwritten"), ("Segoe UI Light", "Light"),
+            ("Bahnschrift Condensed", "Tall"), ("Arial Rounded MT Bold", "Rounded"), ("Segoe UI Black", "Heavy"), ("Bahnschrift Light", "Slim"),
         }, () => s.ClockFont, v => s.ClockFont = v);
+        Choice(text, "Big clock look", new[] { (ClockLook.Glass, "Glass"), (ClockLook.Outline, "Outline"), (ClockLook.Solid, "Solid") }, () => s.ClockLook, v => s.ClockLook = v);
         Choice(text, "When idle", new[] { (IdleStyle.Clock, "Show clock"), (IdleStyle.Minimal, "Minimal pill") },
             () => s.IdleStyle, v => s.IdleStyle = v);
 

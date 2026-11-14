@@ -70,18 +70,12 @@ public sealed class ClipboardHistory
             }
             else if (Clipboard.ContainsImage())
             {
+                // Reading the image must happen here, but turning a full-screen screenshot into a PNG takes a good fraction of a
+                // second: do that elsewhere, or the island freezes (and seems to vanish) every time you take a screenshot.
                 if (Clipboard.GetImage() is not { } image) return;
-                var encoder = new PngBitmapEncoder();
-                encoder.Frames.Add(BitmapFrame.Create(image));
-                using var ms = new MemoryStream();
-                encoder.Save(ms);
-                var bytes = ms.ToArray();
-                var hash = Hash(bytes);
-                if (Bump(hash)) return;
-                Directory.CreateDirectory(Folder);
-                var name = Guid.NewGuid().ToString("N") + ".png";
-                File.WriteAllBytes(Path.Combine(Folder, name), bytes);
-                item = new ClipItem { Kind = ClipKind.Image, ImageFile = name, Hash = hash, Text = $"{image.PixelWidth} × {image.PixelHeight}" };
+                if (image.CanFreeze) image.Freeze();
+                _ = Task.Run(() => AddImage(image));
+                return;
             }
             else if (Clipboard.ContainsText())
             {
@@ -101,6 +95,31 @@ public sealed class ClipboardHistory
             Changed?.Invoke();
         }
         catch (Exception) { /* the clipboard can be locked by the writer; the next copy will work */ }
+    }
+
+    private void AddImage(BitmapSource image)
+    {
+        try
+        {
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(image));
+            using var ms = new MemoryStream();
+            encoder.Save(ms);
+            var bytes = ms.ToArray();
+            var hash = Hash(bytes);
+            Directory.CreateDirectory(Folder);
+            var name = Guid.NewGuid().ToString("N") + ".png";
+            File.WriteAllBytes(Path.Combine(Folder, name), bytes);
+            Application.Current?.Dispatcher.InvokeAsync(() =>
+            {
+                if (Bump(hash)) { try { File.Delete(Path.Combine(Folder, name)); } catch (Exception) { } return; }
+                _items.Insert(0, new ClipItem { Kind = ClipKind.Image, ImageFile = name, Hash = hash, Text = $"{image.PixelWidth} × {image.PixelHeight}" });
+                Trim();
+                Save();
+                Changed?.Invoke();
+            });
+        }
+        catch (Exception) { /* a screenshot we could not keep is not worth an error */ }
     }
 
     public void Touch(ClipItem item)

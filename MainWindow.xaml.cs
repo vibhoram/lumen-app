@@ -2824,7 +2824,7 @@ public partial class MainWindow : Window
         var weather = _settings.WeatherEnabled && _settings.WeatherInIdlePill ? _weather.Current : null;
         var weatherKey = weather is null ? null : $"{weather.Kind}|{weather.IsDay}|{Degrees(weather.Temperature)}";
         var visibility = minimal ? Visibility.Collapsed : Visibility.Visible;
-        var styleKey = $"{style}|{_settings.ClockFont}|{showDate}|{_settings.WeatherSeparate}|{minimal}|{Quiet}";
+        var styleKey = $"{style}|{_settings.ClockFont}|{_settings.ClockLook}|{showDate}|{_settings.WeatherSeparate}|{minimal}|{Quiet}";
         if (idleText == ClockText.Text && styleKey == _clockStyleKey && visibility == ClockRow.Visibility && time == BigTime.Text
             && weatherKey == _clockWeatherKey)
             return;
@@ -2832,10 +2832,18 @@ public partial class MainWindow : Window
 
         ClockRow.Visibility = visibility;
         BigTime.Text = time;
+        BigTime.Look = _settings.ClockLook;
+        var (bigFamily, bigStretch) = ClockFontParts(_settings.ClockFont);
+        BigTime.FontFamily = new FontFamily($"{bigFamily}, Segoe UI Variable, Segoe UI");
+        BigTime.FontStretch = bigStretch;
+        BigTime.FontSize = bigStretch == FontStretches.Condensed ? 56 : 44;
+        BigTime.FontWeight = _settings.ClockLook == ClockLook.Solid ? FontWeights.Light : FontWeights.SemiBold;
         DateText.Text = now.ToString("dddd, MMMM d");
 
         // The idle clock in the chosen style and font: date quiet, time bold.
-        ClockText.FontFamily = new FontFamily($"{_settings.ClockFont}, Segoe UI Variable, Segoe UI");
+        var (pillFamily, pillStretch) = ClockFontParts(_settings.ClockFont);
+        ClockText.FontFamily = new FontFamily($"{pillFamily}, Segoe UI Variable, Segoe UI");
+        ClockText.FontStretch = pillStretch;
         ClockText.Inlines.Clear();
         if (Quiet) ClockText.Inlines.Add(new System.Windows.Documents.Run("\u263E  ") { FontSize = timeSizeMoon, Foreground = (Brush)FindResource("Secondary") });
         var secondaryBrush = (Brush)FindResource("Secondary");
@@ -3211,6 +3219,12 @@ public partial class MainWindow : Window
         NotifCopyScale.BeginAnimation(ScaleTransform.ScaleXProperty, pop);
         NotifCopyScale.BeginAnimation(ScaleTransform.ScaleYProperty, pop);
     }
+
+    /// <summary>"Bahnschrift Condensed" means the Bahnschrift family at condensed width (the tall, narrow iOS look).</summary>
+    private static (string Family, FontStretch Stretch) ClockFontParts(string font) =>
+        font.EndsWith(" Condensed", StringComparison.OrdinalIgnoreCase)
+            ? (font[..^" Condensed".Length], FontStretches.Condensed)
+            : (font, FontStretches.Normal);
 
     private static string FirstLine(string text) => text.Split('\n', 2)[0].Trim();
 
