@@ -73,7 +73,7 @@ public static class LocalAi
     }
 
     private static readonly Regex Actionable = new(
-        @"\b(timer|alarm|remind|reminder|to-?do|todo|task|focus|pomodoro|study|open|launch|play|pause|next|previous|skip|copy|clipboard|remember|forget|note|notes|look|theme|pet|page|ram|memory|cpu|slow|notification|notifications|quiet|silence|snooze|volume)\b",
+        @"\b(timer|alarm|remind|reminder|to-?do|todo|task|tasks|topic|topics|list|add|change|switch|set|make|turn|enable|disable|delete|remove|focus|pomodoro|study|open|launch|play|pause|next|previous|skip|copy|clipboard|remember|forget|note|notes|look|theme|pet|page|ram|memory|cpu|slow|notification|notifications|quiet|silence|snooze|volume)\b",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     /// <summary>Small models are better chatters than tool users: only offer tools when the message sounds like a command.</summary>

@@ -451,7 +451,8 @@ public sealed class AssistantPanel : Grid
             {
                 var context = _settings.ClaraContext ? ContextProvider?.Invoke() : null;
                 var system = ClaraBrain.SystemPrompt(useLocal ? $"{engineModel}, running offline on this PC" : engineModel, context, ClaraMemory.Shared.Facts, _settings.UserName, _settings.UserBio);
-                var offerTools = useLocal ? (LocalAi.LooksActionable(userText) || round > 0) : true;
+                // the tool list is a big chunk of the request: only send it when the message sounds like a command (keeps the cloud request under the free per-minute limit)
+                var offerTools = LocalAi.LooksActionable(userText) || round > 0;
                 system += Environment.NewLine + Environment.NewLine + "REMINDER: answer in one short casual line unless they asked for detail. No long explanations, no lists unless needed.";
                 var turn = new StringBuilder();
                 List<ToolCall>? calls = null;

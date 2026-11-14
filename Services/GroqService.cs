@@ -33,12 +33,12 @@ public static class GroqService
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromMinutes(3) };
 
     /// <summary>Downscales and JPEG-encodes a screenshot into a data URL small enough for the API.</summary>
-    public static string ToDataUrl(BitmapSource image, int maxEdge = 1400)
+    public static string ToDataUrl(BitmapSource image, int maxEdge = 1000)
     {
         var scale = Math.Min(1.0, maxEdge / (double)Math.Max(image.PixelWidth, image.PixelHeight));
         BitmapSource source = image;
         if (scale < 1) source = new TransformedBitmap(image, new System.Windows.Media.ScaleTransform(scale, scale));
-        var encoder = new JpegBitmapEncoder { QualityLevel = 82 };
+        var encoder = new JpegBitmapEncoder { QualityLevel = 70 };
         encoder.Frames.Add(BitmapFrame.Create(source));
         using var ms = new MemoryStream();
         encoder.Save(ms);
