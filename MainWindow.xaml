@@ -5,7 +5,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:DIsland"
         Title="Lumen"
-        Width="460" Height="300"
+        Width="620" Height="300"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         Topmost="True" ShowInTaskbar="False" ShowActivated="False"
         ResizeMode="NoResize" Focusable="False"
@@ -98,7 +98,7 @@
 
     <!-- Root has no background: only the pill and its content are hit-testable, the rest clicks through. -->
     <!-- Fixed design size; the "Size" setting scales it with a LayoutTransform and resizes the window. -->
-    <Grid x:Name="Root" Width="460" Height="300" HorizontalAlignment="Left" VerticalAlignment="Top">
+    <Grid x:Name="Root" Width="620" Height="300" HorizontalAlignment="Left" VerticalAlignment="Top">
         <!-- Liquid Glass: a live, blurred copy of the screen behind the island, clipped to its shape. -->
         <Canvas x:Name="GlassLayer" IsHitTestVisible="False" Visibility="Collapsed">
             <Image x:Name="GlassImage" Stretch="Fill" RenderOptions.BitmapScalingMode="Linear">

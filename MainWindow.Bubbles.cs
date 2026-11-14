@@ -42,6 +42,11 @@ public partial class MainWindow
                 fraction = media is { Duration.Ticks: > 0 } ? media.EstimatePosition(DateTimeOffset.Now) / media.Duration : 0;
                 brush = RingMedia;
                 break;
+            case IslandView.AlarmSet:
+                // the ring fills as the alarm gets closer (twelve hours out to the moment it rings)
+                fraction = _nextAlarmAt is { } due ? Math.Clamp(1 - (due - DateTime.Now).TotalHours / 12, 0, 1) : 0;
+                brush = RingTimer;
+                break;
             default:
                 fraction = _stopwatch.Elapsed.TotalSeconds % 60 / 60;
                 brush = RingStopwatch;

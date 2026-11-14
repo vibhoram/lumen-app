@@ -77,6 +77,11 @@ public partial class MainWindow
         AlarmRow.Children.Add(_alarmSuggest);
         AlarmRow.Children.Add(_alarmChips);
         _settings.Changed += BuildAlarmChips;
+        _settings.Changed += RefreshAlarmArmed;
+        var tick = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        tick.Tick += (_, _) => { UpdateModeStatus(); if (++_armedTicks % 20 == 0) RefreshAlarmArmed(); };
+        tick.Start();
+        RefreshAlarmArmed();
         BuildStopwatchIdle();
         UpdateAlarmRow();
         BuildAlarmChips();
@@ -296,6 +301,9 @@ public partial class MainWindow
             var label = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
             label.Children.Add(new TextBlock { Style = (Style)FindResource("Glyph"), Text = ModeGlyphs[i], FontSize = 13, Foreground = open ? Brushes.White : (i == 2 ? (Brush)FindResource("Cyan") : (Brush)FindResource("Orange")), Margin = new Thickness(0, 0, 7, 0) });
             label.Children.Add(new TextBlock { Text = ModeNames[i], FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = tint, VerticalAlignment = VerticalAlignment.Center });
+            var status = new TextBlock { FontSize = 11, FontWeight = FontWeights.SemiBold, Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Foreground = i == 2 ? (Brush)FindResource("Cyan") : (Brush)FindResource("Orange") };
+            _modeStatus[i] = status;
+            label.Children.Add(status);
             var pill = new Border
             {
                 CornerRadius = new CornerRadius(16),
@@ -315,6 +323,7 @@ public partial class MainWindow
             Grid.SetColumn(pill, i);
             ClockModeBar.Children.Add(pill);
         }
+        UpdateModeStatus();
     }
 
     private static void PopPill(Border pill, double to)
@@ -425,5 +434,38 @@ public partial class MainWindow
         Grid.SetRow(_timerDial, 0);
         Grid.SetRow(TimerPresetRow, 1);
         TimerPresets.Children.Add(_timerDial);
+    }
+
+    // ------------------------------------------------------------------ what is running, shown outside the open panel
+
+    private DateTime? _nextAlarmAt;
+    private int _armedTicks;
+    private readonly TextBlock?[] _modeStatus = new TextBlock?[3];
+
+    /// <summary>The next enabled alarm in the coming 12 hours: it becomes a small bubble beside the collapsed pill.</summary>
+    private void RefreshAlarmArmed()
+    {
+        var now = DateTime.Now;
+        DateTime? next = null;
+        foreach (var alarm in _settings.Alarms.Where(a => a.Enabled))
+        {
+            var at = now.Date + alarm.TimeOfDay;
+            if (at <= now) at = at.AddDays(1);
+            if (next is null || at < next) next = at;
+        }
+        _nextAlarmAt = next;
+        var armed = next is { } due && (due - now).TotalHours <= 12;
+        if (_state is not null && _state.AlarmArmed != armed) _state.AlarmArmed = armed;
+        else if (armed && IsLoaded && !_state!.IsExpanded) UpdateSecondActivity(); // refresh the time on the bubble
+        UpdateModeStatus();
+    }
+
+    /// <summary>Live status inside each pill of the Alarm / Timer / Stopwatch row, so a running timer is never hidden when its panel is closed.</summary>
+    private void UpdateModeStatus()
+    {
+        if (_modeStatus[0] is null) return;
+        _modeStatus[0]!.Text = _nextAlarmAt is { } at && (at - DateTime.Now).TotalHours <= 24 ? at.ToString("h:mm tt") : "";
+        _modeStatus[1]!.Text = _timer.IsActive ? TimerService.Format(_timer.Remaining) : "";
+        _modeStatus[2]!.Text = _stopwatch.IsActive ? StopwatchService.Format(_stopwatch.Elapsed, tenths: false) : "";
     }
 }

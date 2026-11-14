@@ -19,6 +19,8 @@ public enum IslandView
     Info,
     /// <summary>Another app's notification.</summary>
     Notification,
+    /// <summary>An alarm is set for the next few hours: only ever shown as a bubble beside the pill, never as the pill itself.</summary>
+    AlarmSet,
 }
 
 public static class TransientPriority
@@ -50,6 +52,7 @@ public sealed class StateController
     private bool _timerActive;
     private bool _stopwatchActive;
     private bool _mediaPlaying;
+    private bool _alarmArmed;
     private bool _expanded;
 
     public StateController()
@@ -62,6 +65,7 @@ public sealed class StateController
     public bool TimerActive { get => _timerActive; set => Set(ref _timerActive, value); }
     public bool StopwatchActive { get => _stopwatchActive; set => Set(ref _stopwatchActive, value); }
     public bool MediaPlaying { get => _mediaPlaying; set => Set(ref _mediaPlaying, value); }
+    public bool AlarmArmed { get => _alarmArmed; set => Set(ref _alarmArmed, value); }
     public bool IsExpanded { get => _expanded; set => Set(ref _expanded, value); }
 
     public IslandView? Transient => _transient;
@@ -73,15 +77,23 @@ public sealed class StateController
         if (_mediaPlaying) yield return IslandView.Media;
         if (_timerActive) yield return IslandView.Timer;
         if (_stopwatchActive) yield return IslandView.Stopwatch;
+        if (_alarmArmed) yield return IslandView.AlarmSet;
     }
 
-    public IslandView PersistentView => Activities().DefaultIfEmpty(IslandView.Clock).First();
+    public IslandView PersistentView => Activities().Where(v => v != IslandView.AlarmSet).DefaultIfEmpty(IslandView.Clock).First();
+
+    /// <summary>Everything running except the activity that owns the pill: these become bubbles.</summary>
+    private IEnumerable<IslandView> Bubbles()
+    {
+        var main = PersistentView;
+        return Activities().Where(v => v != main);
+    }
 
     /// <summary>The next activity after the one in the pill, shown as a bubble beside it (like the iPhone's split island).</summary>
-    public IslandView? SecondaryView => Activities().Skip(1).Select(v => (IslandView?)v).FirstOrDefault();
+    public IslandView? SecondaryView => Bubbles().Select(v => (IslandView?)v).FirstOrDefault();
 
     /// <summary>The third running activity, shown as a second bubble.</summary>
-    public IslandView? TertiaryView => Activities().Skip(2).Select(v => (IslandView?)v).FirstOrDefault();
+    public IslandView? TertiaryView => Bubbles().Skip(1).Select(v => (IslandView?)v).FirstOrDefault();
 
     public IslandView CurrentView => _transient ?? PersistentView;
 

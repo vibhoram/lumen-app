@@ -24,7 +24,7 @@ public partial class MainWindow : Window
 {
     // Design-space width of the root; the window is this times the Size setting. The root's height
     // starts at 300 (XAML) and grows if the expanded content needs more (UpdateWindowHeight).
-    private const double BaseWidth = 460;
+    private const double BaseWidth = 620; // wide enough that bubbles beside a wide pill (alarm, notification) never run off the window edge
 
     private const double IslandTopMargin = 8;
     private const double ExpandedWidth = 420;
@@ -272,6 +272,9 @@ public partial class MainWindow : Window
         {
             _hoverTimer.Stop();
             if (_peeking || !IsCursorOverPill()) return; // bubbles and the pet don't open the island
+            // An alarm or notification pill carries its own buttons (Stop, Snooze, Dismiss): hovering it must leave them in
+            // place, or the island opens under the cursor and the buttons vanish before they can be pressed.
+            if (_state.Transient is IslandView.TimerDone or IslandView.Notification) return;
             // Hovering shows the quick tray when there is something in it; clicking opens the whole island.
             SetExpanded(true);
         };
@@ -4238,6 +4241,17 @@ public partial class MainWindow : Window
             glyph.Foreground = (Brush)FindResource("Secondary");
             glyph.Visibility = art is null ? Visibility.Visible : Visibility.Collapsed;
             bubble.ToolTip = _media.Current?.Title;
+        }
+        else if (view == IslandView.AlarmSet)
+        {
+            artEllipse.Visibility = Visibility.Collapsed;
+            glyph.Visibility = Visibility.Visible;
+            glyph.FontFamily = new FontFamily("Segoe UI Variable Text, Segoe UI");
+            glyph.FontSize = 10.5;
+            glyph.FontWeight = FontWeights.SemiBold;
+            glyph.Text = _nextAlarmAt is { } at ? at.ToString("h:mm") : "";
+            glyph.Foreground = (Brush)FindResource("Orange");
+            bubble.ToolTip = _nextAlarmAt is { } when ? "Alarm · " + when.ToString("h:mm tt") : "Alarm";
         }
         else
         {
