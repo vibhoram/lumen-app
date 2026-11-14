@@ -340,7 +340,7 @@ public partial class SettingsWindow : Window
         Check(ai, "Show the Clara page", () => s.AssistantEnabled, v => s.AssistantEnabled = v);
         Check(ai, "Live screen: attach a fresh screenshot to every message", () => s.AssistantLiveScreen, v => s.AssistantLiveScreen = v);
         Check(ai, "Let Clara know the time, what's playing, battery and weather", () => s.ClaraContext, v => s.ClaraContext = v);
-        TextRow(ai, "Groq API key", () => s.GroqApiKey, v => s.GroqApiKey = v.Trim());
+        TextRow(ai, "Groq API key", () => s.GroqApiKey, v => { if (v.Trim().Length > 0 || s.GroqApiKey.Length == 0) s.GroqApiKey = v.Trim(); }); // an accidental empty field never wipes a saved key
         TextRow(ai, "Model", () => s.GroqModel, v => s.GroqModel = v.Trim());
         var forget = new Button { Style = (Style)FindResource("ChipButton"), Content = "Clear Clara's memory", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 6, 0, 2) };
         forget.Click += (_, _) => { DIsland.Services.ClaraMemory.Shared.Clear(); forget.Content = "Memory cleared"; };
