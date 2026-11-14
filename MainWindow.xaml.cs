@@ -1174,7 +1174,11 @@ public partial class MainWindow : Window
             var selected = tab.Page == _page;
             tab.Button.ToolTip = selected ? null : PageTitle(tab.Page);
             tab.Button.Padding = dots ? new Thickness(5, 6, 5, 6) : new Thickness(7, 3, selected ? 9 : 7, 3);
-            tab.Button.Background = !dots && selected ? new SolidColorBrush(Color.FromArgb(0x1F, 0xFF, 0xFF, 0xFF)) : Brushes.Transparent;
+            // the selected tab is a glass pill: light fill, thin rim lit from the top-left (same as the other buttons)
+            var glassTab = !dots && selected;
+            tab.Button.Background = glassTab ? (Brush)FindResource("GlassFill") : Brushes.Transparent;
+            tab.Button.BorderBrush = glassTab ? (Brush)FindResource("GlassRim") : Brushes.Transparent;
+            tab.Button.BorderThickness = new Thickness(glassTab ? 1 : 0);
             if (tab.Dot is not null) tab.Dot.Fill = selected ? Brushes.White : new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF));
             if (tab.Glyph is not null) tab.Glyph.Foreground = selected ? Brushes.White : secondary;
             if (tab.Label is not null) tab.Label.Visibility = selected ? Visibility.Visible : Visibility.Collapsed;
