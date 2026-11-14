@@ -74,3 +74,20 @@ Uninstall D-Island from Windows Settings > Apps and answer Yes when asked whethe
 7. CHANGES AND CONTACT
 
 This statement may change with new versions; each version includes its own copy. Questions: https://ibuildrigs.com
+
+----------------------------------------------------------------------
+Additions in this personal fork
+----------------------------------------------------------------------
+Clara (AI assistant). Only when you send a message, your message, any screenshot or text you attached, a few
+facts about the moment (local time, what is playing, battery, weather, number of open to-dos; switchable in
+Settings) and the short list of facts Clara remembered about you are sent to Groq (api.groq.com). Your Groq
+API key and Clara's memory are stored only in files on this PC (settings.json and clara-memory.json).
+
+Clipboard history. Text, links, images and file lists you copy are saved on this PC in
+%LocalAppData%\DIsland\Clipboard (up to 100 items). Content that password managers mark private is never saved.
+It can be switched off and cleared in Settings.
+
+Music lookups. When a song plays, its title and artist are sent to lrclib.net (synced lyrics) and to the iTunes
+Search API (album art). Both can be switched off in Settings > Media.
+
+Focus sessions keep a count of today's finished sessions in %LocalAppData%\DIsland\focus.json.

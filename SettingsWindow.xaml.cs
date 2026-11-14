@@ -152,6 +152,20 @@ public partial class SettingsWindow : Window
             "open-source downloaders, so it may stop working if Apple changes it. Each album is fetched once and " +
             "cached (up to 200 MB).");
 
+        Choice(media, "Progress bar", new[]
+        {
+            (ProgressStyle.Wavy, "Wavy"), (ProgressStyle.Line, "Line"), (ProgressStyle.Pill, "Thick"),
+            (ProgressStyle.Soundwave, "Soundwave"), (ProgressStyle.Dots, "Dots"), (ProgressStyle.Glow, "Glow"),
+        }, () => s.ProgressStyle, v => s.ProgressStyle = v);
+        Choice(media, "Time on the pill", new[] { (CompactTime.Off, "Off"), (CompactTime.Elapsed, "Elapsed"), (CompactTime.Remaining, "Remaining") },
+            () => s.CompactMediaTime, v => s.CompactMediaTime = v);
+        Check(media, "Thin progress line along the collapsed pill", () => s.CompactProgressLine, v => s.CompactProgressLine = v);
+        Check(media, "Find real album art when a browser only gives an icon", () => s.AutoAlbumArt, v => s.AutoAlbumArt = v);
+        Check(media, "Synced lyrics", () => s.LyricsEnabled, v => s.LyricsEnabled = v);
+        Check(media, "Show the current lyric in the expanded island", () => s.LyricsInExpanded, v => s.LyricsInExpanded = v);
+        Check(media, "Show the current lyric on the collapsed pill", () => s.LyricsInCompact, v => s.LyricsInCompact = v);
+        Note(media, "Album art and lyrics are looked up by song title and artist only (iTunes Search and lrclib.net).");
+
         var activities = Section("ACTIVITIES");
         Check(activities, "Show a second activity as a bubble beside the island (e.g. music while a timer runs)",
             () => s.ShowSecondActivity, v => s.ShowSecondActivity = v);

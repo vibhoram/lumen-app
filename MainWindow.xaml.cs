@@ -134,6 +134,7 @@ public partial class MainWindow : Window
         _assistant.OpenSettingsRequested += () => SettingsRequested?.Invoke();
         _assistant.ScreenRequested = CaptureScreenAsync;
         WireClara();
+        WireMusic();
         _focusSession = new FocusSession(_settings, _timer);
         FocusPage.Children.Add(new FocusPanel(_focusSession, _settings, _timer));
         _clipPanel = new ClipboardPanel(_clipHistory);
@@ -419,6 +420,7 @@ public partial class MainWindow : Window
 
         _hoverTimer.Interval = TimeSpan.FromMilliseconds(Math.Max(1, _settings.HoverDelayMs));
         _volumeKeys.Enabled = _settings.HideVolumeFlyout;
+        ApplyMusicSettings();
         _shake.Sensitivity = _settings.ShakeSensitivity;
         _shake.Enabled = _settings.MagicShake;
 
@@ -3809,13 +3811,14 @@ public partial class MainWindow : Window
             MediaTitleLarge.Text = title;
             MediaArtistLarge.Text = string.IsNullOrEmpty(media.Album) ? media.Artist : $"{media.Artist} — {media.Album}";
             MediaAppName.Text = media.AppName;
-            if (!ReferenceEquals(media.Art, _shownArt))
+            var shownArt = _artOverride ?? media.Art; // real album art found online beats a browser icon
+            if (!ReferenceEquals(shownArt, _shownArt))
             {
                 // Only rebuild brushes on new artwork, so animated art doesn't restart on every update.
-                _shownArt = media.Art;
-                SetArt(MediaArtSmall, MediaArtSmallFallback, media.Art);
-                SetArt(MediaArtLarge, MediaArtLargeFallback, media.Art);
-                ArtBanner.Background = media.Art?.CreateBrush();
+                _shownArt = shownArt;
+                SetArt(MediaArtSmall, MediaArtSmallFallback, shownArt);
+                SetArt(MediaArtLarge, MediaArtLargeFallback, shownArt);
+                ArtBanner.Background = shownArt?.CreateBrush();
             }
             PlayPauseGlyph.Text = media.IsPlaying ? "" : "";
             PrevButton.IsEnabled = media.CanPrevious;
@@ -3824,6 +3827,7 @@ public partial class MainWindow : Window
         }
 
         _state.MediaPlaying = media?.IsPlaying == true;
+        MusicTrackChanged(media);
         UpdateSecondActivity(); // the bubble may show this artwork
         UpdateMotionArtwork(media);
         ApplyTheme();
@@ -3847,6 +3851,7 @@ public partial class MainWindow : Window
         ElapsedText.Text = FormatMediaTime(position);
         RemainingText.Text = "-" + FormatMediaTime(media.Duration - position);
         ((ScaleTransform)ProgressFill.RenderTransform).ScaleX = position / media.Duration;
+        ProgressBar.Fraction = position / media.Duration;
     }
 
     private void OnProgressMouseUp(object sender, MouseButtonEventArgs e)
@@ -3856,6 +3861,7 @@ public partial class MainWindow : Window
 
         var fraction = Math.Clamp(e.GetPosition(ProgressHit).X / ProgressHit.ActualWidth, 0, 1);
         ((ScaleTransform)ProgressFill.RenderTransform).ScaleX = fraction;
+        ProgressBar.Fraction = fraction;
         _media.Seek(media.Duration * fraction);
     }
 

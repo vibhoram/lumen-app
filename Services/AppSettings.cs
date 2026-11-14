@@ -23,6 +23,8 @@ public enum IslandMaterial
     LiquidGlass,
 }
 
+public enum CompactTime { Off, Elapsed, Remaining }
+
 public enum GlassEngine
 {
     /// <summary>GPU when it has been verified on this Windows build, otherwise screen capture.</summary>
@@ -190,6 +192,17 @@ public sealed class AppSettings
     public int ReturnHomeSeconds { get; set; } = 5;
     /// <summary>Show a Copy button when a notification contains a verification code.</summary>
     public bool CopyCodes { get; set; } = true;
+
+    // ---- Music
+    public ProgressStyle ProgressStyle { get; set; } = ProgressStyle.Wavy;
+    public CompactTime CompactMediaTime { get; set; } = CompactTime.Remaining;
+    /// <summary>A thin progress line along the bottom of the collapsed music pill.</summary>
+    public bool CompactProgressLine { get; set; } = true;
+    /// <summary>Look up real album art (iTunes) when the player only gives a browser icon.</summary>
+    public bool AutoAlbumArt { get; set; } = true;
+    public bool LyricsEnabled { get; set; } = true;
+    public bool LyricsInCompact { get; set; }
+    public bool LyricsInExpanded { get; set; } = true;
 
     // ---- Focus sessions (Pomodoro)
     public bool FocusEnabled { get; set; } = true;
