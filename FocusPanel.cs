@@ -235,7 +235,7 @@ public sealed class FocusPanel : Grid
     private Color PhaseColor => _session.Phase switch
     {
         FocusPhase.ShortBreak or FocusPhase.LongBreak => Color.FromRgb(0x30, 0xD1, 0x58),
-        _ => Color.FromRgb(0x8B, 0x6C, 0xFF),
+        _ => Color.FromRgb(0xFF, 0x9F, 0x0A),
     };
 
     private void Refresh()
@@ -255,8 +255,8 @@ public sealed class FocusPanel : Grid
         _mainGlyph.Text = phase == FocusPhase.Idle || _session.Paused || !_session.Running ? "" : "";
 
         var color = PhaseColor;
-        _mainButton.Background = new LinearGradientBrush(color, phase is FocusPhase.ShortBreak or FocusPhase.LongBreak ? Color.FromRgb(0x64, 0xE8, 0xA0) : Color.FromRgb(0x2D, 0xD4, 0xFF), 35);
-        _arc.Stroke = new LinearGradientBrush(color, phase is FocusPhase.ShortBreak or FocusPhase.LongBreak ? Color.FromRgb(0x64, 0xE8, 0xA0) : Color.FromRgb(0x2D, 0xD4, 0xFF), 45);
+        _mainButton.Background = new LinearGradientBrush(color, phase is FocusPhase.ShortBreak or FocusPhase.LongBreak ? Color.FromRgb(0x64, 0xE8, 0xA0) : Color.FromRgb(0xFF, 0xC8, 0x6B), 35);
+        _arc.Stroke = new LinearGradientBrush(color, phase is FocusPhase.ShortBreak or FocusPhase.LongBreak ? Color.FromRgb(0x64, 0xE8, 0xA0) : Color.FromRgb(0xFF, 0xC8, 0x6B), 45);
 
         var fraction = total.TotalSeconds <= 0 ? 0 : Math.Clamp(remaining.TotalSeconds / total.TotalSeconds, 0, 1);
         if (phase == FocusPhase.Idle) fraction = 1;

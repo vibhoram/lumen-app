@@ -311,8 +311,8 @@
                             MouseLeftButtonUp="OnNotifCopyClick">
                         <Border.Background>
                             <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                <GradientStop Color="#FF8B6CFF" Offset="0" />
-                                <GradientStop Color="#FF2DD4FF" Offset="1" />
+                                <GradientStop Color="#FF3B9DFF" Offset="0" />
+                                <GradientStop Color="#FF0A7AFF" Offset="1" />
                             </LinearGradientBrush>
                         </Border.Background>
                         <Border.RenderTransform><ScaleTransform x:Name="NotifCopyScale" ScaleX="1" ScaleY="1" /></Border.RenderTransform>

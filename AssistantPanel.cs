@@ -22,8 +22,8 @@ namespace DIsland;
 public sealed class AssistantPanel : Grid
 {
     internal static readonly FontFamily IconFont = new("Segoe Fluent Icons, Segoe MDL2 Assets");
-    private static readonly Color AccentA = Color.FromRgb(0x8B, 0x6C, 0xFF);
-    private static readonly Color AccentB = Color.FromRgb(0x2D, 0xD4, 0xFF);
+    private static readonly Color AccentA = Color.FromRgb(0x3B, 0x9D, 0xFF);
+    private static readonly Color AccentB = Color.FromRgb(0x0A, 0x7A, 0xFF);
 
     private readonly AppSettings _settings;
     private readonly List<ChatMessage> _history = new();
@@ -491,9 +491,9 @@ public sealed class AssistantPanel : Grid
                 SpreadMethod = GradientSpreadMethod.Repeat,
                 GradientStops =
                 {
-                    new GradientStop(Color.FromArgb(0x30, 0x8B, 0x6C, 0xFF), 0),
+                    new GradientStop(Color.FromArgb(0x30, 0x3B, 0x9D, 0xFF), 0),
                     new GradientStop(AccentB, 0.5),
-                    new GradientStop(Color.FromArgb(0x30, 0x8B, 0x6C, 0xFF), 1),
+                    new GradientStop(Color.FromArgb(0x30, 0x3B, 0x9D, 0xFF), 1),
                 },
             };
             var slide = new TranslateTransform();
@@ -889,7 +889,8 @@ public sealed class AssistantPanel : Grid
 
     internal static Brush B(string hex) => (Brush)new BrushConverter().ConvertFromString(hex)!;
 
-    internal static Brush AccentGradient() => new LinearGradientBrush(AccentA, AccentB, 35);
+    /// <summary>The one accent: a calm iOS blue, lit slightly from above (no rainbow gradients).</summary>
+    internal static Brush AccentGradient() => new LinearGradientBrush(AccentA, AccentB, 90);
 
     /// <summary>Clara's avatar: her portrait if one is on disk, otherwise a luminous glass presence.</summary>
     private static FrameworkElement MakeAvatar(double size)
@@ -901,7 +902,7 @@ public sealed class AssistantPanel : Grid
             Height = size,
             RenderTransformOrigin = new Point(0.5, 0.5),
             RenderTransform = new ScaleTransform(1, 1),
-            Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = AccentA, BlurRadius = size * 0.45, ShadowDepth = 0, Opacity = 0.55 },
+            Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Colors.White, BlurRadius = size * 0.4, ShadowDepth = 0, Opacity = 0.22 },
         };
         if (portrait is not null)
         {
@@ -917,9 +918,9 @@ public sealed class AssistantPanel : Grid
                     Center = new Point(0.5, 0.5),
                     GradientStops =
                     {
-                        new GradientStop(Color.FromRgb(0x5B, 0x4B, 0xE0), 0),
-                        new GradientStop(Color.FromRgb(0x24, 0x1B, 0x6B), 0.6),
-                        new GradientStop(Color.FromRgb(0x0E, 0x0B, 0x2B), 1),
+                        new GradientStop(Color.FromRgb(0x4A, 0x4D, 0x58), 0),
+                        new GradientStop(Color.FromRgb(0x24, 0x25, 0x2B), 0.6),
+                        new GradientStop(Color.FromRgb(0x0F, 0x10, 0x14), 1),
                     },
                 },
             });
@@ -930,9 +931,9 @@ public sealed class AssistantPanel : Grid
                 RenderTransformOrigin = new Point(0.5, 0.5),
                 Fill = new LinearGradientBrush(new GradientStopCollection
                 {
-                    new GradientStop(Color.FromArgb(0, 0x2D, 0xD4, 0xFF), 0),
-                    new GradientStop(Color.FromArgb(170, 0x2D, 0xD4, 0xFF), 0.5),
-                    new GradientStop(Color.FromArgb(0, 0xB0, 0x8B, 0xFF), 1),
+                    new GradientStop(Color.FromArgb(0, 255, 255, 255), 0),
+                    new GradientStop(Color.FromArgb(70, 255, 255, 255), 0.5),
+                    new GradientStop(Color.FromArgb(0, 255, 255, 255), 1),
                 }, 40),
             };
             var spin = new RotateTransform();

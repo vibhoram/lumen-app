@@ -91,7 +91,7 @@ public partial class MainWindow
         _aMinute.Text = t.ToString("mm");
         _aAmPm.Text = t.ToString("tt");
         _dailyChip.Background = _alarmDaily
-            ? new LinearGradientBrush(Color.FromRgb(0x8B, 0x6C, 0xFF), Color.FromRgb(0x2D, 0xD4, 0xFF), 35)
+            ? new LinearGradientBrush(Color.FromRgb(0x3B, 0x9D, 0xFF), Color.FromRgb(0x0A, 0x7A, 0xFF), 90)
             : (Brush)FindResource("GlassFill");
     }
 

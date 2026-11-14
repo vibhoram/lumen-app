@@ -333,7 +333,7 @@ public partial class MainWindow
         var open = ready && _lyricsOpen;
         LyricsToggle.Visibility = ready ? Visibility.Visible : Visibility.Collapsed;
         LyricsToggle.Background = open
-            ? new LinearGradientBrush(Color.FromRgb(0x8B, 0x6C, 0xFF), Color.FromRgb(0x2D, 0xD4, 0xFF), 35)
+            ? new LinearGradientBrush(Color.FromRgb(0x3B, 0x9D, 0xFF), Color.FromRgb(0x0A, 0x7A, 0xFF), 90)
             : (Brush)FindResource("GlassFill");
         var wasOpen = LyricsInlineHost.Visibility == Visibility.Visible;
         LyricsInlineHost.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
