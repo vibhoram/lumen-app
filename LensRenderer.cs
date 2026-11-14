@@ -187,7 +187,7 @@ internal sealed class LensRenderer : IDisposable
             var bevel = Math.Clamp(Math.Min(w, h) * 0.55f, 16f, 64f);
             // Deeper than the corner radius, the "outward" direction flips across the corner's diagonal and draws a hard
             // seam: keep the bevel inside the rounded corner.
-            bevel = Math.Min(bevel, Math.Max(8f, radius * 0.95f));
+            bevel = Math.Min(bevel, Math.Max(10f, radius * 1.25f));
             _params = new Params
             {
                 RectX = x + w / 2, RectY = y + h / 2, RectW = w / 2, RectH = h / 2,
