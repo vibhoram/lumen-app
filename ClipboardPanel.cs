@@ -53,7 +53,7 @@ public sealed class ClipboardPanel : Grid
             Foreground = Brushes.White,
             CaretBrush = Brushes.White,
             FontSize = 12.5,
-            Width = 38,
+            Width = 24,
             VerticalAlignment = VerticalAlignment.Center,
             Padding = new Thickness(0),
         };
@@ -92,17 +92,19 @@ public sealed class ClipboardPanel : Grid
         clear.ToolTip = "Clear history (pinned items stay)";
         // one-time hold: stop saving anything (screenshots too) until switched off again
         var pauseText = new TextBlock { Text = "", FontFamily = AssistantPanel.IconFont, FontSize = 12, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+        var pauseIcon = new System.Windows.Shapes.Path { Data = Geometry.Parse("M 3,1.5 L 3,10.5 M 9,1.5 L 9,10.5"), Stroke = Brushes.White, StrokeThickness = 1.6, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, Width = 12, Height = 12, Stretch = Stretch.None, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 1, 0, 0) };
         var pause = new Border
         {
             CornerRadius = new CornerRadius(13), Padding = new Thickness(9, 5, 9, 5), Margin = new Thickness(0, 0, 4, 0), Cursor = Cursors.Hand,
-            Child = pauseText, ToolTip = "Stop saving everything you copy until you switch this off (this session only)",
+            Child = new Grid { Children = { pauseIcon, pauseText } }, ToolTip = "Stop saving everything you copy until you switch this off (this session only)",
             BorderBrush = AssistantPanel.GlassRimBrush(), BorderThickness = new Thickness(1),
         };
         void ShowPause()
         {
             // idle: just a pause icon (saves room); on hold: a bright "On hold" label so you can't forget it is on
-            pauseText.FontFamily = _history.Paused ? new FontFamily("Segoe UI Variable Text, Segoe UI") : AssistantPanel.IconFont;
-            pauseText.Text = _history.Paused ? "On hold" : "";
+            pauseText.Text = "On hold";
+            pauseText.Visibility = _history.Paused ? Visibility.Visible : Visibility.Collapsed;
+            pauseIcon.Visibility = _history.Paused ? Visibility.Collapsed : Visibility.Visible;
             pause.Background = _history.Paused ? new SolidColorBrush(Color.FromRgb(0xFF, 0x9F, 0x0A)) : AssistantPanel.GlassFillBrush();
             pauseText.Foreground = _history.Paused ? new SolidColorBrush(Color.FromRgb(0x20, 0x14, 0x00)) : Brushes.White;
         }

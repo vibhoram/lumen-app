@@ -264,7 +264,10 @@ public sealed class AppSettings
     public int PetReminderMinutes { get; set; } = 40;
 
     /// <summary>How the big clock on the Home page is drawn: plain, outlined or glass (like the iOS 26 lock screen).</summary>
-    public ClockLook ClockLook { get; set; } = ClockLook.Glass;
+    public ClockLook ClockLook { get; set; } = ClockLook.Outline;
+
+    /// <summary>Set once the thin outlined lock-screen clock became the default for existing settings files too.</summary>
+    public bool ClockDefaultsV2 { get; set; }
 
     /// <summary>The name Clara uses for you. It is sent to the AI provider as part of her instructions (only the name).</summary>
     public string UserName { get; set; } = "Vibhor";
@@ -476,7 +479,7 @@ public sealed class AppSettings
     public bool WeatherSeparate { get; set; } = true;
     public ClockStyle ClockStyle { get; set; } = ClockStyle.Classic;
     /// <summary>Font of the idle clock.</summary>
-    public string ClockFont { get; set; } = "Segoe UI Variable";
+    public string ClockFont { get; set; } = "Bahnschrift Light";
 
     // ---- expanded pages
     [JsonConverter(typeof(JsonStringEnumConverter))]

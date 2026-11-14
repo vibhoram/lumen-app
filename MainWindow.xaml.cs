@@ -457,6 +457,7 @@ public partial class MainWindow : Window
 
     private void ApplySettings()
     {
+        if (!_settings.ClockDefaultsV2) { _settings.ClockDefaultsV2 = true; _settings.ClockLook = ClockLook.Outline; _settings.ClockFont = "Bahnschrift Light"; _settings.Save(); }
         _clipHistory.KeepHours = _settings.ClipboardKeepHours;
         _clipHistory.PurgeExpired();
         // Scaling stiffness by speed² and damping by speed keeps the same curve shape, just faster.
