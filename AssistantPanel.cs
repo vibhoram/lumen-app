@@ -430,14 +430,14 @@ public sealed class AssistantPanel : Grid
                     {
                         turn.Append(text);
                         reply.Append(text);
-                        bubble.SetText(reply.ToString());
+                        bubble.SetText(NoDashes(reply.ToString()));
                     }
                     if (ev.Calls is { } c) calls = c.ToList();
                 }
 
                 if (calls is null)
                 {
-                    if (turn.Length > 0) _history.Add(new ChatMessage("assistant", turn.ToString()));
+                    if (turn.Length > 0) _history.Add(new ChatMessage("assistant", NoDashes(turn.ToString())));
                     break;
                 }
 
@@ -923,45 +923,7 @@ public sealed class AssistantPanel : Grid
         }
         else
         {
-            grid.Children.Add(new Ellipse
-            {
-                Fill = new RadialGradientBrush
-                {
-                    GradientOrigin = new Point(0.3, 0.25),
-                    Center = new Point(0.5, 0.5),
-                    GradientStops =
-                    {
-                        new GradientStop(Color.FromRgb(0x4A, 0x4D, 0x58), 0),
-                        new GradientStop(Color.FromRgb(0x24, 0x25, 0x2B), 0.6),
-                        new GradientStop(Color.FromRgb(0x0F, 0x10, 0x14), 1),
-                    },
-                },
-            });
-            var swirl = new Ellipse
-            {
-                Margin = new Thickness(size * 0.08),
-                Opacity = 0.9,
-                RenderTransformOrigin = new Point(0.5, 0.5),
-                Fill = new LinearGradientBrush(new GradientStopCollection
-                {
-                    new GradientStop(Color.FromArgb(0, 255, 255, 255), 0),
-                    new GradientStop(Color.FromArgb(70, 255, 255, 255), 0.5),
-                    new GradientStop(Color.FromArgb(0, 255, 255, 255), 1),
-                }, 40),
-            };
-            var spin = new RotateTransform();
-            swirl.RenderTransform = spin;
-            spin.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(0, 360, TimeSpan.FromSeconds(10)) { RepeatBehavior = RepeatBehavior.Forever });
-            grid.Children.Add(swirl);
-            grid.Children.Add(new TextBlock
-            {
-                Text = "C",
-                FontSize = size * 0.46,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Color.FromArgb(0xF0, 255, 255, 255)),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-            });
+            grid.Children.Add(BuildAndroidFace(size));
         }
         // Glass rim: bright where the light hits (top-left), faint elsewhere.
         grid.Children.Add(new Ellipse
@@ -970,6 +932,52 @@ public sealed class AssistantPanel : Grid
             Stroke = new LinearGradientBrush(Color.FromArgb(0xC0, 255, 255, 255), Color.FromArgb(0x25, 255, 255, 255), 45),
         });
         return grid;
+    }
+
+    /// <summary>
+    /// Clara's face when no portrait file is present: a sleek white android in soft daylight (white helmet, dark visor with a
+    /// blue glow, an ear lens, a mechanical neck with an orange wire), drawn from vector shapes in a 100x100 box.
+    /// </summary>
+    private static FrameworkElement BuildAndroidFace(double size)
+    {
+        Brush Grad(Color a, Color b, double angle = 90) => new LinearGradientBrush(a, b, angle);
+        var c = new Canvas { Width = 100, Height = 100, ClipToBounds = true };
+        // soft sky
+        c.Children.Add(new Ellipse { Width = 100, Height = 100, Fill = new RadialGradientBrush(Color.FromRgb(0xFB, 0xF1, 0xDD), Color.FromRgb(0x9F, 0xB4, 0xC9)) { GradientOrigin = new Point(0.35, 0.3) } });
+        // petals drifting
+        foreach (var (px, py, pr) in new[] { (12.0, 20.0, 2.2), (84.0, 14.0, 1.8), (20.0, 70.0, 2.6), (88.0, 66.0, 1.6) })
+            c.Children.Add(new Ellipse { Width = pr * 2, Height = pr * 1.4, Fill = new SolidColorBrush(Color.FromArgb(0xB0, 0xFF, 0x9A, 0x62)), RenderTransform = new RotateTransform(30), Margin = new Thickness(px, py, 0, 0) });
+        // shoulders
+        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M 6,100 C 8,80 26,74 50,74 C 74,74 92,80 94,100 Z"), Fill = Grad(Color.FromRgb(0xF4, 0xF6, 0xF9), Color.FromRgb(0xB9, 0xC1, 0xCC)) });
+        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M 28,100 C 30,88 38,82 50,82 C 62,82 70,88 72,100"), Stroke = new SolidColorBrush(Color.FromArgb(0x55, 0x2B, 0x30, 0x3A)), StrokeThickness = 1.2 });
+        // neck: dark mechanics with ribs and an orange wire
+        c.Children.Add(new Rectangle { Width = 14, Height = 22, RadiusX = 4, RadiusY = 4, Fill = Grad(Color.FromRgb(0x3A, 0x40, 0x4B), Color.FromRgb(0x14, 0x17, 0x1D)), Margin = new Thickness(43, 60, 0, 0) });
+        foreach (var ry in new[] { 65.0, 69.0, 73.0 })
+            c.Children.Add(new Rectangle { Width = 14, Height = 1.2, Fill = new SolidColorBrush(Color.FromArgb(0x70, 0x8A, 0x93, 0xA3)), Margin = new Thickness(43, ry, 0, 0) });
+        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M 55,62 C 58,68 57,74 54,80"), Stroke = new SolidColorBrush(Color.FromRgb(0xFF, 0x9F, 0x3D)), StrokeThickness = 1.6, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round });
+        // head: glossy white shell
+        c.Children.Add(new Ellipse { Width = 46, Height = 54, Fill = new RadialGradientBrush(Colors.White, Color.FromRgb(0xC9, 0xD0, 0xDA)) { GradientOrigin = new Point(0.35, 0.25), RadiusX = 0.8, RadiusY = 0.8 }, Margin = new Thickness(27, 12, 0, 0) });
+        // panel seam and bolts on the helmet
+        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M 31,28 C 38,18 52,15 64,20"), Stroke = new SolidColorBrush(Color.FromArgb(0x70, 0x6B, 0x74, 0x82)), StrokeThickness = 1 });
+        foreach (var (bx, by) in new[] { (36.0, 22.0), (63.0, 24.0) })
+            c.Children.Add(new Ellipse { Width = 2.2, Height = 2.2, Fill = new SolidColorBrush(Color.FromArgb(0xB0, 0x59, 0x62, 0x70)), Margin = new Thickness(bx, by, 0, 0) });
+        // visor: two slanted dark eyes, one bright dot each
+        foreach (var (ex, flip) in new[] { (33.0, -1.0), (53.0, 1.0) })
+        {
+            c.Children.Add(new Ellipse { Width = 14, Height = 7, Fill = Grad(Color.FromRgb(0x25, 0x2B, 0x35), Color.FromRgb(0x08, 0x0B, 0x10)), RenderTransform = new RotateTransform(flip * 10, 7, 3.5), Margin = new Thickness(ex, 36, 0, 0) });
+            c.Children.Add(new Ellipse { Width = 3.2, Height = 3.2, Fill = new RadialGradientBrush(Color.FromRgb(0xCF, 0xF1, 0xFF), Color.FromRgb(0x3E, 0xA8, 0xFF)), Margin = new Thickness(ex + 5.4, 37.8, 0, 0) });
+        }
+        // nose hint and lips
+        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M 50,43 C 48,48 48,50 51,51"), Stroke = new SolidColorBrush(Color.FromArgb(0x55, 0x6B, 0x74, 0x82)), StrokeThickness = 0.9, StrokeStartLineCap = PenLineCap.Round });
+        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M 44,57 C 48,59.5 53,59.5 57,57"), Stroke = new SolidColorBrush(Color.FromRgb(0xE0, 0x8A, 0x8E)), StrokeThickness = 1.8, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round });
+        // ear lens
+        c.Children.Add(new Ellipse { Width = 9, Height = 9, Fill = Grad(Color.FromRgb(0x3A, 0x40, 0x4B), Color.FromRgb(0x10, 0x13, 0x19)), Margin = new Thickness(66, 38, 0, 0) });
+        c.Children.Add(new Ellipse { Width = 4, Height = 4, Fill = new RadialGradientBrush(Color.FromRgb(0xCF, 0xF1, 0xFF), Color.FromRgb(0x3E, 0xA8, 0xFF)), Margin = new Thickness(68.5, 40.5, 0, 0) });
+        // a soft highlight on the shell
+        c.Children.Add(new Ellipse { Width = 16, Height = 9, Fill = new SolidColorBrush(Color.FromArgb(0x70, 255, 255, 255)), RenderTransform = new RotateTransform(-28, 8, 4.5), Margin = new Thickness(32, 18, 0, 0) });
+
+        var view = new Viewbox { Width = size, Height = size, Child = c, Stretch = Stretch.Fill, Clip = new EllipseGeometry(new Point(size / 2, size / 2), size / 2, size / 2) };
+        return view;
     }
 
     /// <summary>Looks for a portrait the user dropped in as clara.png/.jpg (AppData first, then the app's Assets folder).</summary>
@@ -1002,6 +1010,10 @@ public sealed class AssistantPanel : Grid
     }
 
     /// <summary>Liquid Glass fill and rim for chat-box controls (same look as the App.xaml button styles).</summary>
+    /// <summary>Clara never uses em or en dashes (a style rule the model sometimes slips on): swap them for a comma or a hyphen.</summary>
+    internal static string NoDashes(string text) =>
+        text.Replace(" — ", ", ").Replace("—", ", ").Replace(" – ", ", ").Replace("–", "-");
+
     internal static Brush GlassFillBrush() => new LinearGradientBrush(new GradientStopCollection
     {
         new GradientStop(Color.FromArgb(0x30, 255, 255, 255), 0), new GradientStop(Color.FromArgb(0x14, 255, 255, 255), 0.55), new GradientStop(Color.FromArgb(0x1C, 255, 255, 255), 1),
