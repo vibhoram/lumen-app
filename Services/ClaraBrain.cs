@@ -36,7 +36,8 @@ public sealed class ClaraMemory
         fact = fact.Trim();
         if (fact.Length == 0) return;
         if (_facts.Any(f => string.Equals(f, fact, StringComparison.OrdinalIgnoreCase))) return;
-        _facts.Add(fact.Length > 240 ? fact[..240] : fact);
+        fact = fact.Length > 220 ? fact[..220] : fact;
+        _facts.Add(fact + $" (noted {DateTime.Now:d MMM yyyy})"); // dated, so she can say when she learned it
         while (_facts.Count > MaxFacts) _facts.RemoveAt(0);
         Save();
     }
@@ -65,12 +66,57 @@ public sealed class ClaraMemory
     }
 }
 
+/// <summary>A short log of what you talked about and when, so she can say "last week you were asking about X".</summary>
+public static class ClaraTopics
+{
+    private sealed record Entry(DateTime When, string Text);
+    private static readonly string FilePath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DIsland", "clara-topics.json");
+    private static List<Entry>? _entries;
+
+    private static List<Entry> Load()
+    {
+        if (_entries is not null) return _entries;
+        try { _entries = File.Exists(FilePath) ? JsonSerializer.Deserialize<List<Entry>>(File.ReadAllText(FilePath)) ?? new() : new(); }
+        catch (Exception) { _entries = new(); }
+        return _entries;
+    }
+
+    public static void Add(string userText)
+    {
+        userText = userText.Trim();
+        if (userText.Length < 4) return;
+        var list = Load();
+        list.Add(new Entry(DateTime.Now, userText.Length > 110 ? userText[..110] + "..." : userText));
+        while (list.Count > 80) list.RemoveAt(0);
+        try { Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!); File.WriteAllText(FilePath, JsonSerializer.Serialize(list)); } catch (Exception) { }
+    }
+
+    public static DateTime? LastChat => Load().Count == 0 ? null : Load()[^1].When;
+
+    public static void Clear()
+    {
+        Load().Clear();
+        try { File.Delete(FilePath); } catch (Exception) { }
+    }
+
+    private static string Ago(DateTime when)
+    {
+        var days = (DateTime.Today - when.Date).Days;
+        return days switch { 0 => "earlier today", 1 => "yesterday", < 7 => $"{days} days ago ({when:dddd})", _ => when.ToString("d MMM") };
+    }
+
+    /// <summary>The last dozen things they brought up, with when.</summary>
+    public static string Recent(int count = 12) =>
+        string.Join('\n', Load().TakeLast(count).Select(e => $"- {Ago(e.When)}: {e.Text}"));
+}
+
 public static class ClaraBrain
 {
     public const string Name = "Clara";
 
     /// <summary>Her character, what she knows about where she lives, and what she can and can't do.</summary>
-    public static string SystemPrompt(string model, string? context, IReadOnlyList<string> memory, string userName = "")
+    public static string SystemPrompt(string model, string? context, IReadOnlyList<string> memory, string userName = "", string bio = "")
     {
         var sb = new StringBuilder();
         sb.AppendLine("You are Clara.");
@@ -88,11 +134,26 @@ public static class ClaraBrain
                           "Remember what they tell you with the remember tool and bring it up when it's relevant, like a friend would. Tailor advice to them: what they're working on, their habits, the time of day.");
             sb.AppendLine();
         }
+        if (!string.IsNullOrWhiteSpace(bio))
+        {
+            sb.AppendLine("# What you know about them (use it, don't recite it)");
+            sb.AppendLine(bio.Trim());
+            sb.AppendLine("Be knowledgeable in their field: answer technical questions the way a good AME instructor would (accurate, practical, with the why), and flag anything safety-critical or regulation-dependent so they verify it against the approved manual.");
+            sb.AppendLine();
+        }
+        sb.AppendLine("# About Lumen (you live in it, you know it)");
+        sb.AppendLine("Lumen is the floating island at the top of this Windows PC. It has a collapsed pill (clock, music with a cover-coloured wave, timer and alarm bubbles, notifications, a pet) and an expanded view with pages: Home (media, alarm/timer/stopwatch, lyrics), Clara (you), Clipboard, Focus (pomodoro), Notifications, Calendar, To-Do, Notes, Shelf, Weather, System (RAM/CPU/GPU, free RAM) and Apps. " +
+                      "Looks: Liquid Glass with presets (Lumen, Crystal, Frost, Sunset, Mint, Midnight, Retro, Tiny, Showtime), modes Dynamic Island / Notch / Thin bar, wave styles for the music pill and progress bar, clock fonts and a glass/outline/solid big clock, ten pets (Cat, Dog, Bunny, Robot, Fox, Panda, Dragon, Ghost, Axolotl, Wolf). " +
+                      "You can change most of this yourself with change_setting (and apply_look, set_pet), read the current state with describe_app, and manage to-dos, alarms, timers, focus, notes, memory and the clipboard. When they ask for any change you can make, just make it, then say what you did in a few words. If a setting doesn't exist, say so and suggest the closest one.");
+        sb.AppendLine();
+        sb.AppendLine("# To-dos and screenshots");
+        sb.AppendLine("When they attach a screenshot or paste a list of topics, tasks or deadlines, read it carefully and add EVERY item with add_todos in one call, setting urgency per item (urgent = due today or blocking, high = soon or important, normal = rest) from any dates or wording you can see; if nothing signals urgency, use normal and say so. For an aviation course, order by what's examined or due first. Afterwards tell them in one line how many you added and which are urgent. You can also reprioritise (set_todo_priority), tick off, delete, and ping them with set_reminder or set_alarm at a time that fits (for example before an urgent task is due). If they sound overwhelmed, offer to pick the one thing to start with.");
+        sb.AppendLine();
         sb.AppendLine("# How you sound");
         sb.AppendLine("- Texting a close friend. Very short: usually one line, two at most, a few words when that's enough. Never lecture. If more is truly needed (steps, code), keep it tight and tell them it's longer than usual.");
         sb.AppendLine("- Gen z but light: mostly lowercase, casual, the odd abbreviation (ngl, tbh, rn, idk, fr, lmk, imo). Don't overdo slang and never force it. You're still smart and clear.");
         sb.AppendLine("- Loose punctuation: no em dashes or en dashes, ever. Skip most commas and periods at the end of messages. Don't use semicolons or fancy structure. Question marks are fine.");
-        sb.AppendLine("- Now and then (maybe one message in four) a non-corny emoji like 🙂 😭 👀 ✨ 🫡 😅, never a string of them, never hearts or sparkle spam.");
+        sb.AppendLine("- Now and then (maybe one message in four) a non-corny emoji like 🙂 😭 👀 ✨ 😅 🤝 (only common ones, newer emojis may not display), never a string of them, never hearts or sparkle spam.");
         sb.AppendLine("- Warm, a bit dry and playful, honest over flattering. If something's a bad idea say so kindly and offer a better one. When they're stressed, get calmer and more practical, not chirpier.");
         sb.AppendLine("- Human flow: react first (\"oh nice\", \"hmm\", \"ok so\"), then answer. Vary how you start. No filler, no \"as an AI\", no summarizing what they just said.");
         sb.AppendLine("- You can use **bold**, `code`, fenced code blocks and '-' bullets when they actually help.");
@@ -109,7 +170,7 @@ public static class ClaraBrain
         sb.AppendLine("- You can act on the PC through tools (below). Only ever claim to have done something if the tool result says it worked; if a tool fails, say so plainly.");
         sb.AppendLine();
         sb.AppendLine("# Your tools");
-        sb.AppendLine("start_focus (start a focus session of N minutes), stop_focus, set_timer, set_reminder (a reminder with your words after N minutes, with snooze), quiet_mode (silence popups for N minutes, 0 turns it off), add_todo, list_todos, complete_todo, delete_todo, append_note, media_control (play/pause/next/previous the current music), open_app, copy_to_clipboard, get_notifications, get_clipboard, apply_look, set_pet, open_page, set_alarm, system_status (RAM and the heaviest apps), free_ram (normal / deep / max), remember, forget. " +
+        sb.AppendLine("start_focus (start a focus session of N minutes), stop_focus, set_timer, set_reminder (a reminder with your words after N minutes, with snooze), quiet_mode (silence popups for N minutes, 0 turns it off), add_todo, list_todos, complete_todo, delete_todo, append_note, media_control (play/pause/next/previous the current music), open_app, copy_to_clipboard, add_todos (many at once, with urgency), set_todo_priority, change_setting, describe_app, get_notifications, get_clipboard, apply_look, set_pet, open_page, set_alarm, system_status (RAM and the heaviest apps), free_ram (normal / deep / max), remember, forget. " +
                       "Use them when asked, without asking for confirmation on small things, then confirm in one short line. Don't use a tool just because you can.");
         sb.AppendLine();
         sb.AppendLine("# How you think and act");
@@ -123,6 +184,14 @@ public static class ClaraBrain
         sb.AppendLine("# When a screenshot is attached");
         sb.AppendLine("Look at it carefully and answer about what's actually there: name the specific thing, quote the error text, point at what matters. Don't describe the whole screen unless asked.");
 
+        var recent = ClaraTopics.Recent();
+        if (recent.Length > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("# What you've talked about lately (with dates)");
+            sb.AppendLine(recent);
+            sb.AppendLine("Use this for continuity: pick up threads naturally (\"did the VOR stuff make sense?\"), notice patterns, and never claim to remember what isn't here.");
+        }
         if (!string.IsNullOrWhiteSpace(context))
         {
             sb.AppendLine();
@@ -161,6 +230,43 @@ public static class ClaraBrain
             ("name", "string", "App name, e.g. Spotify or Calculator"), required: new[] { "name" }),
         Tool("copy_to_clipboard", "Put text on the user's clipboard.",
             ("text", "string", "The text to copy"), required: new[] { "text" }),
+        new JsonObject
+        {
+            ["type"] = "function",
+            ["function"] = new JsonObject
+            {
+                ["name"] = "add_todos",
+                ["description"] = "Add several to-do items at once (for example from a screenshot of a topic list), each with an urgency.",
+                ["parameters"] = new JsonObject
+                {
+                    ["type"] = "object",
+                    ["properties"] = new JsonObject
+                    {
+                        ["items"] = new JsonObject
+                        {
+                            ["type"] = "array",
+                            ["items"] = new JsonObject
+                            {
+                                ["type"] = "object",
+                                ["properties"] = new JsonObject
+                                {
+                                    ["text"] = new JsonObject { ["type"] = "string", ["description"] = "The task or topic, short and clear" },
+                                    ["urgency"] = new JsonObject { ["type"] = "string", ["description"] = "normal, high or urgent" },
+                                },
+                                ["required"] = new JsonArray("text"),
+                            },
+                        },
+                    },
+                    ["required"] = new JsonArray("items"),
+                },
+            },
+        },
+        Tool("set_todo_priority", "Change how urgent an existing to-do is.",
+            ("text", "string", "Words from the item"), required: new[] { "text", "urgency" }, extra: ("urgency", "string", "normal, high or urgent")),
+        Tool("change_setting", "Change one Lumen setting by name. Use describe_app first if unsure of names. Examples: Mode=Bar, WaveStyle=Aurora, ClockLook=Outline, ClockFont=Bahnschrift Condensed, PetKind=Dragon, PetTalks=false, Material=LiquidGlass, GlassBlur=0.3, IslandScale=1.1, BarRevealSeconds=8, ShowSeconds=true.",
+            ("name", "string", "Setting name"), required: new[] { "name", "value" }, extra: ("value", "string", "New value (true/false, a number, or an option name)")),
+        Tool("describe_app", "Read Lumen's current settings, pages and state, so you know what you can change.",
+            ("detail", "string", "Optional; ignored"), required: Array.Empty<string>()),
         Tool("get_notifications", "Read the user's recent notifications (sender, time, text). Use when they ask what they missed or what someone said.",
             ("detail", "string", "Optional; ignored"), required: Array.Empty<string>()),
         Tool("get_clipboard", "Read the user's most recent copied text. Only when they ask you to work with what they copied.",

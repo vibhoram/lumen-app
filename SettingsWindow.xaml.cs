@@ -327,6 +327,10 @@ public partial class SettingsWindow : Window
         BuildPageOrder(order);
 
         var ai = Section("CLARA (AI ASSISTANT)", "Clara");
+        var bioBox = new TextBox { Text = s.UserBio, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 90, MaxHeight = 180, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(8, 6, 8, 6), Margin = new Thickness(0, 4, 0, 4) };
+        bioBox.TextChanged += (_, _) => Update(() => s.UserBio = bioBox.Text);
+        ai.Children.Add(new TextBlock { Text = "About you (Clara reads this every time)", Margin = new Thickness(0, 6, 0, 0), VerticalAlignment = VerticalAlignment.Center });
+        ai.Children.Add(bioBox);
         TextRow(ai, "Your name", () => s.UserName, v => s.UserName = v);
         Note(ai, "Clara calls you this and tailors her replies to you. With the cloud model the name is sent along with her instructions; offline it never leaves this PC.");
         Check(ai, "Chat offline with a model on this PC (Ollama) for plain text; pictures and screenshots go to Groq", () => s.AssistantUseLocalAi, v => s.AssistantUseLocalAi = v);

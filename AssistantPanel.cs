@@ -386,6 +386,7 @@ public sealed class AssistantPanel : Grid
             AddUser(text, image, quote);
             var sent = quote is null ? text : $"About this text:\n\"\"\"\n{quote}\n\"\"\"\n\n{text}";
             _history.Add(new ChatMessage("user", sent, dataUrl));
+            ClaraTopics.Add(text);
             await RunAsync(text, image);
         }
         catch (Exception ex)
@@ -420,7 +421,7 @@ public sealed class AssistantPanel : Grid
             for (var round = 0; round < 5; round++)
             {
                 var context = _settings.ClaraContext ? ContextProvider?.Invoke() : null;
-                var system = ClaraBrain.SystemPrompt(useLocal ? $"{engineModel}, running offline on this PC" : engineModel, context, ClaraMemory.Shared.Facts, _settings.UserName);
+                var system = ClaraBrain.SystemPrompt(useLocal ? $"{engineModel}, running offline on this PC" : engineModel, context, ClaraMemory.Shared.Facts, _settings.UserName, _settings.UserBio);
                 var offerTools = useLocal ? (LocalAi.LooksActionable(userText) || round > 0) : true;
                 var turn = new StringBuilder();
                 List<ToolCall>? calls = null;
@@ -718,6 +719,7 @@ public sealed class AssistantPanel : Grid
                 MaxWidth = 330,
                 Child = _host,
             };
+            _bubble.SetValue(TextElement.FontFamilyProperty, new FontFamily("Segoe UI Variable Text, Segoe UI, Segoe UI Emoji, Segoe UI Symbol")); // emoji fall back to a font that has them
             var avatar = MakeAvatar(22);
             avatar.VerticalAlignment = VerticalAlignment.Top;
             avatar.Margin = new Thickness(0, 2, 8, 0);
@@ -765,10 +767,32 @@ public sealed class AssistantPanel : Grid
                 _body.Children.Add(new TextBlock { Text = "Stopped", FontSize = 11, Opacity = 0.5, Margin = new Thickness(0, 4, 0, 0) });
             if (_text.Length > 0)
             {
-                var copy = new TextBlock { Text = "", FontFamily = IconFont, FontSize = 11, Opacity = 0.45, HorizontalAlignment = HorizontalAlignment.Right, Cursor = Cursors.Hand, Margin = new Thickness(0, 4, 0, 0), ToolTip = "Copy" };
-                copy.MouseEnter += (_, _) => copy.Opacity = 1;
-                copy.MouseLeave += (_, _) => copy.Opacity = 0.45;
-                copy.MouseLeftButtonUp += (_, e) => { e.Handled = true; try { Clipboard.SetText(_text); } catch (Exception) { } };
+                // a small vector "copy" icon (two overlapping rounded sheets) that turns into a tick when pressed
+                var back = new System.Windows.Shapes.Rectangle { Width = 8, Height = 9, RadiusX = 2, RadiusY = 2, Stroke = Brushes.White, StrokeThickness = 1.2, Margin = new Thickness(4, 0, 0, 0), VerticalAlignment = VerticalAlignment.Top, HorizontalAlignment = HorizontalAlignment.Left };
+                var front = new System.Windows.Shapes.Rectangle { Width = 8, Height = 9, RadiusX = 2, RadiusY = 2, Stroke = Brushes.White, StrokeThickness = 1.2, Fill = new SolidColorBrush(Color.FromArgb(0xFF, 0x2A, 0x2B, 0x30)), Margin = new Thickness(0, 4, 0, 0), VerticalAlignment = VerticalAlignment.Top, HorizontalAlignment = HorizontalAlignment.Left };
+                var tick = new System.Windows.Shapes.Path { Data = Geometry.Parse("M 1.5,7 L 5,10.5 L 12,2.5"), Stroke = new SolidColorBrush(Color.FromRgb(0x30, 0xD1, 0x58)), StrokeThickness = 1.8, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, StrokeLineJoin = PenLineJoin.Round, Visibility = Visibility.Collapsed };
+                var iconBox = new Grid { Width = 14, Height = 14 };
+                iconBox.Children.Add(back);
+                iconBox.Children.Add(front);
+                iconBox.Children.Add(tick);
+                var copy = new Border
+                {
+                    Child = iconBox, Opacity = 0.5, Padding = new Thickness(6, 4, 6, 4), Margin = new Thickness(0, 2, -6, -4),
+                    CornerRadius = new CornerRadius(8), Background = Brushes.Transparent, HorizontalAlignment = HorizontalAlignment.Right, Cursor = Cursors.Hand, ToolTip = "Copy",
+                    RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = new ScaleTransform(1, 1),
+                };
+                copy.MouseEnter += (_, _) => { copy.Opacity = 1; PopScale(copy, 1.12); };
+                copy.MouseLeave += (_, _) => { copy.Opacity = 0.5; PopScale(copy, 1); };
+                copy.MouseLeftButtonUp += async (_, e) =>
+                {
+                    e.Handled = true;
+                    try { Clipboard.SetText(_text); } catch (Exception) { return; }
+                    back.Visibility = front.Visibility = Visibility.Collapsed;
+                    tick.Visibility = Visibility.Visible;
+                    await Task.Delay(1100);
+                    tick.Visibility = Visibility.Collapsed;
+                    back.Visibility = front.Visibility = Visibility.Visible;
+                };
                 _body.Children.Add(copy);
             }
             _owner.ScrollDown();
@@ -940,44 +964,45 @@ public sealed class AssistantPanel : Grid
     /// </summary>
     private static FrameworkElement BuildAndroidFace(double size)
     {
+        // adult proportions: a long oval face with a defined jaw, narrow almond eyes, a slim neck, moody dusk light
         Brush Grad(Color a, Color b, double angle = 90) => new LinearGradientBrush(a, b, angle);
+        Color Hex(string h) => (Color)ColorConverter.ConvertFromString(h);
         var c = new Canvas { Width = 100, Height = 100, ClipToBounds = true };
-        // soft sky
-        c.Children.Add(new Ellipse { Width = 100, Height = 100, Fill = new RadialGradientBrush(Color.FromRgb(0xFB, 0xF1, 0xDD), Color.FromRgb(0x9F, 0xB4, 0xC9)) { GradientOrigin = new Point(0.35, 0.3) } });
-        // petals drifting
-        foreach (var (px, py, pr) in new[] { (12.0, 20.0, 2.2), (84.0, 14.0, 1.8), (20.0, 70.0, 2.6), (88.0, 66.0, 1.6) })
-            c.Children.Add(new Ellipse { Width = pr * 2, Height = pr * 1.4, Fill = new SolidColorBrush(Color.FromArgb(0xB0, 0xFF, 0x9A, 0x62)), RenderTransform = new RotateTransform(30), Margin = new Thickness(px, py, 0, 0) });
-        // shoulders
-        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M 6,100 C 8,80 26,74 50,74 C 74,74 92,80 94,100 Z"), Fill = Grad(Color.FromRgb(0xF4, 0xF6, 0xF9), Color.FromRgb(0xB9, 0xC1, 0xCC)) });
-        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M 28,100 C 30,88 38,82 50,82 C 62,82 70,88 72,100"), Stroke = new SolidColorBrush(Color.FromArgb(0x55, 0x2B, 0x30, 0x3A)), StrokeThickness = 1.2 });
-        // neck: dark mechanics with ribs and an orange wire
-        c.Children.Add(new Rectangle { Width = 14, Height = 22, RadiusX = 4, RadiusY = 4, Fill = Grad(Color.FromRgb(0x3A, 0x40, 0x4B), Color.FromRgb(0x14, 0x17, 0x1D)), Margin = new Thickness(43, 60, 0, 0) });
-        foreach (var ry in new[] { 65.0, 69.0, 73.0 })
-            c.Children.Add(new Rectangle { Width = 14, Height = 1.2, Fill = new SolidColorBrush(Color.FromArgb(0x70, 0x8A, 0x93, 0xA3)), Margin = new Thickness(43, ry, 0, 0) });
-        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M 55,62 C 58,68 57,74 54,80"), Stroke = new SolidColorBrush(Color.FromRgb(0xFF, 0x9F, 0x3D)), StrokeThickness = 1.6, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round });
-        // head: glossy white shell
-        c.Children.Add(new Ellipse { Width = 46, Height = 54, Fill = new RadialGradientBrush(Colors.White, Color.FromRgb(0xC9, 0xD0, 0xDA)) { GradientOrigin = new Point(0.35, 0.25), RadiusX = 0.8, RadiusY = 0.8 }, Margin = new Thickness(27, 12, 0, 0) });
-        // panel seam and bolts on the helmet
-        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M 31,28 C 38,18 52,15 64,20"), Stroke = new SolidColorBrush(Color.FromArgb(0x70, 0x6B, 0x74, 0x82)), StrokeThickness = 1 });
-        foreach (var (bx, by) in new[] { (36.0, 22.0), (63.0, 24.0) })
-            c.Children.Add(new Ellipse { Width = 2.2, Height = 2.2, Fill = new SolidColorBrush(Color.FromArgb(0xB0, 0x59, 0x62, 0x70)), Margin = new Thickness(bx, by, 0, 0) });
-        // visor: two slanted dark eyes, one bright dot each
-        foreach (var (ex, flip) in new[] { (33.0, -1.0), (53.0, 1.0) })
+        c.Children.Add(new Ellipse { Width = 100, Height = 100, Fill = new RadialGradientBrush(Hex("#EDE6DA"), Hex("#4E5A6A")) { GradientOrigin = new Point(0.3, 0.25), RadiusX = 0.85, RadiusY = 0.85 } });
+        foreach (var (bx, by, br, ba) in new[] { (8.0, 16.0, 7.0, 0x30), (80.0, 10.0, 9.0, 0x22), (84.0, 58.0, 6.0, 0x28), (14.0, 62.0, 5.0, 0x22) })
+            c.Children.Add(new Ellipse { Width = br * 2, Height = br * 2, Fill = new SolidColorBrush(Color.FromArgb((byte)ba, 0xFF, 0xC8, 0x90)), Margin = new Thickness(bx, by, 0, 0) });
+        // shoulders and collar plates
+        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M 0,100 C 4,84 22,78 50,78 C 78,78 96,84 100,100 Z"), Fill = Grad(Hex("#E9EDF2"), Hex("#8E99A8")) });
+        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M 30,100 C 33,90 40,85 50,85 C 60,85 67,90 70,100"), Stroke = new SolidColorBrush(Color.FromArgb(0x70, 0x25, 0x2B, 0x35)), StrokeThickness = 1.1 });
+        // slim neck: dark mechanics, ribs, one orange wire
+        c.Children.Add(new Rectangle { Width = 11, Height = 26, RadiusX = 3, RadiusY = 3, Fill = Grad(Hex("#3B4250"), Hex("#10131A")), Margin = new Thickness(44.5, 58, 0, 0) });
+        foreach (var ry in new[] { 64.0, 68.0, 72.0, 76.0 })
+            c.Children.Add(new Rectangle { Width = 11, Height = 1, Fill = new SolidColorBrush(Color.FromArgb(0x6A, 0x9A, 0xA4, 0xB4)), Margin = new Thickness(44.5, ry, 0, 0) });
+        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M 54,60 C 57,67 56,74 53,82"), Stroke = new SolidColorBrush(Hex("#FF9F3D")), StrokeThickness = 1.3, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round });
+        // face shell: long oval with a soft jaw, lit from the left
+        const string faceData = "M 50,9 C 64,9 71,22 70,38 C 69,50 63,61 50,64 C 37,61 31,50 30,38 C 29,22 36,9 50,9 Z";
+        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse(faceData), Fill = Grad(Hex("#FBFCFD"), Hex("#B4BDC9"), 20) });
+        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse(faceData), Fill = Grad(Color.FromArgb(0x00, 0, 0, 0), Color.FromArgb(0x55, 0x1C, 0x24, 0x33), 0) }); // shade on the right side
+        // helmet seam, temple plate, cheek line
+        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M 33,26 C 40,15 56,13 67,22"), Stroke = new SolidColorBrush(Color.FromArgb(0x6A, 0x5F, 0x69, 0x78)), StrokeThickness = 0.9 });
+        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M 36,52 C 41,57 46,59 50,59.5"), Stroke = new SolidColorBrush(Color.FromArgb(0x40, 0x5F, 0x69, 0x78)), StrokeThickness = 0.8 });
+        // narrow almond eyes with a small glowing iris
+        foreach (var (ex, tilt) in new[] { (36.0, -7.0), (54.0, 7.0) })
         {
-            c.Children.Add(new Ellipse { Width = 14, Height = 7, Fill = Grad(Color.FromRgb(0x25, 0x2B, 0x35), Color.FromRgb(0x08, 0x0B, 0x10)), RenderTransform = new RotateTransform(flip * 10, 7, 3.5), Margin = new Thickness(ex, 36, 0, 0) });
-            c.Children.Add(new Ellipse { Width = 3.2, Height = 3.2, Fill = new RadialGradientBrush(Color.FromRgb(0xCF, 0xF1, 0xFF), Color.FromRgb(0x3E, 0xA8, 0xFF)), Margin = new Thickness(ex + 5.4, 37.8, 0, 0) });
+            c.Children.Add(new Ellipse { Width = 11, Height = 4.2, Fill = Grad(Hex("#222833"), Hex("#07090D")), RenderTransform = new RotateTransform(tilt, 5.5, 2.1), Margin = new Thickness(ex, 35, 0, 0) });
+            c.Children.Add(new Ellipse { Width = 2.6, Height = 2.6, Fill = new RadialGradientBrush(Hex("#DFF4FF"), Hex("#3E9CFF")), Margin = new Thickness(ex + 4.2, 35.8, 0, 0) });
+            c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse($"M {ex - 1},{32.5 + (tilt < 0 ? 1.2 : -0.2)} Q {ex + 5.5},{30.5} {ex + 12},{32.5 + (tilt < 0 ? -0.2 : 1.2)}"), Stroke = new SolidColorBrush(Color.FromArgb(0x55, 0x4A, 0x53, 0x61)), StrokeThickness = 0.8, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round });
         }
-        // nose hint and lips
-        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M 50,43 C 48,48 48,50 51,51"), Stroke = new SolidColorBrush(Color.FromArgb(0x55, 0x6B, 0x74, 0x82)), StrokeThickness = 0.9, StrokeStartLineCap = PenLineCap.Round });
-        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M 44,57 C 48,59.5 53,59.5 57,57"), Stroke = new SolidColorBrush(Color.FromRgb(0xE0, 0x8A, 0x8E)), StrokeThickness = 1.8, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round });
-        // ear lens
-        c.Children.Add(new Ellipse { Width = 9, Height = 9, Fill = Grad(Color.FromRgb(0x3A, 0x40, 0x4B), Color.FromRgb(0x10, 0x13, 0x19)), Margin = new Thickness(66, 38, 0, 0) });
-        c.Children.Add(new Ellipse { Width = 4, Height = 4, Fill = new RadialGradientBrush(Color.FromRgb(0xCF, 0xF1, 0xFF), Color.FromRgb(0x3E, 0xA8, 0xFF)), Margin = new Thickness(68.5, 40.5, 0, 0) });
-        // a soft highlight on the shell
-        c.Children.Add(new Ellipse { Width = 16, Height = 9, Fill = new SolidColorBrush(Color.FromArgb(0x70, 255, 255, 255)), RenderTransform = new RotateTransform(-28, 8, 4.5), Margin = new Thickness(32, 18, 0, 0) });
+        // slim nose and muted lips
+        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M 50.5,40 C 49,46 48.5,49 51.5,50"), Stroke = new SolidColorBrush(Color.FromArgb(0x55, 0x5F, 0x69, 0x78)), StrokeThickness = 0.8, StrokeStartLineCap = PenLineCap.Round });
+        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M 45,56 C 48,57.6 53,57.6 56,56"), Stroke = new SolidColorBrush(Hex("#C98A8E")), StrokeThickness = 1.3, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round });
+        // headset lens on the right ear
+        c.Children.Add(new Ellipse { Width = 8, Height = 8, Fill = Grad(Hex("#3B4250"), Hex("#0E1016")), Margin = new Thickness(66, 36, 0, 0) });
+        c.Children.Add(new Ellipse { Width = 3.4, Height = 3.4, Fill = new RadialGradientBrush(Hex("#DFF4FF"), Hex("#3E9CFF")), Margin = new Thickness(68.3, 38.3, 0, 0) });
+        // a thin rim light down the lit edge
+        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M 33,20 C 30,32 31,46 38,57"), Stroke = new SolidColorBrush(Color.FromArgb(0x90, 255, 255, 255)), StrokeThickness = 1.2, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round });
 
-        var view = new Viewbox { Width = size, Height = size, Child = c, Stretch = Stretch.Fill, Clip = new EllipseGeometry(new Point(size / 2, size / 2), size / 2, size / 2) };
-        return view;
+        return new Viewbox { Width = size, Height = size, Child = c, Stretch = Stretch.Fill, Clip = new EllipseGeometry(new Point(size / 2, size / 2), size / 2, size / 2) };
     }
 
     /// <summary>Looks for a portrait the user dropped in as clara.png/.jpg (AppData first, then the app's Assets folder).</summary>

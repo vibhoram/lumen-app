@@ -13,6 +13,8 @@ public sealed class TodoItem
     public string Text { get; set; } = "";
     public bool Done { get; set; }
     public DateTime Created { get; set; } = DateTime.Now;
+    /// <summary>0 normal, 1 high, 2 urgent.</summary>
+    public int Priority { get; set; }
 }
 
 /// <summary>
@@ -74,18 +76,25 @@ public sealed class NotesService : IDisposable
     }
 
     /// <summary>Open tasks first (oldest first, the order they were added), then finished ones.</summary>
-    public IReadOnlyList<TodoItem> Todos => _todos.Where(t => !t.Done).Concat(_todos.Where(t => t.Done)).ToList();
+    public IReadOnlyList<TodoItem> Todos => _todos.Where(t => !t.Done).OrderByDescending(t => t.Priority).ThenBy(t => t.Created).Concat(_todos.Where(t => t.Done)).ToList();
 
     public int OpenCount => _todos.Count(t => !t.Done);
     public int DoneCount => _todos.Count(t => t.Done);
 
-    public bool Add(string text)
+    public bool Add(string text, int priority = 0)
     {
         text = text.Trim();
         if (text.Length == 0 || _todos.Count >= MaxTodos) return false;
-        _todos.Add(new TodoItem { Text = text.Length > 300 ? text[..300] : text });
+        _todos.Add(new TodoItem { Text = text.Length > 300 ? text[..300] : text, Priority = Math.Clamp(priority, 0, 2) });
         SaveAndNotify();
         return true;
+    }
+
+    public void SetPriority(Guid id, int priority)
+    {
+        if (_todos.FirstOrDefault(t => t.Id == id) is not { } item || item.Priority == priority) return;
+        item.Priority = Math.Clamp(priority, 0, 2);
+        SaveAndNotify();
     }
 
     public void SetDone(Guid id, bool done)

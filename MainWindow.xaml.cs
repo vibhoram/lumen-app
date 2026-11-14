@@ -2603,7 +2603,7 @@ public partial class MainWindow : Window
                             new TextBlock { Style = (Style)FindResource("Glyph"), Text = "", FontSize = 10, Foreground = Brushes.Black },
                         },
                     }
-                    : new Ellipse { Width = 18, Height = 18, Stroke = secondary, StrokeThickness = 1.5 },
+                    : new Ellipse { Width = 18, Height = 18, Stroke = item.Priority == 2 ? new SolidColorBrush(Color.FromRgb(0xFF, 0x45, 0x3A)) : item.Priority == 1 ? new SolidColorBrush(Color.FromRgb(0xFF, 0x9F, 0x0A)) : secondary, StrokeThickness = item.Priority > 0 ? 2.2 : 1.5 },
             };
             var done = !item.Done;
             check.Click += (_, _) => _notes.SetDone(id, done);
@@ -2619,6 +2619,8 @@ public partial class MainWindow : Window
                 Foreground = item.Done ? secondary : Brushes.White,
                 TextDecorations = item.Done ? TextDecorations.Strikethrough : null,
             };
+            if (!item.Done && item.Priority > 0)
+                text.Inlines.Add(new System.Windows.Documents.Run(item.Priority == 2 ? "  urgent" : "  high") { FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(item.Priority == 2 ? Color.FromRgb(0xFF, 0x45, 0x3A) : Color.FromRgb(0xFF, 0x9F, 0x0A)) });
             Grid.SetColumn(text, 1);
             row.Children.Add(text);
 

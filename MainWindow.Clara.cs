@@ -36,7 +36,16 @@ public partial class MainWindow
     private string ClaraContext()
     {
         var sb = new StringBuilder();
-        sb.AppendLine($"Local time: {DateTime.Now:dddd, d MMMM yyyy, h:mm tt}.");
+        var nowLocal = DateTime.Now;
+        var part = nowLocal.Hour switch { < 5 => "the middle of the night", < 12 => "morning", < 17 => "afternoon", < 21 => "evening", _ => "late evening" };
+        sb.AppendLine($"Local time: {nowLocal:dddd, d MMMM yyyy, h:mm tt} ({part}). Week {System.Globalization.ISOWeek.GetWeekOfYear(nowLocal)} of the year.");
+        if (ClaraTopics.LastChat is { } last)
+        {
+            var gap = nowLocal - last;
+            sb.AppendLine($"Last time you two chatted: {(gap.TotalMinutes < 2 ? "moments ago" : gap.TotalHours < 1 ? $"{gap.TotalMinutes:0} min ago" : gap.TotalDays < 1 ? $"{gap.TotalHours:0} h ago" : $"{gap.TotalDays:0} days ago")}.");
+        }
+        var urgent = _notes.Todos.Where(t => !t.Done && t.Priority == 2).Select(t => t.Text).Take(4).ToList();
+        if (urgent.Count > 0) sb.AppendLine("Urgent to-dos: " + string.Join("; ", urgent) + ".");
         try
         {
             var power = System.Windows.Forms.SystemInformation.PowerStatus;
@@ -148,6 +157,59 @@ public partial class MainWindow
                     Clipboard.SetText(text);
                     return (true, "Copied to the clipboard.", "Copied to clipboard");
                 }
+                case "add_todos":
+                {
+                    if (!doc.RootElement.TryGetProperty("items", out var arr) || arr.ValueKind != JsonValueKind.Array) return (false, "Give an items array.", "");
+                    int added = 0, urgentCount = 0;
+                    foreach (var it in arr.EnumerateArray())
+                    {
+                        var text = it.ValueKind == JsonValueKind.String ? it.GetString() ?? "" : it.TryGetProperty("text", out var tv) ? tv.GetString() ?? "" : "";
+                        var urgencyText = it.ValueKind == JsonValueKind.Object && it.TryGetProperty("urgency", out var uv) ? uv.GetString() ?? "" : "";
+                        var priority = ParseUrgency(urgencyText);
+                        if (_notes.Add(text, priority)) { added++; if (priority == 2) urgentCount++; }
+                    }
+                    return (added > 0, added > 0 ? $"Added {added} to-dos ({urgentCount} urgent)." : "Nothing was added.", added > 0 ? $"Added {added} to-dos" : "");
+                }
+                case "set_todo_priority":
+                {
+                    var match = Str("text").Trim();
+                    var priority = ParseUrgency(Str("urgency"));
+                    var targets = _notes.Todos.Where(t => !t.Done && match.Length > 0 && t.Text.Contains(match, StringComparison.OrdinalIgnoreCase)).ToList();
+                    if (targets.Count == 0) return (false, "No open to-do matches that.", "");
+                    foreach (var t in targets) _notes.SetPriority(t.Id, priority);
+                    return (true, $"Set {targets.Count} to-do(s) to {(priority == 2 ? "urgent" : priority == 1 ? "high" : "normal")}.", $"Priority · {targets.Count}");
+                }
+                case "change_setting":
+                {
+                    var key = Str("name").Trim();
+                    var value = Str("value").Trim();
+                    if (!SettableNames.Contains(key, StringComparer.OrdinalIgnoreCase))
+                        return (false, "Unknown setting. Settable: " + string.Join(", ", SettableNames) + ".", "");
+                    var property = typeof(AppSettings).GetProperty(SettableNames.First(n => n.Equals(key, StringComparison.OrdinalIgnoreCase)))!;
+                    try
+                    {
+                        var type = property.PropertyType;
+                        object parsed = type.IsEnum ? Enum.Parse(type, value, true)
+                            : type == typeof(bool) ? bool.Parse(value)
+                            : type == typeof(int) ? int.Parse(value, System.Globalization.CultureInfo.InvariantCulture)
+                            : type == typeof(double) ? double.Parse(value, System.Globalization.CultureInfo.InvariantCulture)
+                            : value;
+                        property.SetValue(_settings, parsed);
+                    }
+                    catch (Exception)
+                    {
+                        var hint = property.PropertyType.IsEnum ? " Options: " + string.Join(", ", Enum.GetNames(property.PropertyType)) + "." : "";
+                        return (false, $"Couldn't use \"{value}\" for {property.Name}.{hint}", "");
+                    }
+                    _settings.NotifyChanged();
+                    _settings.Save();
+                    return (true, $"{property.Name} is now {value}.", $"{property.Name} · {value}");
+                }
+                case "describe_app":
+                {
+                    var lines = SettableNames.Select(n => { var pr = typeof(AppSettings).GetProperty(n)!; return $"{n} = {pr.GetValue(_settings)}" + (pr.PropertyType.IsEnum ? $" (options: {string.Join("/", Enum.GetNames(pr.PropertyType))})" : ""); });
+                    return (true, "Current settings:\n" + string.Join("\n", lines) + $"\nPages: {string.Join(", ", AvailablePages().Select(PageTitle))}. Open to-dos: {_notes.OpenCount}.", "Checked the app");
+                }
                 case "get_notifications":
                 {
                     var items = _notifications.Items.Take(8).ToList();
@@ -255,6 +317,16 @@ public partial class MainWindow
             return (false, "That failed: " + ex.Message, $"{name} failed");
         }
     }
+
+    private static int ParseUrgency(string text) => text.Trim().ToLowerInvariant() switch { "urgent" or "critical" or "asap" or "2" => 2, "high" or "important" or "soon" or "1" => 1, _ => 0 };
+
+    private static readonly string[] SettableNames =
+    {
+        "Mode", "Material", "IslandScale", "CornerRoundness", "GlassBlur", "GlassShine", "GlassRim", "GlassVibrancy", "GlassRefraction", "GlassTint",
+        "PetEnabled", "PetKind", "PetOutfit", "PetTalks", "PetReminders", "PetReminderMinutes", "WaveStyle", "EqualizerLook", "ProgressStyle", "ClockStyle", "ClockFont", "ClockLook",
+        "ShowSeconds", "ShowDateWhenIdle", "BarRevealSeconds", "AlertSeconds", "SnoozeMinutes", "FocusMinutes", "ShortBreakMinutes", "LongBreakMinutes",
+        "VitalsAlertEnabled", "VitalsAlertPercent", "LyricsEnabled", "NotificationsEnabled", "FollowCursorMonitor",
+    };
 
     private static string Trim(string s, int max) => s.Length <= max ? s : s[..(max - 1)] + "…";
 }
