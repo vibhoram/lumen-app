@@ -23,7 +23,7 @@ public partial class MainWindow
             if (result.FreedGb >= 0.3) _pet.React(PetEvent.RamFreed, $"{result.FreedGb:0.0} GB");
         };
         _vitals.HeightChanged += () => { if (_state.IsExpanded && _page == ExpandedPage.Vitals) Render(); };
-        _ramWatch.Tick += (_, _) => CheckRam();
+        _ramWatch.Tick += (_, _) => { CheckRam(); UpdateTrayTooltip(); };
         _ramWatch.Start();
     }
 
@@ -43,5 +43,18 @@ public partial class MainWindow
                 detailBrush: red, glyphBrush: red, seconds: 5);
             _pet.React(PetEvent.RamHigh);
         }));
+    }
+
+    /// <summary>Set by the app so the tray icon's hover text can show live status.</summary>
+    public Action<string>? TrayTooltipChanged { get; set; }
+
+    private void UpdateTrayTooltip()
+    {
+        if (TrayTooltipChanged is null) return;
+        var (percent, _, _) = VitalsService.Ram();
+        var parts = new List<string> { $"Lumen · RAM {percent:0}%" };
+        if (_timer.IsActive) parts.Add($"timer {TimerService.Format(_timer.Remaining)}");
+        if (_nextAlarmAt is { } at && (at - DateTime.Now).TotalHours <= 24) parts.Add($"alarm {at:h:mm tt}");
+        TrayTooltipChanged(string.Join(" · ", parts));
     }
 }

@@ -277,7 +277,7 @@ public sealed class AssistantPanel : Grid
         AddUser("What does this error mean?", wb);
         var bubble = new AssistantBubble(this);
         _messages.Children.Add(bubble.Root);
-        bubble.SetText("**The build failed** because a file is missing.\n\n- Check the path in `settings.json`\n- Re-run the installer\n\n```\ndotnet build --no-incremental\n```\n\nIf it still fails, paste the full log and I'll dig in. This longer answer makes the area scroll so the layout can be checked.");
+        bubble.SetText("emoji test 😭 👀 ✨ 😅 🤝 🫠 😮‍💨 🥲 💀 🔥 ☕ 🧠 ✈️ 🛠️\n\n**The build failed** because a file is missing.\n\n- Check the path in `settings.json`\n- Re-run the installer\n\n```\ndotnet build --no-incremental\n```\n\nIf it still fails, paste the full log and I'll dig in. This longer answer makes the area scroll so the layout can be checked.");
         bubble.Finish();
         AttachImage(wb);
         AttachText("Selected text from the page");
@@ -946,12 +946,46 @@ public sealed class AssistantPanel : Grid
             {
                 if (part.Length == 0) continue;
                 if (part.StartsWith("**") && part.EndsWith("**") && part.Length > 4)
-                    tb.Inlines.Add(new Run(part[2..^2]) { FontWeight = FontWeights.SemiBold });
+                    AddWithEmoji(tb, part[2..^2], FontWeights.SemiBold);
                 else if (part.StartsWith('`') && part.EndsWith('`') && part.Length > 2)
                     tb.Inlines.Add(new Run(part[1..^1]) { FontFamily = new FontFamily("Cascadia Mono, Consolas"), Background = B("#40000000"), FontSize = 12 });
-                else tb.Inlines.Add(new Run(part));
+                else AddWithEmoji(tb, part, null);
             }
             return tb;
+        }
+
+        private static bool IsEmoji(string element)
+        {
+            var cp = char.ConvertToUtf32(element, 0);
+            return cp >= 0x1F000 || element.Contains('️') || element.Contains('‍')
+                   || cp is >= 0x2600 and <= 0x27BF or >= 0x2B00 and <= 0x2BFF or >= 0x2300 and <= 0x23FF or 0x00A9 or 0x00AE or 0x203C or 0x2049 or 0x2122 or 0x2139 or >= 0x2190 and <= 0x21FF && element.Length > 1;
+        }
+
+        /// <summary>Adds text, drawing every emoji as a real colour image (WPF itself would show a flat one-colour outline).</summary>
+        private static void AddWithEmoji(TextBlock tb, string text, FontWeight? weight)
+        {
+            var plain = new System.Text.StringBuilder();
+            void Flush()
+            {
+                if (plain.Length == 0) return;
+                var run = new Run(plain.ToString());
+                if (weight is { } w) run.FontWeight = w;
+                tb.Inlines.Add(run);
+                plain.Clear();
+            }
+            var e = System.Globalization.StringInfo.GetTextElementEnumerator(text);
+            while (e.MoveNext())
+            {
+                var element = (string)e.Current;
+                if (element.Length >= 2 && IsEmoji(element) && EmojiRenderer.Render(element, 36) is { } image)
+                {
+                    Flush();
+                    tb.Inlines.Add(new InlineUIContainer(new Image { Source = image, Width = 17, Height = 17, Margin = new Thickness(1, 0, 1, -3) })
+                    { BaselineAlignment = BaselineAlignment.Center });
+                }
+                else plain.Append(element);
+            }
+            Flush();
         }
     }
 

@@ -62,6 +62,7 @@ public partial class App : Application
             hidden => _window.SetIslandHidden(hidden),
             Shutdown,
             id => Dispatcher.InvokeAsync(() => _window.TrayCommand(id)));
+        _window.TrayTooltipChanged = text => _tray?.SetTooltip(text);
 
         _openSettingsSignal = new EventWaitHandle(false, EventResetMode.AutoReset, OpenSettingsEventName);
         _openSettingsWait = ThreadPool.RegisterWaitForSingleObject(_openSettingsSignal,

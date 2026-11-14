@@ -53,13 +53,55 @@ public sealed class TrayIcon : IDisposable
         var pet = new ToolStripMenuItem("Pet") { CheckOnClick = true };
         pet.Click += (_, _) => { settings.PetEnabled = pet.Checked; settings.NotifyChanged(); settings.Save(); };
 
+        // ---- more quick actions
+        var ram = new ToolStripMenuItem("Free up RAM");
+        ram.DropDownItems.AddRange(new ToolStripItem[] { Cmd("Tidy (safe)", "ram0"), Cmd("Deeper", "ram1"), Cmd("Maximum (needs admin)", "ram2") });
+        var timer = new ToolStripMenuItem("Timer");
+        timer.DropDownItems.AddRange(new ToolStripItem[] { Cmd("5 minutes", "timer5"), Cmd("10 minutes", "timer10"), Cmd("25 minutes", "timer25"), Cmd("1 hour", "timer60"), new ToolStripSeparator(), Cmd("Cancel timer", "timercancel") });
+        var media = new ToolStripMenuItem("Music");
+        media.DropDownItems.AddRange(new ToolStripItem[] { Cmd("Play / pause", "media:playpause"), Cmd("Next", "media:next"), Cmd("Previous", "media:previous") });
+        var pages = new ToolStripMenuItem("Open page");
+        foreach (var (label, id) in new[] { ("Home", "Home"), ("Clara", "Assistant"), ("System", "Vitals"), ("Clipboard", "Clipboard"), ("Focus", "Focus"), ("To-Do", "Todo"), ("Notes", "Notes"), ("Notifications", "Notifications"), ("Apps", "Apps") })
+            pages.DropDownItems.Add(Cmd(label, "page:" + id));
+
+        var shape = new ToolStripMenuItem("Shape");
+        var shapeItems = new List<(ToolStripMenuItem Item, IslandMode Mode)>();
+        foreach (var (label, mode) in new[] { ("Dynamic Island", IslandMode.DynamicIsland), ("Notch", IslandMode.Notch), ("Thin bar", IslandMode.Bar) })
+        {
+            var item = new ToolStripMenuItem(label);
+            var captured = mode;
+            item.Click += (_, _) => { settings.Mode = captured; settings.NotifyChanged(); settings.Save(); };
+            shape.DropDownItems.Add(item);
+            shapeItems.Add((item, mode));
+        }
+        var look = new ToolStripMenuItem("Look");
+        foreach (var preset in LookPresets.BuiltIn)
+        {
+            var captured = preset;
+            var item = new ToolStripMenuItem(preset.Name);
+            item.Click += (_, _) => { LookPresets.Apply(settings, captured); settings.NotifyChanged(); settings.Save(); };
+            look.DropDownItems.Add(item);
+        }
+        var species = new ToolStripMenuItem("Pet species");
+        var speciesItems = new List<(ToolStripMenuItem Item, PetKind Kind)>();
+        foreach (var kind in Enum.GetValues<PetKind>())
+        {
+            var captured = kind;
+            var item = new ToolStripMenuItem(kind.ToString());
+            item.Click += (_, _) => { settings.PetKind = captured; settings.PetEnabled = true; settings.NotifyChanged(); settings.Save(); };
+            species.DropDownItems.Add(item);
+            speciesItems.Add((item, kind));
+        }
+
         var exit = new ToolStripMenuItem("Exit");
         exit.Click += (_, _) => onExit();
 
         menu.Items.AddRange(new ToolStripItem[]
         {
-            Cmd("Ask Clara", "clara", settings.AssistantHotkey), Cmd("Quick paste", "paste", settings.QuickPasteHotkey), Cmd("Start a 25 minute focus session", "focus"), quiet,
-            new ToolStripSeparator(), hide, pet, new ToolStripSeparator(), open, hideFlyout, startup, new ToolStripSeparator(), exit,
+            Cmd("Ask Clara", "clara", settings.AssistantHotkey), Cmd("Quick paste", "paste", settings.QuickPasteHotkey), Cmd("Start a 25 minute focus session", "focus"), timer, media, quiet,
+            new ToolStripSeparator(), ram, pages,
+            new ToolStripSeparator(), shape, look, species, hide, pet,
+            new ToolStripSeparator(), open, hideFlyout, startup, new ToolStripSeparator(), exit,
         });
 
         // Settings can also change from the settings window; sync checkmarks each time the menu opens.
@@ -70,6 +112,8 @@ public sealed class TrayIcon : IDisposable
             hide.ShortcutKeyDisplayString = settings.ToggleHotkey;
             hideFlyout.Checked = settings.HideVolumeFlyout;
             startup.Checked = StartupManager.IsEnabled;
+            foreach (var (item, mode) in shapeItems) item.Checked = settings.Mode == mode;
+            foreach (var (item, kind) in speciesItems) item.Checked = settings.PetKind == kind;
         };
 
         _notifyIcon = new NotifyIcon
@@ -80,6 +124,12 @@ public sealed class TrayIcon : IDisposable
             Visible = true,
         };
         _notifyIcon.MouseDoubleClick += (_, _) => onOpenSettings();
+    }
+
+    /// <summary>Hover text of the tray icon (Windows allows 63 characters): live RAM, timer and next alarm.</summary>
+    public void SetTooltip(string text)
+    {
+        try { _notifyIcon.Text = text.Length > 63 ? text[..63] : text; } catch (Exception) { }
     }
 
     public void Dispose()

@@ -166,6 +166,28 @@ public partial class MainWindow
             case "quiet60": StartQuiet(TimeSpan.FromHours(1)); break;
             case "quietforever": StartQuiet(null); break;
             case "quietoff": EndQuiet(); break;
+            case "ram0": case "ram1": case "ram2":
+            {
+                var mode = id == "ram0" ? RamCleanMode.Normal : id == "ram1" ? RamCleanMode.More : RamCleanMode.Maximum;
+                _ = VitalsService.CleanAsync(mode).ContinueWith(t => Dispatcher.InvokeAsync(() =>
+                {
+                    ShowInfo(TransientPriority.Device, 300, "\uE9D9", $"Freed {t.Result.FreedGb:0.0} GB", t.Result.Note, seconds: 3);
+                    if (t.Result.FreedGb >= 0.3) _pet.React(PetEvent.RamFreed, $"{t.Result.FreedGb:0.0} GB");
+                }));
+                break;
+            }
+            case "timercancel": _timer.Cancel(); break;
+            case "media:playpause": _media.TogglePlayPause(); break;
+            case "media:next": _media.Next(); break;
+            case "media:previous": _media.Previous(); break;
+            default:
+                if (id.StartsWith("timer") && int.TryParse(id[5..], out var minutes)) _timer.Start(TimeSpan.FromMinutes(minutes));
+                else if (id.StartsWith("page:") && Enum.TryParse<ExpandedPage>(id[5..], out var page) && AvailablePages().Contains(page))
+                {
+                    if (!_state.IsExpanded) SetExpanded(true);
+                    ShowPage(page, animate: true);
+                }
+                break;
         }
     }
 }
