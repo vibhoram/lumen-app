@@ -1189,6 +1189,43 @@ public partial class MainWindow : Window
     }
 
     private bool _lozengePlaced;
+    private double _lozX, _lozW, _lozVx, _lozVw, _lozTargetX, _lozTargetW, _lozTop;
+    private bool _lozSpringRunning;
+    private DateTime _lozLast;
+
+    private void StartLozengeSpring()
+    {
+        if (_lozSpringRunning) return;
+        _lozSpringRunning = true;
+        _lozLast = DateTime.UtcNow;
+        CompositionTarget.Rendering += LozengeFrame;
+    }
+
+    private void LozengeFrame(object? sender, EventArgs e)
+    {
+        var now = DateTime.UtcNow;
+        var dt = Math.Clamp((now - _lozLast).TotalSeconds, 0.001, 0.04);
+        _lozLast = now;
+        const double stiffness = 320, damping = 19; // damping ratio about 0.53: one clear overshoot, then settles
+        const int steps = 4;
+        var h = dt / steps;
+        for (var i = 0; i < steps; i++)
+        {
+            _lozVx += (stiffness * (_lozTargetX - _lozX) - damping * _lozVx) * h;
+            _lozX += _lozVx * h;
+            _lozVw += (stiffness * (_lozTargetW - _lozW) - damping * _lozVw) * h;
+            _lozW += _lozVw * h;
+        }
+        var done = Math.Abs(_lozTargetX - _lozX) < 0.05 && Math.Abs(_lozVx) < 0.6 && Math.Abs(_lozTargetW - _lozW) < 0.05 && Math.Abs(_lozVw) < 0.6;
+        if (done) { _lozX = _lozTargetX; _lozW = _lozTargetW; }
+        TabLozenge.Margin = new Thickness(_lozX, _lozTop, 0, 0);
+        TabLozenge.Width = Math.Max(10, _lozW);
+        if (done)
+        {
+            CompositionTarget.Rendering -= LozengeFrame;
+            _lozSpringRunning = false;
+        }
+    }
 
     /// <summary>Glides the glass pill to the selected tab with a soft spring; the first placement is instant.</summary>
     private void MoveTabLozenge()
@@ -1220,13 +1257,21 @@ public partial class MainWindow : Window
             TabLozenge.BeginAnimation(FrameworkElement.WidthProperty, null);
             TabLozenge.Margin = margin;
             TabLozenge.Width = w;
+            _lozX = _lozTargetX = margin.Left;
+            _lozW = _lozTargetW = w;
+            _lozVx = _lozVw = 0;
+            _lozTop = margin.Top;
             _lozengePlaced = true;
             return;
         }
-        var ease = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.35 };
-        var time = TimeSpan.FromMilliseconds(340);
-        TabLozenge.BeginAnimation(FrameworkElement.MarginProperty, new ThicknessAnimation(margin, time) { EasingFunction = ease });
-        TabLozenge.BeginAnimation(FrameworkElement.WidthProperty, new DoubleAnimation(w, time) { EasingFunction = ease });
+        // Real spring physics: the pill accelerates toward the new tab, so a long jump (Home to the last page) builds
+        // speed, overshoots a little further, and settles back with a bounce; a short hop barely wobbles.
+        TabLozenge.BeginAnimation(FrameworkElement.MarginProperty, null);
+        TabLozenge.BeginAnimation(FrameworkElement.WidthProperty, null);
+        _lozTargetX = margin.Left;
+        _lozTargetW = w;
+        _lozTop = margin.Top;
+        StartLozengeSpring();
     }
 
     /// <summary>
