@@ -129,7 +129,7 @@ public sealed class AppSettings
     public string CustomAccent { get; set; } = "#0A84FF";
 
     /// <summary>How much of the accent is mixed into the dark background, 0..0.5.</summary>
-    public double BackgroundTint { get; set; } = 0.18;
+    public double BackgroundTint { get; set; } = 0.0;
 
     // ---- text & clock
     public string FontFamily { get; set; } = "Segoe UI Variable Text";
