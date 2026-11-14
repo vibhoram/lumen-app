@@ -136,6 +136,7 @@ public partial class MainWindow
             System.Windows.Controls.Panel.SetZIndex(_tabs[i].Button, (int)(scale[i] * 100));
             tr.X = offset[i] - anchor;
             tr.Y = -(scale[i] - 1) * 7; // rises a little, like a Dock icon
+            if (_tabs[i].Page == _page) FollowTabLozenge(scale[i], tr.X, tr.Y);
         }
 
         // Rest on an icon for a moment and its page opens.
@@ -150,5 +151,21 @@ public partial class MainWindow
         }
 
         if (settled && !hovering) StopDock();
+    }
+
+    private readonly ScaleTransform _lozengeScale = new(1, 1);
+    private readonly TranslateTransform _lozengeShift = new();
+
+    /// <summary>The glass pill swells and rises with the selected tab, so there is only ever one outline around it.</summary>
+    private void FollowTabLozenge(double scale, double x, double y)
+    {
+        if (TabLozenge.RenderTransform is not TransformGroup)
+        {
+            TabLozenge.RenderTransformOrigin = new Point(0.5, 0.5);
+            TabLozenge.RenderTransform = new TransformGroup { Children = { _lozengeScale, _lozengeShift } };
+        }
+        _lozengeScale.ScaleX = _lozengeScale.ScaleY = scale;
+        _lozengeShift.X = x;
+        _lozengeShift.Y = y;
     }
 }
