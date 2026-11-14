@@ -86,8 +86,17 @@ float4 main(float4 sv : SV_Position) : SV_Target
     float spec = rimSharp * (lit * 0.85 + unlit * 0.40) * shine
                + rimWide * (lit * 0.13 + unlit * 0.05) * shine;
 
-    float a = saturate(ringA + spec) * mask;
-    float3 rgb = (col * ringA + spec.xxx) * mask;
+    // Inside the glass: a broad soft light falling from the top-left and a faint cool shade at the bottom-right,
+    // so the flat middle reads as a curved glass body and not just frosted blur.
+    float2 uv = p / max(rect.zw, 1.0);               // -1..1 across the pill
+    float sheen = saturate(1.0 - length((uv - float2(-0.62, -1.05)) * float2(0.55, 1.0)) * 0.80);
+    sheen = sheen * sheen;
+    float shade = saturate(dot(uv, float2(0.6, 0.8))) * 0.5;
+    float bodyLight = sheen * 0.13 * (0.4 + 0.6 * p3.z) * (1 - ringA);
+    float bodyShade = shade * shade * 0.10 * (1 - ringA);
+
+    float a = saturate(ringA + spec + bodyLight + bodyShade) * mask;
+    float3 rgb = (col * ringA + spec.xxx + bodyLight.xxx + float3(0, 0, 0.01) * bodyShade) * mask;
     return float4(rgb, a);
 }
 

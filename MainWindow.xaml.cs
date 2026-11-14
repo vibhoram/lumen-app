@@ -1300,6 +1300,7 @@ public partial class MainWindow : Window
 
         for (var d = e.OriginalSource as DependencyObject; d is not null && d != Root; d = ParentOf(d))
         {
+            if (d is FrameworkElement { Tag: "WheelOwner" }) return; // e.g. the alarm time: the wheel changes the value, not the page
             if (d is ScrollViewer { ScrollableHeight: > 0 } scroller
                 && (delta < 0 ? scroller.VerticalOffset < scroller.ScrollableHeight - 0.5 : scroller.VerticalOffset > 0.5))
             {
