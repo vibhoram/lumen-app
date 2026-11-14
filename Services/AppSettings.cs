@@ -56,6 +56,8 @@ public enum ClockFormat
     TwentyFourHour,
 }
 
+public enum ClockStyle { Classic, TimeOnly, Stacked, Analog, Big }
+
 public enum IdleStyle
 {
     Clock,
@@ -97,6 +99,9 @@ public sealed class AppSettings
 
     /// <summary>Liquid Glass edge highlight and top sheen, 0 = matte, 1 = very glossy.</summary>
     public double GlassShine { get; set; } = 0.9;
+
+    /// <summary>The bright line along the glass edge and the soft light just inside it (0 = none).</summary>
+    public double GlassRim { get; set; } = 0.45;
 
     /// <summary>How vivid the background looks through the glass (0 = as it is, 1 = very rich colour).</summary>
     public double GlassVibrancy { get; set; } = 0.65;
@@ -195,6 +200,10 @@ public sealed class AppSettings
     public int ReturnHomeSeconds { get; set; } = 5;
     /// <summary>Show a Copy button when a notification contains a verification code.</summary>
     public bool CopyCodes { get; set; } = true;
+
+    /// <summary>A little pet that wanders beneath the collapsed island.</summary>
+    public bool PetEnabled { get; set; } = true;
+    public PetKind PetKind { get; set; } = PetKind.Cat;
 
     /// <summary>Page icons swell under the cursor like the macOS Dock.</summary>
     public bool DockMagnify { get; set; } = true;
@@ -362,6 +371,11 @@ public sealed class AppSettings
 
     /// <summary>Weather icon and temperature next to the clock in the idle pill ("10:58 PM | ☁ 26°").</summary>
     public bool WeatherInIdlePill { get; set; } = true;
+    /// <summary>The idle weather sits in its own round bubble beside the clock pill, not inside it.</summary>
+    public bool WeatherSeparate { get; set; } = true;
+    public ClockStyle ClockStyle { get; set; } = ClockStyle.Classic;
+    /// <summary>Font of the idle clock.</summary>
+    public string ClockFont { get; set; } = "Segoe UI Variable";
 
     // ---- expanded pages
     [JsonConverter(typeof(JsonStringEnumConverter))]
@@ -389,6 +403,7 @@ public sealed class AppSettings
         GlassBlur = d.GlassBlur;
         GlassEngine = d.GlassEngine;
         GlassShine = d.GlassShine;
+        GlassRim = d.GlassRim;
         GlassVibrancy = d.GlassVibrancy;
         GlassRefraction = d.GlassRefraction;
         TextShadow = d.TextShadow;
@@ -425,6 +440,9 @@ public sealed class AppSettings
     private static string FilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DIsland", "settings.json");
 
+    /// <summary>Enums may be written as names or numbers.</summary>
+    private static readonly JsonSerializerOptions ReadOptions = new() { Converters = { new JsonStringEnumConverter() } };
+
     public static AppSettings Load()
     {
         try
@@ -432,7 +450,7 @@ public sealed class AppSettings
             if (File.Exists(FilePath))
             {
                 var json = File.ReadAllText(FilePath);
-                var settings = JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+                var settings = JsonSerializer.Deserialize<AppSettings>(json, ReadOptions) ?? new AppSettings();
 
                 // Before materials existed, a lowered opacity meant "translucent"; keep that look.
                 if (!json.Contains("\"Material\"") && json.Contains("\"BackgroundOpacity\"") && settings.BackgroundOpacity < 1)
@@ -451,7 +469,9 @@ public sealed class AppSettings
         }
         catch (Exception)
         {
-            // Corrupt or unreadable settings fall back to defaults.
+            // Corrupt or unreadable settings fall back to defaults, but the old file is kept (once) so nothing is lost
+            // when the defaults are saved over it.
+            try { File.Copy(FilePath, FilePath + ".unreadable", overwrite: false); } catch (Exception) { }
         }
         return new AppSettings();
     }

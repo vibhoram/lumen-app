@@ -48,6 +48,7 @@ public partial class MainWindow : Window
     private readonly Hotkey _assistHotkey = new(2);
     private AssistantPanel _assistant = null!;
     private bool _assistFit;
+    private PetWidget _pet = null!;
     private FocusSession _focusSession = null!;
     private readonly ClipboardHistory _clipHistory = new();
     private ClipboardPanel _clipPanel = null!;
@@ -137,6 +138,9 @@ public partial class MainWindow : Window
         WireContext();
         WireMusic();
         WireDock();
+        _pet = new PetWidget { HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Visibility = Visibility.Collapsed };
+        Root.Children.Add(_pet);
+        ApplyPetSettings();
         _lyricsPanel = new LyricsPanel();
         LyricsPage.Children.Add(_lyricsPanel);
         _lyricsPanel.SeekRequested += time => _media.Seek(time);
@@ -429,6 +433,7 @@ public partial class MainWindow : Window
         _hoverTimer.Interval = TimeSpan.FromMilliseconds(Math.Max(1, _settings.HoverDelayMs));
         _volumeKeys.Enabled = _settings.HideVolumeFlyout;
         ApplyMusicSettings();
+        ApplyPetSettings();
         _shake.Sensitivity = _settings.ShakeSensitivity;
         _shake.Enabled = _settings.MagicShake;
 
@@ -1311,6 +1316,7 @@ public partial class MainWindow : Window
         target.IsHitTestVisible = true;
         UpdateEqualizer();
         AnimateView(target, opacity: 1, fromScale: 0.94, toScale: 1, durationMs: 200 * time, delayMs: 35 * time);
+        UpdateIdleWeatherBubble();
     }
 
     private void AnimateView(FrameworkElement view, double opacity, double? fromScale, double toScale,
@@ -1339,7 +1345,7 @@ public partial class MainWindow : Window
     /// <summary>Grows the window before the pill grows; shrinks it only once the pill has settled small.</summary>
     private void UpdateWindowHeight()
     {
-        var needed = PillTop + Math.Max(_height.Value, _height.Target) + 30; // overshoot + shadow room
+        var needed = PillTop + Math.Max(_height.Value, _height.Target) + (_settings.PetEnabled ? 42 : 30); // overshoot + shadow room (+ the pet)
 
         // Expanded content can outgrow the base height (quick apps + wallpaper controls). The root
         // only ever grows, in 20-unit steps: resizing the window rebuilds the GPU blur's layers, so
@@ -1428,7 +1434,8 @@ public partial class MainWindow : Window
 
         // The second-activity bubble sits just right of the pill, as tall as it; the privacy dot after it.
         var right = (BaseWidth + w) / 2;
-        foreach (var bubble in new[] { ActivityBubble, ActivityBubble2 })
+        PlacePet(w, h);
+        foreach (var bubble in new[] { ActivityBubble, ActivityBubble2, IdleWeatherBubble })
         {
             if (bubble.Visibility != Visibility.Visible) continue;
             var size = Math.Max(26, h);
@@ -2061,7 +2068,8 @@ public partial class MainWindow : Window
         GlassLayer.BeginAnimation(OpacityProperty, new DoubleAnimation(strength, TimeSpan.FromMilliseconds(450)));
         GlassSheen.Visibility = glass ? Visibility.Visible : Visibility.Collapsed;
         GlassGlow.Visibility = glass ? Visibility.Visible : Visibility.Collapsed;
-        GlassGlow.Stroke = CreateGlassGlow(shine);
+        var edge = Math.Clamp(_settings.GlassRim, 0, 1);
+        GlassGlow.Stroke = CreateGlassGlow(edge);
         GlassGlow.BeginAnimation(OpacityProperty, new DoubleAnimation(Math.Max(strength, 0.35), TimeSpan.FromMilliseconds(450)));
         GlassSheen.Fill = CreateGlassSheen(shine);
         GlassSheen.BeginAnimation(OpacityProperty, new DoubleAnimation(strength, TimeSpan.FromMilliseconds(450)));
@@ -2073,9 +2081,9 @@ public partial class MainWindow : Window
 
         // Outline: glass gets the specular rim; other materials an optional flat outline.
         var outline = Math.Clamp(_settings.OutlineWidth, 0, 4);
-        if (glass && (shine > 0 || outline > 0))
+        if (glass && (edge > 0 || outline > 0))
         {
-            PillShape.Stroke = CreateGlassRim(Math.Max(shine, outline > 0 ? 0.3 : 0) * Math.Max(strength, 0.35));
+            PillShape.Stroke = CreateGlassRim(Math.Max(edge, outline > 0 ? 0.3 : 0) * Math.Max(strength, 0.35));
             PillShape.StrokeThickness = Math.Max(1.25, outline);
         }
         else if (outline > 0)
@@ -2287,6 +2295,7 @@ public partial class MainWindow : Window
             BuildCalendar();
         }
         _state.IsExpanded = expanded;
+        UpdateIdleWeatherBubble();
         if (changed) UpdatePrivacyIndicators(); // the dot hides while expanded (the chip shows instead)
         UpdateWallpaperThumb();
         UpdateMotionPlayback();
@@ -2556,6 +2565,7 @@ public partial class MainWindow : Window
     // ---------------------------------------------------------------- clock
 
     private string? _clockWeatherKey;
+    private string? _clockStyleKey;
 
     private void UpdateClock()
     {
@@ -2577,35 +2587,64 @@ public partial class MainWindow : Window
         };
 
         var minimal = _settings.IdleStyle == IdleStyle.Minimal;
-        var idleText = _settings.ShowDateWhenIdle ? $"{now:ddd d MMM}   {time}" : time;
+        var style = _settings.ClockStyle;
+        var showDate = _settings.ShowDateWhenIdle && style is ClockStyle.Classic or ClockStyle.Stacked or ClockStyle.Analog;
+        var idleText = showDate ? $"{now:ddd d MMM}   {time}" : time;
         var weather = _settings.WeatherEnabled && _settings.WeatherInIdlePill ? _weather.Current : null;
         var weatherKey = weather is null ? null : $"{weather.Kind}|{weather.IsDay}|{Degrees(weather.Temperature)}";
         var visibility = minimal ? Visibility.Collapsed : Visibility.Visible;
-        if (idleText == ClockText.Text && visibility == ClockRow.Visibility && time == BigTime.Text
+        var styleKey = $"{style}|{_settings.ClockFont}|{showDate}|{_settings.WeatherSeparate}|{minimal}";
+        if (idleText == ClockText.Text && styleKey == _clockStyleKey && visibility == ClockRow.Visibility && time == BigTime.Text
             && weatherKey == _clockWeatherKey)
             return;
+        _clockStyleKey = styleKey;
 
         ClockRow.Visibility = visibility;
-        // Date quieter, time bold: a clear hierarchy instead of one flat string.
-        ClockText.Inlines.Clear();
-        if (_settings.ShowDateWhenIdle)
-        {
-            ClockText.Inlines.Add(new System.Windows.Documents.Run(now.ToString("ddd d MMM")) { Foreground = (Brush)FindResource("Secondary"), FontSize = 12.5, FontWeight = FontWeights.Medium });
-            ClockText.Inlines.Add(new System.Windows.Documents.Run("   "));
-        }
-        ClockText.Inlines.Add(new System.Windows.Documents.Run(time) { FontSize = 14.5, FontWeight = FontWeights.SemiBold });
         BigTime.Text = time;
         DateText.Text = now.ToString("dddd, MMMM d");
 
-        // "| icon 26°" after the time; the icon is only rebuilt when the condition changes.
+        // The idle clock in the chosen style and font: date quiet, time bold.
+        ClockText.FontFamily = new FontFamily($"{_settings.ClockFont}, Segoe UI Variable, Segoe UI");
+        ClockText.Inlines.Clear();
+        var secondaryBrush = (Brush)FindResource("Secondary");
+        var timeSize = style == ClockStyle.Big ? 18.0 : 14.5;
+        ClockFace.Visibility = style == ClockStyle.Analog ? Visibility.Visible : Visibility.Collapsed;
+        if (style == ClockStyle.Analog)
+        {
+            ClockHourRot.Angle = (now.Hour % 12 + now.Minute / 60.0) * 30;
+            ClockMinuteRot.Angle = now.Minute * 6;
+        }
+        if (style == ClockStyle.Stacked)
+        {
+            ClockText.TextAlignment = TextAlignment.Center;
+            ClockText.Inlines.Add(new System.Windows.Documents.Run(time) { FontSize = 15, FontWeight = FontWeights.SemiBold });
+            if (_settings.ShowDateWhenIdle)
+            {
+                ClockText.Inlines.Add(new System.Windows.Documents.LineBreak());
+                ClockText.Inlines.Add(new System.Windows.Documents.Run(now.ToString("ddd d MMM")) { FontSize = 10.5, Foreground = secondaryBrush, FontWeight = FontWeights.Medium });
+            }
+        }
+        else
+        {
+            ClockText.TextAlignment = TextAlignment.Left;
+            if (showDate)
+            {
+                ClockText.Inlines.Add(new System.Windows.Documents.Run(now.ToString("ddd d MMM")) { Foreground = secondaryBrush, FontSize = 12.5, FontWeight = FontWeights.Medium });
+                ClockText.Inlines.Add(new System.Windows.Documents.Run("   "));
+            }
+            ClockText.Inlines.Add(new System.Windows.Documents.Run(time) { FontSize = timeSize, FontWeight = style == ClockStyle.Big ? FontWeights.Light : FontWeights.SemiBold });
+        }
+
+        // "| icon 26°" after the time (only when the weather isn't in its own bubble); icon rebuilt when the condition changes.
         if (weatherKey != _clockWeatherKey)
         {
             if (weather is not null && _clockWeatherKey?.StartsWith($"{weather.Kind}|{weather.IsDay}|") != true)
                 ClockWeatherIcon.Child = WeatherIcons.Create(weather.Kind, weather.IsDay, 18);
             _clockWeatherKey = weatherKey;
             ClockWeatherTemp.Text = weather is null ? "" : Degrees(weather.Temperature);
-            ClockWeather.Visibility = weather is null ? Visibility.Collapsed : Visibility.Visible;
         }
+        ClockWeather.Visibility = weather is null || _settings.WeatherSeparate ? Visibility.Collapsed : Visibility.Visible;
+        UpdateIdleWeatherBubble();
 
         // Size the idle pill to its text so seconds/date never clip.
         double width, height;
@@ -2616,7 +2655,7 @@ public partial class MainWindow : Window
         else
         {
             ClockRow.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            (width, height) = (Math.Max(150, Math.Ceiling(ClockRow.DesiredSize.Width) + 44), 34);
+            (width, height) = (Math.Max(style == ClockStyle.TimeOnly ? 110 : 150, Math.Ceiling(ClockRow.DesiredSize.Width) + 44), style switch { ClockStyle.Stacked => 44, ClockStyle.Big => 40, _ => 34 });
         }
 
         if (Math.Abs(ClockView.Width - width) < 0.5 && Math.Abs(ClockView.Height - height) < 0.5) return;
@@ -3903,6 +3942,7 @@ public partial class MainWindow : Window
         }
 
         _state.MediaPlaying = media?.IsPlaying == true;
+        _pet.Music = media?.IsPlaying == true;
         MusicTrackChanged(media);
         UpdateSecondActivity(); // the bubble may show this artwork
         UpdateMotionArtwork(media);

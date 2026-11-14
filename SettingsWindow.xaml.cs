@@ -125,6 +125,16 @@ public partial class SettingsWindow : Window
         }, () => s.ClockFormat, v => s.ClockFormat = v);
         Check(text, "Show seconds", () => s.ShowSeconds, v => s.ShowSeconds = v);
         Check(text, "Show the date in the idle pill", () => s.ShowDateWhenIdle, v => s.ShowDateWhenIdle = v);
+        Choice(text, "Clock style", new[]
+        {
+            (ClockStyle.Classic, "Classic"), (ClockStyle.TimeOnly, "Time only"), (ClockStyle.Stacked, "Stacked"),
+            (ClockStyle.Analog, "Analog"), (ClockStyle.Big, "Big"),
+        }, () => s.ClockStyle, v => s.ClockStyle = v);
+        Choice(text, "Clock font", new[]
+        {
+            ("Segoe UI Variable", "Modern"), ("Bahnschrift", "Technical"), ("Cascadia Mono", "Mono"), ("Georgia", "Serif"),
+            ("Segoe Print", "Handwritten"), ("Segoe UI Light", "Light"),
+        }, () => s.ClockFont, v => s.ClockFont = v);
         Choice(text, "When idle", new[] { (IdleStyle.Clock, "Show clock"), (IdleStyle.Minimal, "Minimal pill") },
             () => s.IdleStyle, v => s.IdleStyle = v);
 
@@ -213,6 +223,11 @@ public partial class SettingsWindow : Window
         Choice(calendar, "Remind me", new[] { (0, "Off"), (1, "1 min"), (5, "5 min"), (10, "10 min"), (15, "15 min") },
             () => s.CalendarReminderMinutes, v => s.CalendarReminderMinutes = v);
 
+        var pet = Section("COMPANION", "Companion");
+        Check(pet, "A little pet walks beneath the island", () => s.PetEnabled, v => s.PetEnabled = v);
+        Choice(pet, "Pet", new[] { (PetKind.Cat, "Cat"), (PetKind.Dog, "Dog"), (PetKind.Bunny, "Bunny"), (PetKind.Robot, "Robot") }, () => s.PetKind, v => s.PetKind = v);
+        Note(pet, "It walks, sits, naps, dances when music plays, and hops when you click it. It only appears while the island is collapsed.");
+
         var clip = Section("CLIPBOARD HISTORY", "Clipboard");
         Check(clip, "Keep a history of what I copy", () => s.ClipboardHistoryEnabled, v => s.ClipboardHistoryEnabled = v);
         Check(clip, "Show the Clipboard page", () => s.ClipboardPageEnabled, v => s.ClipboardPageEnabled = v);
@@ -267,6 +282,7 @@ public partial class SettingsWindow : Window
             (TemperatureUnit.Fahrenheit, "°F"),
         }, () => s.TemperatureUnit, v => s.TemperatureUnit = v);
         Check(weather, "Show the weather next to the clock", () => s.WeatherInIdlePill, v => s.WeatherInIdlePill = v);
+        Check(weather, "Weather in its own round bubble (not inside the clock pill)", () => s.WeatherSeparate, v => s.WeatherSeparate = v);
         Note(weather, "Forecasts from Open-Meteo (free, no account), and your town's name from OpenStreetMap. \"My location\" uses Windows location, rounded to " +
                       "about 1 km before it's sent.");
 
@@ -368,6 +384,7 @@ public partial class SettingsWindow : Window
                     v => v == 0 ? "Clear" : v >= 1 ? "Frosted" : $"{v * 100:0}%");
                 Slider(_materialOptions, "Shininess", 0, 1, 0.05, () => s.GlassShine, v => s.GlassShine = v,
                     v => v == 0 ? "Matte" : $"{v * 100:0}%");
+                Slider(_materialOptions, "Edge light", 0, 1, 0.05, () => s.GlassRim, v => s.GlassRim = v, v => v == 0 ? "Off" : $"{v * 100:0}%");
                 Slider(_materialOptions, "Vibrancy", 0, 1, 0.05, () => s.GlassVibrancy, v => s.GlassVibrancy = v, v => v == 0 ? "Natural" : $"{v * 100:0}%");
                 Slider(_materialOptions, "Light bend", 0, 1, 0.05, () => s.GlassRefraction, v => s.GlassRefraction = v,
                     v => v == 0 ? "None" : $"{v * 100:0}%");
