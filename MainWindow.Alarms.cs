@@ -33,7 +33,7 @@ public partial class MainWindow
     private Border Pill(string text, Action click)
     {
         var label = new TextBlock { Text = text, FontSize = 12, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
-        var pill = new Border { CornerRadius = new CornerRadius(14), Padding = new Thickness(11, 5, 11, 5), Margin = new Thickness(6, 0, 0, 0), Cursor = Cursors.Hand, Background = (Brush)FindResource("GlassFill"), Child = label };
+        var pill = new Border { CornerRadius = new CornerRadius(14), Padding = new Thickness(11, 5, 11, 5), Margin = new Thickness(6, 0, 0, 0), Cursor = Cursors.Hand, Background = (Brush)FindResource("GlassFill"), BorderBrush = (Brush)FindResource("GlassRim"), BorderThickness = new Thickness(1), Child = label };
         pill.MouseLeftButtonUp += (_, e) => { e.Handled = true; click(); };
         return pill;
     }

@@ -990,13 +990,13 @@ public sealed class AssistantPanel : Grid
     /// <summary>Liquid Glass fill and rim for chat-box controls (same look as the App.xaml button styles).</summary>
     internal static Brush GlassFillBrush() => new LinearGradientBrush(new GradientStopCollection
     {
-        new GradientStop(Color.FromArgb(0x3C, 255, 255, 255), 0), new GradientStop(Color.FromArgb(0x16, 255, 255, 255), 0.5), new GradientStop(Color.FromArgb(0x22, 255, 255, 255), 1),
+        new GradientStop(Color.FromArgb(0x30, 255, 255, 255), 0), new GradientStop(Color.FromArgb(0x14, 255, 255, 255), 0.55), new GradientStop(Color.FromArgb(0x1C, 255, 255, 255), 1),
     }, 90);
 
     internal static Brush GlassRimBrush() => new LinearGradientBrush(new GradientStopCollection
     {
-        new GradientStop(Color.FromArgb(0x8C, 255, 255, 255), 0), new GradientStop(Color.FromArgb(0x20, 255, 255, 255), 0.45), new GradientStop(Color.FromArgb(0x3D, 255, 255, 255), 1),
-    }, 70);
+        new GradientStop(Color.FromArgb(0xC8, 255, 255, 255), 0), new GradientStop(Color.FromArgb(0x22, 255, 255, 255), 0.30), new GradientStop(Color.FromArgb(0x14, 255, 255, 255), 0.62), new GradientStop(Color.FromArgb(0x78, 255, 255, 255), 1),
+    }, 45);
 
     internal static Border Chip(string glyph, string text, Action click)
     {

@@ -15,8 +15,17 @@
         </Style>
 
         <!-- Liquid Glass buttons: a soft top-lit fill and a bright-to-faint rim, like iOS 26 controls. -->
-        <SolidColorBrush x:Key="GlassFill" Color="#26FFFFFF" />
-        <SolidColorBrush x:Key="GlassRim" Color="Transparent" />
+        <LinearGradientBrush x:Key="GlassFill" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#30FFFFFF" Offset="0" />
+            <GradientStop Color="#14FFFFFF" Offset="0.55" />
+            <GradientStop Color="#1CFFFFFF" Offset="1" />
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="GlassRim" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#C8FFFFFF" Offset="0" />
+            <GradientStop Color="#22FFFFFF" Offset="0.30" />
+            <GradientStop Color="#14FFFFFF" Offset="0.62" />
+            <GradientStop Color="#78FFFFFF" Offset="1" />
+        </LinearGradientBrush>
 
         <Style x:Key="IconButton" TargetType="Button">
             <Setter Property="Foreground" Value="White" />
@@ -57,14 +66,54 @@
             </Setter>
         </Style>
 
-        <Style x:Key="ChipButton" TargetType="Button" BasedOn="{StaticResource IconButton}">
+        <Style x:Key="ChipButton" TargetType="Button">
+            <Setter Property="Foreground" Value="White" />
             <Setter Property="Background" Value="{StaticResource GlassFill}" />
             <Setter Property="BorderBrush" Value="{StaticResource GlassRim}" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Padding" Value="10,5" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Padding" Value="11,5" />
             <Setter Property="Margin" Value="5,0,0,0" />
             <Setter Property="FontSize" Value="12" />
             <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="16"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                                RenderTransformOrigin="0.5,0.5">
+                            <Grid>
+                                <!-- soft light on the upper half, like light catching the top of a glass bead -->
+                                <Border CornerRadius="15" IsHitTestVisible="False" Margin="0,0,0,0">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                            <GradientStop Color="#2AFFFFFF" Offset="0" />
+                                            <GradientStop Color="#00FFFFFF" Offset="0.5" />
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                </Border>
+                                <Border x:Name="Hv" Background="White" Opacity="0" CornerRadius="15" IsHitTestVisible="False" />
+                                <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Hv" Property="Opacity" Value="0.14" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Hv" Property="Opacity" Value="0.26" />
+                                <Setter TargetName="Bd" Property="RenderTransform">
+                                    <Setter.Value><ScaleTransform ScaleX="0.95" ScaleY="0.95" /></Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.35" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
     </Application.Resources>
