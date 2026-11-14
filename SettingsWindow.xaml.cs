@@ -135,6 +135,8 @@ public partial class SettingsWindow : Window
         Slider(interaction, "Back to first page", 0, 120, 1, () => s.ReturnHomeSeconds, v => s.ReturnHomeSeconds = (int)v, v => v == 0 ? "Never" : $"{v:0} s");
         Note(interaction, "After the island has been collapsed this long, it reopens on the first page instead of the page you left.");
         Check(interaction, "Magic Shake: shake the mouse quickly to hide / show the island", () => s.MagicShake, v => s.MagicShake = v);
+        Check(interaction, "Dock effect: page icons swell under the cursor", () => s.DockMagnify, v => s.DockMagnify = v);
+        Check(interaction, "Hovering a page icon opens that page", () => s.HoverSwitchPages, v => s.HoverSwitchPages = v);
         Check(interaction, "Hide automatically in full-screen games, video and presentations", () => s.HideInFullscreen, v => s.HideInFullscreen = v);
         Check(interaction, "Peek-through: hold Ctrl over the island to click through to what's behind it", () => s.CtrlPeek, v => s.CtrlPeek = v);
         Choice(interaction, "Shake sensitivity", new[] { (ShakeSensitivity.Low, "Low"), (ShakeSensitivity.Medium, "Medium"), (ShakeSensitivity.High, "High") },
@@ -164,6 +166,11 @@ public partial class SettingsWindow : Window
         Check(media, "Thin progress line along the collapsed pill", () => s.CompactProgressLine, v => s.CompactProgressLine = v);
         Check(media, "Find real album art when a browser only gives an icon", () => s.AutoAlbumArt, v => s.AutoAlbumArt = v);
         Check(media, "Synced lyrics", () => s.LyricsEnabled, v => s.LyricsEnabled = v);
+        Check(media, "Also show a separate Lyrics page", () => s.LyricsPageEnabled, v => s.LyricsPageEnabled = v);
+        Choice(media, "Lyrics font", new[] { ("Segoe Print", "Print"), ("Ink Free", "Ink"), ("Segoe Script", "Script"), ("Lucida Handwriting", "Lucida"), ("Segoe UI Variable", "Plain") },
+            () => s.LyricsFont, v => s.LyricsFont = v);
+        Slider(media, "Lyrics size", 13, 26, 1, () => s.LyricsFontSize, v => s.LyricsFontSize = v, v => $"{v:0}");
+        Check(media, "Write Hindi lyrics in English letters (Hinglish)", () => s.RomanizeHindi, v => s.RomanizeHindi = v);
         Check(media, "Show the current lyric in the expanded island", () => s.LyricsInExpanded, v => s.LyricsInExpanded = v);
         Check(media, "Show the current lyric on the collapsed pill", () => s.LyricsInCompact, v => s.LyricsInCompact = v);
         Note(media, "Album art and lyrics are looked up by song title and artist only (iTunes Search and lrclib.net).");
@@ -361,6 +368,7 @@ public partial class SettingsWindow : Window
                     v => v == 0 ? "Clear" : v >= 1 ? "Frosted" : $"{v * 100:0}%");
                 Slider(_materialOptions, "Shininess", 0, 1, 0.05, () => s.GlassShine, v => s.GlassShine = v,
                     v => v == 0 ? "Matte" : $"{v * 100:0}%");
+                Slider(_materialOptions, "Vibrancy", 0, 1, 0.05, () => s.GlassVibrancy, v => s.GlassVibrancy = v, v => v == 0 ? "Natural" : $"{v * 100:0}%");
                 Slider(_materialOptions, "Light bend", 0, 1, 0.05, () => s.GlassRefraction, v => s.GlassRefraction = v,
                     v => v == 0 ? "None" : $"{v * 100:0}%");
                 Slider(_materialOptions, "Tint", 0, 0.9, 0.02, () => s.GlassTint, v => s.GlassTint = v, v => v == 0 ? "None" : $"{v * 100:0}%");
@@ -1052,7 +1060,7 @@ public partial class SettingsWindow : Window
 
     private static readonly (string Key, string Label)[] OrderablePages =
     {
-        ("Assistant", "Clara"), ("Clipboard", "Clipboard"), ("Focus", "Focus"), ("Notifications", "Notifications"), ("Calendar", "Calendar"),
+        ("Lyrics", "Lyrics"), ("Assistant", "Clara"), ("Clipboard", "Clipboard"), ("Focus", "Focus"), ("Notifications", "Notifications"), ("Calendar", "Calendar"),
         ("Todo", "To-Do"), ("Notes", "Notes"), ("Shelf", "Shelf"), ("Weather", "Weather"), ("Apps", "Apps"),
     };
 

@@ -21,8 +21,12 @@ public static class MusicLookup
     /// <summary>Browser titles carry noise: "(Official Video)", "[Lyrics]", "ft. X", "- Topic", "VEVO".</summary>
     public static (string Title, string Artist) Clean(string title, string artist)
     {
-        var t = Regex.Replace(title, @"[\(\[][^\)\]]*(official|lyric|audio|video|visuali[sz]er|hd|4k|remaster|live)[^\)\]]*[\)\]]", "", RegexOptions.IgnoreCase);
-        t = Regex.Replace(t, @"\s*[|\-–—]\s*(official|lyrics?|audio|video|youtube).*$", "", RegexOptions.IgnoreCase);
+        // "Song | Film | Singers | Label": the song is the first part.
+        var t = title.Split('|')[0];
+        t = Regex.Replace(t, @"[\(\[][^\)\]]*(official|lyric|audio|video|visuali[sz]er|hd|4k|8k|remaster|live|full song)[^\)\]]*[\)\]]", "", RegexOptions.IgnoreCase);
+        t = Regex.Replace(t, @"\s*[-–—]\s*(official|lyrics?|audio|video|youtube).*$", "", RegexOptions.IgnoreCase);
+        // trailing noise words: "Qaafirana 8K Video", "Song Lyrical Video"
+        t = Regex.Replace(t, @"(\s+(official|full|lyrical|lyric|lyrics|music|video|song|audio|hd|4k|8k|1080p|mv))+\s*$", "", RegexOptions.IgnoreCase);
         t = Regex.Replace(t, @"\s+(ft\.?|feat\.?|featuring)\s+.*$", "", RegexOptions.IgnoreCase).Trim();
         var a = Regex.Replace(artist, @"\s*-\s*Topic$|VEVO$", "", RegexOptions.IgnoreCase).Trim();
         // "Artist - Song" in the title of a YouTube video
@@ -32,7 +36,17 @@ public static class MusicLookup
             a = split.Groups["a"].Value.Trim();
             t = split.Groups["s"].Value.Trim();
         }
-        return (t, a);
+        return (t.Trim(), a);
+    }
+
+    /// <summary>Channels that are labels or networks say nothing about who sings: leave them out of the search.</summary>
+    private static bool LooksLikeLabel(string artist) =>
+        Regex.IsMatch(artist, @"(music|records|entertainment|company|official|network|studios?|films?|t-series|vevo|channel)", RegexOptions.IgnoreCase);
+
+    private static IEnumerable<string> Queries(string title, string artist)
+    {
+        if (artist.Length > 0 && !LooksLikeLabel(artist)) yield return $"{title} {artist}";
+        yield return title;
     }
 
     // ------------------------------------------------------------------ lyrics
@@ -48,10 +62,11 @@ public static class MusicLookup
         List<LyricLine>? lines = null;
         try
         {
-            var url = "https://lrclib.net/api/search?q=" + Uri.EscapeDataString($"{t} {a}".Trim());
-            using var response = await Http.GetAsync(url, cancel);
-            if (response.IsSuccessStatusCode)
+            foreach (var query in Queries(t, a))
             {
+                var url = "https://lrclib.net/api/search?q=" + Uri.EscapeDataString(query);
+                using var response = await Http.GetAsync(url, cancel);
+                if (!response.IsSuccessStatusCode) continue;
                 using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancel));
                 JsonElement? best = null;
                 var bestGap = double.MaxValue;
@@ -62,8 +77,11 @@ public static class MusicLookup
                         ? Math.Abs(d.GetDouble() - duration.TotalSeconds) : 30;
                     if (gap < bestGap) { bestGap = gap; best = item; }
                 }
-                if (best is { } found && bestGap <= 15)
+                if (best is { } found && bestGap <= 20)
+                {
                     lines = Parse(found.GetProperty("syncedLyrics").GetString() ?? "");
+                    if (lines is not null) break;
+                }
             }
         }
         catch (Exception) when (!cancel.IsCancellationRequested) { /* offline or no match */ }
@@ -112,7 +130,7 @@ public static class MusicLookup
         byte[]? bytes = null;
         try
         {
-            var url = "https://itunes.apple.com/search?media=music&entity=song&limit=1&term=" + Uri.EscapeDataString($"{t} {a}".Trim());
+            var url = "https://itunes.apple.com/search?media=music&entity=song&limit=1&term=" + Uri.EscapeDataString(Queries(t, a).First());
             using var response = await Http.GetAsync(url, cancel);
             if (response.IsSuccessStatusCode)
             {

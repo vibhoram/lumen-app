@@ -99,6 +99,8 @@
         <Path x:Name="PillShape" Fill="Black" />
         <!-- Liquid Glass: soft top highlight; brush is built in code from the Shininess setting. -->
         <Path x:Name="GlassSheen" IsHitTestVisible="False" Visibility="Collapsed" />
+        <!-- Liquid Glass: soft light gathered just inside the rim (clipped to the pill in ApplyGeometry). -->
+        <Path x:Name="GlassGlow" IsHitTestVisible="False" Visibility="Collapsed" StrokeThickness="14" />
 
         <Grid x:Name="ContentLayer">
 
@@ -345,6 +347,7 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -412,6 +415,19 @@
                                 <TextBlock Style="{StaticResource Glyph}" Text="&#xE893;" FontSize="18" />
                             </Button>
                         </StackPanel>
+                        <!-- Lyrics button: only when synced lyrics were found for this song. -->
+                        <Border x:Name="LyricsToggle" Grid.Row="2" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                Margin="0,8,0,0" CornerRadius="15" Padding="11,6" Cursor="Hand" Visibility="Collapsed"
+                                Background="#26FFFFFF" MouseLeftButtonUp="OnLyricsToggleClick" RenderTransformOrigin="0.5,0.5">
+                            <Border.RenderTransform><ScaleTransform x:Name="LyricsToggleScale" /></Border.RenderTransform>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource Glyph}" Text="&#xE8D6;" FontSize="12" Margin="0,0,6,0" />
+                                <TextBlock Text="Lyrics" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+                        <!-- The lyrics, opened under the controls; the island grows to fit. -->
+                        <Border x:Name="LyricsInlineHost" Grid.Row="3" Margin="0,8,0,0" Visibility="Collapsed"
+                                CornerRadius="16" Background="#33000000" Padding="12,4" />
                     </Grid>
 
                     <StackPanel x:Name="ClockSection">
@@ -592,6 +608,8 @@
                     <Grid x:Name="ClipboardPage" Background="Transparent" MouseLeftButtonUp="OnTypingPageMouseUp" />
                     <!-- Focus sessions: the panel is built in code (FocusPanel). -->
                     <Grid x:Name="FocusPage" Background="Transparent" MouseLeftButtonUp="OnTypingPageMouseUp" />
+                    <!-- Lyrics: the panel is built in code (LyricsPanel). -->
+                    <Grid x:Name="LyricsPage" Background="Transparent" MouseLeftButtonUp="OnTypingPageMouseUp" />
 
                     <!-- File shelf: files dropped on the island; tiles are built in code (BuildShelf).
                          Drag a tile (or "Drag all") out to drop the files anywhere. -->

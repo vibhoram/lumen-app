@@ -136,6 +136,13 @@ public partial class MainWindow : Window
         WireClara();
         WireContext();
         WireMusic();
+        WireDock();
+        _lyricsPanel = new LyricsPanel();
+        LyricsPage.Children.Add(_lyricsPanel);
+        _lyricsPanel.SeekRequested += time => _media.Seek(time);
+        _lyricsInline = new LyricsPanel(viewHeight: 150, header: false);
+        LyricsInlineHost.Child = _lyricsInline;
+        _lyricsInline.SeekRequested += time => _media.Seek(time);
         _focusSession = new FocusSession(_settings, _timer);
         FocusPage.Children.Add(new FocusPanel(_focusSession, _settings, _timer));
         _clipPanel = new ClipboardPanel(_clipHistory);
@@ -590,6 +597,16 @@ public partial class MainWindow : Window
             SetExpanded(true);
             if (Enum.TryParse<ExpandedPage>(expand, true, out var page)) ShowPage(page, animate: false);
             if (Environment.GetEnvironmentVariable("DISLAND_ASSIST_DEMO") == "1") _assistant.DebugDemo();
+            if (Environment.GetEnvironmentVariable("DISLAND_LYRICS_DEMO") == "1")
+            {
+                _lyricsPanel.DebugDemo();
+                var demo = LyricsPanel.DemoLines();
+                _lyricLines = demo;
+                _lyricsInline.SetState(LyricsState.Ready, demo);
+                _lyricsOpen = true;
+                UpdateLyricsUi();
+                _lyricsInline.Update(TimeSpan.FromSeconds(16));
+            }
         }
 #if DEBUG
         if (Environment.GetEnvironmentVariable("DISLAND_LENS_DUMP") is { Length: > 0 } lensPng)
@@ -942,6 +959,7 @@ public partial class MainWindow : Window
         Assistant,
         Clipboard,
         Focus,
+        Lyrics,
         Shelf,
         Weather,
         Apps,
@@ -964,6 +982,7 @@ public partial class MainWindow : Window
     private List<ExpandedPage> AvailablePages()
     {
         var pages = new List<ExpandedPage> { ExpandedPage.Home };
+        if (_settings.LyricsPageEnabled) pages.Add(ExpandedPage.Lyrics);
         if (_settings.AssistantEnabled) pages.Add(ExpandedPage.Assistant);
         if (_settings.ClipboardPageEnabled) pages.Add(ExpandedPage.Clipboard);
         if (_settings.FocusEnabled) pages.Add(ExpandedPage.Focus);
@@ -993,6 +1012,7 @@ public partial class MainWindow : Window
         ExpandedPage.Assistant => AssistantPage,
         ExpandedPage.Clipboard => ClipboardPage,
         ExpandedPage.Focus => FocusPage,
+        ExpandedPage.Lyrics => LyricsPage,
         ExpandedPage.Shelf => ShelfPage,
         ExpandedPage.Weather => WeatherPage,
         ExpandedPage.Apps => AppsPage,
@@ -1009,6 +1029,7 @@ public partial class MainWindow : Window
         ExpandedPage.Assistant => "", // chat
         ExpandedPage.Clipboard => "", // paste
         ExpandedPage.Focus => "", // stopwatch
+        ExpandedPage.Lyrics => "", // music note
         ExpandedPage.Shelf => "",
         ExpandedPage.Weather => "",
         ExpandedPage.Apps => "",
@@ -1025,6 +1046,7 @@ public partial class MainWindow : Window
         ExpandedPage.Assistant => "Clara",
         ExpandedPage.Clipboard => "Clipboard",
         ExpandedPage.Focus => "Focus",
+        ExpandedPage.Lyrics => "Lyrics",
         ExpandedPage.Shelf => "Shelf",
         ExpandedPage.Weather => "Weather",
         ExpandedPage.Apps => "Apps",
@@ -1041,66 +1063,73 @@ public partial class MainWindow : Window
             element.Visibility = page == _page || element == _leavingPage ? Visibility.Visible : Visibility.Collapsed;
         }
         BuildPageNav();
+        if (_page == ExpandedPage.Lyrics) MusicTick();
     }
 
-    /// <summary>Tabs (labels) or dots, per the setting; rebuilt only when the pages or selection change.</summary>
+    /// <summary>Tabs (labels) or dots, per the setting. Buttons are rebuilt only when the page list changes; moving
+    /// between pages just restyles them, so the dock-style hover effect keeps its state.</summary>
     private void BuildPageNav()
     {
         var pages = AvailablePages();
         var dots = _settings.PageNavigation == PageNavigation.Dots;
-        var key = $"{dots}|{_page}|{string.Join(',', pages)}";
-        if (key == _pageNavKey) return;
-        _pageNavKey = key;
-
-        PageTabs.Children.Clear();
-        // Dots sit centered; the nav row leaves room on the right for the gear, so balance it on the left.
-        PageTabs.HorizontalAlignment = dots ? HorizontalAlignment.Center : HorizontalAlignment.Left;
-        PageTabs.Margin = dots ? new Thickness(34, 0, 0, 0) : new Thickness(-8, 0, 0, 0);
-        var secondary = (Brush)FindResource("Secondary");
-        foreach (var page in pages)
+        var key = $"{dots}|{string.Join(',', pages)}";
+        if (key != _pageNavKey)
         {
-            var selected = page == _page;
-            // Tabs: an icon each, plus the label on the selected one (seven labels don't fit the width).
-            var button = new Button
+            _pageNavKey = key;
+            PageTabs.Children.Clear();
+            _tabs.Clear();
+            // Dots sit centered; the nav row leaves room on the right for the gear, so balance it on the left.
+            PageTabs.HorizontalAlignment = dots ? HorizontalAlignment.Center : HorizontalAlignment.Left;
+            PageTabs.Margin = dots ? new Thickness(34, 0, 0, 0) : new Thickness(-8, 0, 0, 0);
+            PageTabs.Background = Brushes.Transparent; // the gaps between icons count as hover too
+            foreach (var page in pages)
             {
-                Style = (Style)FindResource("IconButton"),
-                ToolTip = selected ? null : PageTitle(page),
-                Padding = dots ? new Thickness(5, 6, 5, 6) : new Thickness(7, 3, selected ? 9 : 7, 3),
-                Content = dots
-                    ? new Ellipse
-                    {
-                        Width = 6,
-                        Height = 6,
-                        Fill = selected ? Brushes.White : new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)),
-                    }
-                    : new StackPanel
-                    {
-                        Orientation = Orientation.Horizontal,
-                        Children =
-                        {
-                            new TextBlock
-                            {
-                                Style = (Style)FindResource("Glyph"),
-                                Text = PageGlyph(page),
-                                FontSize = 13,
-                                Foreground = selected ? Brushes.White : secondary,
-                            },
-                            new TextBlock
-                            {
-                                Text = PageTitle(page),
-                                FontSize = 12,
-                                FontWeight = FontWeights.SemiBold,
-                                Margin = new Thickness(6, 0, 0, 0),
-                                VerticalAlignment = VerticalAlignment.Center,
-                                Visibility = selected ? Visibility.Visible : Visibility.Collapsed,
-                            },
-                        },
-                    },
-            };
-            if (!dots && selected) button.Background = new SolidColorBrush(Color.FromArgb(0x1F, 0xFF, 0xFF, 0xFF));
-            var target = page;
-            button.Click += (_, _) => ShowPage(target, animate: true);
-            PageTabs.Children.Add(button);
+                var button = new Button
+                {
+                    Style = (Style)FindResource("IconButton"),
+                    ToolTip = PageTitle(page),
+                    RenderTransformOrigin = new Point(0.5, 0.5),
+                    RenderTransform = new TransformGroup { Children = { new ScaleTransform(1, 1), new TranslateTransform() } },
+                };
+                TextBlock? glyph = null, label = null;
+                Ellipse? dot = null;
+                if (dots)
+                {
+                    dot = new Ellipse { Width = 6, Height = 6 };
+                    button.Content = dot;
+                }
+                else
+                {
+                    glyph = new TextBlock { Style = (Style)FindResource("Glyph"), Text = PageGlyph(page), FontSize = 13 };
+                    label = new TextBlock { Text = PageTitle(page), FontSize = 12, FontWeight = FontWeights.SemiBold, Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+                    button.Content = new StackPanel { Orientation = Orientation.Horizontal, Children = { glyph, label } };
+                }
+                var target = page;
+                button.Click += (_, _) => ShowPage(target, animate: true);
+                PageTabs.Children.Add(button);
+                _tabs.Add(new TabItemParts(page, button, glyph, label, dot));
+            }
+        }
+        ApplyTabSelection();
+    }
+
+    private sealed record TabItemParts(ExpandedPage Page, Button Button, TextBlock? Glyph, TextBlock? Label, Ellipse? Dot);
+    private readonly List<TabItemParts> _tabs = new();
+
+    /// <summary>Highlights the current page's tab (and shows its label).</summary>
+    private void ApplyTabSelection()
+    {
+        var dots = _settings.PageNavigation == PageNavigation.Dots;
+        var secondary = (Brush)FindResource("Secondary");
+        foreach (var tab in _tabs)
+        {
+            var selected = tab.Page == _page;
+            tab.Button.ToolTip = selected ? null : PageTitle(tab.Page);
+            tab.Button.Padding = dots ? new Thickness(5, 6, 5, 6) : new Thickness(7, 3, selected ? 9 : 7, 3);
+            tab.Button.Background = !dots && selected ? new SolidColorBrush(Color.FromArgb(0x1F, 0xFF, 0xFF, 0xFF)) : Brushes.Transparent;
+            if (tab.Dot is not null) tab.Dot.Fill = selected ? Brushes.White : new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF));
+            if (tab.Glyph is not null) tab.Glyph.Foreground = selected ? Brushes.White : secondary;
+            if (tab.Label is not null) tab.Label.Visibility = selected ? Visibility.Visible : Visibility.Collapsed;
         }
     }
 
@@ -1391,6 +1420,8 @@ public partial class MainWindow : Window
         var shape = t <= 0 ? BuildPill(w, h, r) : BuildNotch(w, h, r, t);
         PillShape.Data = shape;
         GlassSheen.Data = shape;
+        GlassGlow.Data = shape;
+        GlassGlow.Clip = shape;
         GlassLayer.Clip = shape;
         ContentLayer.Clip = shape;
         UpdateGpuShape();
@@ -1779,6 +1810,7 @@ public partial class MainWindow : Window
     private void UpdateGpuShape()
     {
         if (!_gpuActive || _gpuBlur is null) return;
+        _gpuBlur.SetVibrancy(1f + (float)Math.Clamp(_settings.GlassVibrancy, 0, 1) * 1.1f);
         var dpi = VisualTreeHelper.GetDpi(this);
         var f = dpi.DpiScaleX * Scale;
         var w = Math.Max(0, _width.Value);
@@ -1906,6 +1938,19 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Top sheen: a soft highlight across the upper part of the glass.</summary>
+    /// <summary>A soft wash of light just inside the edge: strongest at the top-left, fading around to the far corner.</summary>
+    private static Brush CreateGlassGlow(double shine)
+    {
+        byte A(double a) => (byte)Math.Round(255 * Math.Clamp(a * shine, 0, 1));
+        var glow = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(1, 1) };
+        glow.GradientStops.Add(new GradientStop(Color.FromArgb(A(0.30), 0xFF, 0xFF, 0xFF), 0));
+        glow.GradientStops.Add(new GradientStop(Color.FromArgb(A(0.07), 0xFF, 0xFF, 0xFF), 0.4));
+        glow.GradientStops.Add(new GradientStop(Color.FromArgb(A(0.03), 0xFF, 0xFF, 0xFF), 0.7));
+        glow.GradientStops.Add(new GradientStop(Color.FromArgb(A(0.14), 0xFF, 0xFF, 0xFF), 1));
+        glow.Freeze();
+        return glow;
+    }
+
     private static Brush CreateGlassSheen(double shine)
     {
         byte A(double a) => (byte)Math.Round(255 * Math.Clamp(a * shine, 0, 1));
@@ -2015,6 +2060,9 @@ public partial class MainWindow : Window
         var shine = Math.Clamp(_settings.GlassShine, 0, 1);
         GlassLayer.BeginAnimation(OpacityProperty, new DoubleAnimation(strength, TimeSpan.FromMilliseconds(450)));
         GlassSheen.Visibility = glass ? Visibility.Visible : Visibility.Collapsed;
+        GlassGlow.Visibility = glass ? Visibility.Visible : Visibility.Collapsed;
+        GlassGlow.Stroke = CreateGlassGlow(shine);
+        GlassGlow.BeginAnimation(OpacityProperty, new DoubleAnimation(Math.Max(strength, 0.35), TimeSpan.FromMilliseconds(450)));
         GlassSheen.Fill = CreateGlassSheen(shine);
         GlassSheen.BeginAnimation(OpacityProperty, new DoubleAnimation(strength, TimeSpan.FromMilliseconds(450)));
 

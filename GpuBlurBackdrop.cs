@@ -56,6 +56,9 @@ internal sealed class GpuBlurBackdrop : IDisposable
     private readonly IDCompositionTarget _target;
     private readonly IDCompositionVisual2 _root;
     private readonly IDCompositionVisual2 _blurContainer;
+    private readonly IDCompositionVisual2 _satContainer;
+    private readonly IDCompositionSaturationEffect _sat;
+    private float _vibrancy = 1f;
     private readonly IDCompositionVisual3? _root3;
     private readonly IDCompositionRectangleClip _clip;
     private readonly IDCompositionGaussianBlurEffect _blur;
@@ -96,12 +99,18 @@ internal sealed class GpuBlurBackdrop : IDisposable
         _device.CreateTargetForHwnd(_hwnd, true, out _target).CheckError();
         _root = _device.CreateVisual();
         _blurContainer = _device.CreateVisual();
+        _satContainer = _device.CreateVisual();
         _clip = _device.CreateRectangleClip();
         using (var device3 = _device.QueryInterface<IDCompositionDevice3>())
+        {
             _blur = device3.CreateGaussianBlurEffect();
+            _sat = device3.CreateSaturationEffect();
+        }
 
         _blurContainer.SetEffect(_blur);
-        _root.AddVisual(_blurContainer, false, null);
+        _satContainer.SetEffect(_sat);
+        _satContainer.AddVisual(_blurContainer, false, null);
+        _root.AddVisual(_satContainer, false, null);
         _root.SetClip(_clip);
         _root3 = _root.QueryInterfaceOrNull<IDCompositionVisual3>();
         _target.SetRoot(_root);
@@ -126,6 +135,16 @@ internal sealed class GpuBlurBackdrop : IDisposable
         // Every thumbnail's source/destination rectangle depends on the bounds.
         ClearLayers();
         SyncWindows();
+    }
+
+    /// <summary>How vivid the backdrop looks through the glass (1 = as it is, 1.6 = rich, like the iOS 26 glass).</summary>
+    public void SetVibrancy(float saturation)
+    {
+        saturation = Math.Clamp(saturation, 0.5f, 2.5f);
+        if (Math.Abs(saturation - _vibrancy) < 0.005f) return;
+        _vibrancy = saturation;
+        _sat.SetSaturation(saturation);
+        _device.Commit();
     }
 
     /// <summary>Turns the refraction ring on or off. Returns false if the GPU path isn't available (the blur keeps working).</summary>
@@ -280,6 +299,8 @@ internal sealed class GpuBlurBackdrop : IDisposable
         _clip.Dispose();
         _root3?.Dispose();
         _blurContainer.Dispose();
+        _satContainer.Dispose();
+        _sat.Dispose();
         _root.Dispose();
         _target.Dispose();
         _device.Dispose();

@@ -84,7 +84,7 @@ public sealed class AppSettings
     public double BackgroundOpacity { get; set; } = 0.7;
 
     /// <summary>Tint strength in Liquid Glass mode, 0..0.9.</summary>
-    public double GlassTint { get; set; } = 0.5;
+    public double GlassTint { get; set; } = 0.30;
 
     /// <summary>How much of the frosted blur is mixed over the sharp background: 0 = clear glass, 1 = fully frosted.</summary>
     public double GlassBlur { get; set; } = 0.45;
@@ -97,6 +97,9 @@ public sealed class AppSettings
 
     /// <summary>Liquid Glass edge highlight and top sheen, 0 = matte, 1 = very glossy.</summary>
     public double GlassShine { get; set; } = 0.9;
+
+    /// <summary>How vivid the background looks through the glass (0 = as it is, 1 = very rich colour).</summary>
+    public double GlassVibrancy { get; set; } = 0.65;
 
     /// <summary>How strongly the Refraction engine bends the background at the island's rim.</summary>
     public double GlassRefraction { get; set; } = 0.6;
@@ -193,6 +196,11 @@ public sealed class AppSettings
     /// <summary>Show a Copy button when a notification contains a verification code.</summary>
     public bool CopyCodes { get; set; } = true;
 
+    /// <summary>Page icons swell under the cursor like the macOS Dock.</summary>
+    public bool DockMagnify { get; set; } = true;
+    /// <summary>Resting the cursor on a page icon opens that page.</summary>
+    public bool HoverSwitchPages { get; set; } = true;
+
     /// <summary>Hide the island by itself while a full-screen game, video or presentation is running.</summary>
     public bool HideInFullscreen { get; set; } = true;
 
@@ -204,6 +212,12 @@ public sealed class AppSettings
     /// <summary>Look up real album art (iTunes) when the player only gives a browser icon.</summary>
     public bool AutoAlbumArt { get; set; } = true;
     public bool LyricsEnabled { get; set; } = true;
+    /// <summary>Show Hindi (Devanagari) lyrics in English letters, the way Hindi is typed ("main yeh kar raha hoon").</summary>
+    public bool RomanizeHindi { get; set; } = true;
+    public bool LyricsPageEnabled { get; set; }
+    /// <summary>Handwriting-style font for all lyrics.</summary>
+    public string LyricsFont { get; set; } = "Segoe Print";
+    public double LyricsFontSize { get; set; } = 16;
     /// <summary>Artist name under the title on the collapsed music pill.</summary>
     public bool ShowArtistOnPill { get; set; } = true;
     public bool LyricsInCompact { get; set; }
@@ -375,6 +389,7 @@ public sealed class AppSettings
         GlassBlur = d.GlassBlur;
         GlassEngine = d.GlassEngine;
         GlassShine = d.GlassShine;
+        GlassVibrancy = d.GlassVibrancy;
         GlassRefraction = d.GlassRefraction;
         TextShadow = d.TextShadow;
         IslandScale = d.IslandScale;

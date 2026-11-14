@@ -13,6 +13,12 @@ public partial class MainWindow
     private string _trackKey = "";
     private CancellationTokenSource? _lookupCts;
     private List<LyricLine>? _lyricLines;
+    private List<LyricLine>? _rawLyrics;
+    private bool _romanizedApplied = true;
+    private LyricsPanel _lyricsPanel = null!;
+    private LyricsPanel _lyricsInline = null!;
+    private bool _lyricsOpen;
+    private FontFamily? _defaultTitleFont;
     private Artwork? _artOverride;
 
     private static readonly string[] BrowserHints = { "chrome", "edge", "firefox", "vivaldi", "opera", "brave", "comet", "arc", "browser", "chromium" };
@@ -26,9 +32,28 @@ public partial class MainWindow
     private void ApplyMusicSettings()
     {
         ProgressBar.Style = _settings.ProgressStyle;
+        if (_rawLyrics is not null && _romanizedApplied != _settings.RomanizeHindi) { _romanizedApplied = _settings.RomanizeHindi; ReshapeLyrics(); }
+        _lyricsPanel?.SetFont(_settings.LyricsFont, _settings.LyricsFontSize);
+        _lyricsInline?.SetFont(_settings.LyricsFont, _settings.LyricsFontSize);
+        MediaLyricLarge.FontFamily = new FontFamily($"{_settings.LyricsFont}, Segoe Print, Segoe UI");
         MediaLineSmall.Visibility = _settings.CompactProgressLine ? Visibility.Visible : Visibility.Collapsed;
         if (_settings.CompactMediaTime == CompactTime.Off) MediaTimeSmall.Visibility = Visibility.Collapsed;
         if (!_settings.LyricsEnabled) { _lyricLines = null; MediaLyricLarge.Visibility = Visibility.Collapsed; }
+        MusicTick();
+    }
+
+    /// <summary>Applies the display choices (Hindi in English letters) to the raw synced lyrics.</summary>
+    private List<LyricLine>? ShapeLyrics(List<LyricLine>? raw) =>
+        raw is null || !_settings.RomanizeHindi ? raw
+            : raw.Select(l => Transliterate.HasDevanagari(l.Text) ? new LyricLine(l.Time, Transliterate.ToLatin(l.Text)) : l).ToList();
+
+    /// <summary>The "write Hindi in English letters" setting changed while lyrics are showing.</summary>
+    private void ReshapeLyrics()
+    {
+        if (_rawLyrics is null) return;
+        _lyricLines = ShapeLyrics(_rawLyrics);
+        _lyricsPanel?.SetState(LyricsState.Ready, _lyricLines);
+        _lyricsInline?.SetState(LyricsState.Ready, _lyricLines);
         MusicTick();
     }
 
@@ -50,9 +75,14 @@ public partial class MainWindow
         _trackKey = key;
         _lookupCts?.Cancel();
         _lyricLines = null;
+        _rawLyrics = null;
         _artOverride = null;
         MediaLyricLarge.Visibility = Visibility.Collapsed;
         ProgressBar.Seed = key;
+        _lyricsInline.SetState(LyricsState.None, null);
+        UpdateLyricsUi();
+        _lyricsPanel.SetTrack(media is null ? "" : MusicLookup.Clean(media.Title, media.Artist).Title, media?.Artist ?? "");
+        _lyricsPanel.SetState(media is null ? LyricsState.None : _settings.LyricsEnabled ? LyricsState.Loading : LyricsState.NotFound, null);
         if (media is null) return;
 
         var cts = _lookupCts = new CancellationTokenSource();
@@ -86,7 +116,12 @@ public partial class MainWindow
                 var lines = await MusicLookup.LyricsAsync(media.Title, media.Artist, media.Duration, cancel);
                 if (!cancel.IsCancellationRequested && key == _trackKey)
                 {
-                    _lyricLines = lines;
+                    _rawLyrics = lines;
+                    _romanizedApplied = _settings.RomanizeHindi;
+                    _lyricLines = ShapeLyrics(lines);
+                    _lyricsPanel.SetState(lines is null ? LyricsState.NotFound : LyricsState.Ready, _lyricLines);
+                    _lyricsInline.SetState(lines is null ? LyricsState.NotFound : LyricsState.Ready, _lyricLines);
+                    UpdateLyricsUi();
                     MusicTick();
                 }
             }
@@ -115,12 +150,17 @@ public partial class MainWindow
 
         var line = _lyricLines is { } lines ? MusicLookup.LineAt(lines, position).Current : "";
         MediaLyricLarge.Text = line;
+        if (_state.IsExpanded && _page == ExpandedPage.Lyrics) _lyricsPanel.Update(position);
+        if (_state.IsExpanded && _lyricsOpen && _lyricLines is not null && _page == ExpandedPage.Home) _lyricsInline.Update(position);
         MediaLyricLarge.Visibility = _settings.LyricsInExpanded && line.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         var title = string.IsNullOrWhiteSpace(media.Title) ? "Unknown title" : media.Title;
         var shown = _settings.LyricsInCompact && line.Length > 0 ? "♪ " + line : title;
         var artist = _settings.ShowArtistOnPill && !(_settings.LyricsInCompact && line.Length > 0) ? media.Artist : "";
         MediaArtistSmall.Text = artist;
         MediaArtistSmall.Visibility = artist.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        _defaultTitleFont ??= MediaTitleSmall.FontFamily;
+        var lyricOnPill = _settings.LyricsInCompact && line.Length > 0;
+        MediaTitleSmall.FontFamily = lyricOnPill ? MediaLyricLarge.FontFamily : _defaultTitleFont;
         if (shown != MediaTitleSmall.Text)
         {
             MediaTitleSmall.Text = shown;
@@ -171,5 +211,32 @@ public partial class MainWindow
         frames.KeyFrames.Add(new System.Windows.Media.Animation.EasingDoubleKeyFrame(0, total, new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseInOut }));
         System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(frames, 30);
         MediaTitleShift.BeginAnimation(System.Windows.Media.TranslateTransform.XProperty, frames);
+    }
+
+    // ------------------------------------------------------------------ lyrics button + inline lyrics
+
+    /// <summary>The Lyrics button shows only when lyrics exist; pressing it opens them under the controls.</summary>
+    private void UpdateLyricsUi()
+    {
+        var ready = _lyricLines is not null;
+        var open = ready && _lyricsOpen;
+        LyricsToggle.Visibility = ready ? Visibility.Visible : Visibility.Collapsed;
+        LyricsToggle.Background = open
+            ? new LinearGradientBrush(Color.FromRgb(0x8B, 0x6C, 0xFF), Color.FromRgb(0x2D, 0xD4, 0xFF), 35)
+            : new SolidColorBrush(Color.FromArgb(0x26, 255, 255, 255));
+        var wasOpen = LyricsInlineHost.Visibility == Visibility.Visible;
+        LyricsInlineHost.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+        if (open && !wasOpen) MusicTick();
+        if (open != wasOpen && _state.IsExpanded) Render(); // the island grows or shrinks to fit
+    }
+
+    private void OnLyricsToggleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        e.Handled = true; // don't collapse the island
+        _lyricsOpen = !_lyricsOpen;
+        var pop = new System.Windows.Media.Animation.DoubleAnimation(1.08, TimeSpan.FromMilliseconds(110)) { AutoReverse = true };
+        LyricsToggleScale.BeginAnimation(ScaleTransform.ScaleXProperty, pop);
+        LyricsToggleScale.BeginAnimation(ScaleTransform.ScaleYProperty, pop);
+        UpdateLyricsUi();
     }
 }
