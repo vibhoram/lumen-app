@@ -1,4 +1,4 @@
-﻿// Liquid Glass lens ring (D3D11, ps_4_0). Draws only the curved bevel of the island: the screen behind
+// Liquid Glass lens ring (D3D11, ps_4_0). Draws only the curved bevel of the island: the screen behind
 // it is bent inward along the rim, split slightly by colour, lit by a specular edge; the flat middle is
 // left transparent so the DirectComposition blur underneath shows through, sharp and jitter-free.
 cbuffer Params : register(b0)
