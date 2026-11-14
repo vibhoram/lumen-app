@@ -94,7 +94,7 @@ public static class ClaraBrain
         sb.AppendLine("- You can act on the PC through tools (below). Only ever claim to have done something if the tool result says it worked; if a tool fails, say so plainly.");
         sb.AppendLine();
         sb.AppendLine("# Your tools");
-        sb.AppendLine("set_timer, add_todo, append_note, media_control (play/pause/next/previous the current music), open_app, copy_to_clipboard, remember, forget. " +
+        sb.AppendLine("set_timer, set_reminder (a reminder with your words after N minutes, with snooze), quiet_mode (silence popups for N minutes, 0 turns it off), add_todo, append_note, media_control (play/pause/next/previous the current music), open_app, copy_to_clipboard, remember, forget. " +
                       "Use them when asked, without asking for confirmation on small things, then confirm in one short line. Don't use a tool just because you can.");
         sb.AppendLine();
         sb.AppendLine("# When a screenshot is attached");
@@ -120,6 +120,10 @@ public static class ClaraBrain
     {
         Tool("set_timer", "Start a countdown timer on the island.",
             ("minutes", "number", "Whole or fractional minutes, e.g. 5 or 0.5"), required: new[] { "minutes" }),
+        Tool("set_reminder", "Remind the user after some minutes with a short message (it rings with Snooze and Stop).",
+            ("minutes", "number", "Minutes from now, 1 to 1440"), required: new[] { "minutes" }, extra: ("text", "string", "What to remind them about")),
+        Tool("quiet_mode", "Silence notification popups and small alerts for some minutes; 0 turns quiet mode off.",
+            ("minutes", "number", "Minutes of quiet; 0 to switch it off"), required: new[] { "minutes" }),
         Tool("add_todo", "Add an item to the user's to-do list.",
             ("text", "string", "The task, short and clear"), required: new[] { "text" }),
         Tool("append_note", "Append text to the user's scratch-pad note.",
@@ -136,22 +140,32 @@ public static class ClaraBrain
             ("contains", "string", "Text to match in the stored facts"), required: new[] { "contains" }),
     };
 
-    private static JsonObject Tool(string name, string description, (string Name, string Type, string Description) arg, string[] required) => new()
+    private static JsonObject Tool(string name, string description, (string Name, string Type, string Description) arg, string[] required, (string Name, string Type, string Description)? extra = null)
     {
-        ["type"] = "function",
-        ["function"] = new JsonObject
+        var properties = new JsonObject
         {
-            ["name"] = name,
-            ["description"] = description,
-            ["parameters"] = new JsonObject
+            [arg.Name] = new JsonObject { ["type"] = arg.Type, ["description"] = arg.Description },
+        };
+        var needed = required.ToList();
+        if (extra is { } e)
+        {
+            properties[e.Name] = new JsonObject { ["type"] = e.Type, ["description"] = e.Description };
+            needed.Add(e.Name);
+        }
+        return new JsonObject
+        {
+            ["type"] = "function",
+            ["function"] = new JsonObject
             {
-                ["type"] = "object",
-                ["properties"] = new JsonObject
+                ["name"] = name,
+                ["description"] = description,
+                ["parameters"] = new JsonObject
                 {
-                    [arg.Name] = new JsonObject { ["type"] = arg.Type, ["description"] = arg.Description },
+                    ["type"] = "object",
+                    ["properties"] = properties,
+                    ["required"] = new JsonArray(needed.Select(r => (JsonNode?)r).ToArray()),
                 },
-                ["required"] = new JsonArray(required.Select(r => (JsonNode?)r).ToArray()),
             },
-        },
-    };
+        };
+    }
 }

@@ -29,6 +29,8 @@ public sealed class QuickLink
     public string Url { get; set; } = "";
 }
 
+public enum PeekKey { Alt, Ctrl, Shift }
+
 public enum EqualizerLook { Aura, Silver, Song, Mint, Sunset }
 
 public enum CompactTime { Off, Elapsed, Remaining }
@@ -203,6 +205,11 @@ public sealed class AppSettings
 
     /// <summary>Hold Ctrl over the island and it fades and lets clicks through to the window behind (e.g. browser tabs).</summary>
     public bool CtrlPeek { get; set; } = true;
+    /// <summary>The key held to make the island see-through and click-through.</summary>
+    public PeekKey PeekKey { get; set; } = PeekKey.Alt;
+
+    public bool QuickPasteEnabled { get; set; } = true;
+    public string QuickPasteHotkey { get; set; } = "Ctrl+Shift+V";
 
     /// <summary>After the island has been collapsed this many seconds, it reopens on the first page (0 = never).</summary>
     public int ReturnHomeSeconds { get; set; } = 5;

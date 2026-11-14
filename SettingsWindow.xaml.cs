@@ -144,18 +144,36 @@ public partial class SettingsWindow : Window
         Slider(interaction, "Collapse delay", 0, 1500, 10, () => s.CollapseDelayMs, v => s.CollapseDelayMs = (int)v, v => $"{v:0} ms");
         Slider(interaction, "Back to first page", 0, 120, 1, () => s.ReturnHomeSeconds, v => s.ReturnHomeSeconds = (int)v, v => v == 0 ? "Never" : $"{v:0} s");
         Note(interaction, "After the island has been collapsed this long, it reopens on the first page instead of the page you left.");
-        Check(interaction, "Magic Shake: shake the mouse quickly to hide / show the island", () => s.MagicShake, v => s.MagicShake = v);
-        Check(interaction, "Hovering the pill shows a quick tray (music controls, recent copies); click to open everything", () => s.HoverQuickTray, v => s.HoverQuickTray = v);
         Slider(interaction, "Tray stays", 500, 4000, 100, () => s.TrayLingerMs, v => s.TrayLingerMs = (int)v, v => $"{v / 1000:0.0} s");
         Slider(interaction, "Snooze length", 1, 60, 1, () => s.SnoozeMinutes, v => s.SnoozeMinutes = (int)v, v => $"{v:0} min");
         Slider(interaction, "Carry bubble", 0, 20, 1, () => s.CarrySeconds, v => s.CarrySeconds = (int)v, v => v == 0 ? "Off" : $"{v:0} s");
         Note(interaction, "After a notification or a copy, a small bubble stays beside the pill for this long. Click it to open, shake the mouse to dismiss it.");
-        Check(interaction, "Dock effect: page icons swell under the cursor", () => s.DockMagnify, v => s.DockMagnify = v);
-        Check(interaction, "Hovering a page icon opens that page", () => s.HoverSwitchPages, v => s.HoverSwitchPages = v);
         Check(interaction, "Hide automatically in full-screen games, video and presentations", () => s.HideInFullscreen, v => s.HideInFullscreen = v);
-        Check(interaction, "Peek-through: hold Ctrl over the island to click through to what's behind it", () => s.CtrlPeek, v => s.CtrlPeek = v);
-        Choice(interaction, "Shake sensitivity", new[] { (ShakeSensitivity.Low, "Low"), (ShakeSensitivity.Medium, "Medium"), (ShakeSensitivity.High, "High") },
+
+        var keys = Section("SHORTCUTS & GESTURES", "Shortcuts");
+        Note(keys, "Click a box, then press the shortcut (with Ctrl, Alt, Shift or Win). Backspace clears it.");
+        HotkeyRow(keys, "Hide / show island", () => s.ToggleHotkey, v => s.ToggleHotkey = v, showProblem: true);
+        HotkeyRow(keys, "Ask Clara (grabs the screen)", () => s.AssistantHotkey, v => s.AssistantHotkey = v);
+        Check(keys, "Quick paste picker: your latest copies at the cursor, paste with one key", () => s.QuickPasteEnabled, v => s.QuickPasteEnabled = v);
+        HotkeyRow(keys, "Quick paste", () => s.QuickPasteHotkey, v => s.QuickPasteHotkey = v);
+        Check(keys, "Peek-through: hold a key over the island to see and click through it", () => s.CtrlPeek, v => s.CtrlPeek = v);
+        Choice(keys, "Peek-through key", new[] { (PeekKey.Alt, "Alt"), (PeekKey.Ctrl, "Ctrl"), (PeekKey.Shift, "Shift") }, () => s.PeekKey, v => s.PeekKey = v);
+        Check(keys, "Magic Shake: shake the mouse to dismiss an alert, or hide / show the island", () => s.MagicShake, v => s.MagicShake = v);
+        Choice(keys, "Shake sensitivity", new[] { (ShakeSensitivity.Low, "Low"), (ShakeSensitivity.Medium, "Medium"), (ShakeSensitivity.High, "High") },
             () => s.ShakeSensitivity, v => s.ShakeSensitivity = v);
+        Check(keys, "Dock effect: page icons swell under the cursor", () => s.DockMagnify, v => s.DockMagnify = v);
+        Check(keys, "Hovering a page icon opens that page", () => s.HoverSwitchPages, v => s.HoverSwitchPages = v);
+        Check(keys, "Hovering the pill shows the quick tray (recent copies); click to open everything", () => s.HoverQuickTray, v => s.HoverQuickTray = v);
+        var resetKeys = new Button { Style = (Style)FindResource("ChipButton"), Content = "Reset shortcuts to defaults", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 8, 0, 2) };
+        resetKeys.Click += (_, _) =>
+        {
+            var d = new AppSettings();
+            _settings.ToggleHotkey = d.ToggleHotkey; _settings.AssistantHotkey = d.AssistantHotkey; _settings.QuickPasteHotkey = d.QuickPasteHotkey;
+            _settings.PeekKey = d.PeekKey; _settings.CtrlPeek = d.CtrlPeek; _settings.MagicShake = d.MagicShake; _settings.ShakeSensitivity = d.ShakeSensitivity;
+            _settings.NotifyChanged(); _settings.Save();
+            Build();
+        };
+        keys.Children.Add(resetKeys);
 
         var animation = Section("ANIMATION");
         Slider(animation, "Speed", 0.5, 2.5, 0.1, () => s.AnimationSpeed, v => s.AnimationSpeed = v, v => $"{v:0.0}×");
@@ -320,7 +338,6 @@ public partial class SettingsWindow : Window
         Slider(position, "Top offset", 0, 120, 1, () => s.TopOffset, v => s.TopOffset = v, v => $"{v:0} px");
 
         var system = Section("SYSTEM");
-        HotkeyRow(system);
         Check(system, "Hide the Windows volume flyout", () => s.HideVolumeFlyout, v => s.HideVolumeFlyout = v);
         var startup = new CheckBox { Content = "Start with Windows", IsChecked = StartupManager.IsEnabled };
         startup.Click += (_, _) =>
@@ -744,16 +761,16 @@ public partial class SettingsWindow : Window
     // ---------------------------------------------------------------- hide / show shortcut
 
     /// <summary>Click the box and press a combination; Backspace or Delete clears it.</summary>
-    private void HotkeyRow(Panel panel)
+    private void HotkeyRow(Panel panel, string label, Func<string> get, Action<string> set, bool showProblem = false)
     {
         var row = new Grid { Margin = new Thickness(0, 4, 0, 4) };
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
         row.ColumnDefinitions.Add(new ColumnDefinition());
-        row.Children.Add(new TextBlock { Text = "Hide / show island", VerticalAlignment = VerticalAlignment.Center });
+        row.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
 
         var box = new TextBox
         {
-            Text = string.IsNullOrEmpty(_settings.ToggleHotkey) ? "None" : _settings.ToggleHotkey,
+            Text = string.IsNullOrEmpty(get()) ? "None" : get(),
             IsReadOnly = true,
             IsReadOnlyCaretVisible = false,
             Width = 160,
@@ -764,13 +781,13 @@ public partial class SettingsWindow : Window
         var problem = new TextBlock { Foreground = Faint, FontSize = 12, TextWrapping = TextWrapping.Wrap };
         void ShowProblem()
         {
-            problem.Text = _settings.HotkeyProblem ?? "";
-            problem.Visibility = _settings.HotkeyProblem is null ? Visibility.Collapsed : Visibility.Visible;
+            problem.Text = showProblem ? _settings.HotkeyProblem ?? "" : "";
+            problem.Visibility = showProblem && _settings.HotkeyProblem is not null ? Visibility.Visible : Visibility.Collapsed;
         }
 
         box.GotKeyboardFocus += (_, _) => box.Text = "Press a shortcut…";
         box.LostKeyboardFocus += (_, _) =>
-            box.Text = string.IsNullOrEmpty(_settings.ToggleHotkey) ? "None" : _settings.ToggleHotkey;
+            box.Text = string.IsNullOrEmpty(get()) ? "None" : get();
         box.PreviewKeyDown += (_, e) =>
         {
             e.Handled = true;
@@ -788,7 +805,7 @@ public partial class SettingsWindow : Window
             else
                 text = Hotkey.Format(System.Windows.Input.Keyboard.Modifiers, key);
 
-            Update(() => _settings.ToggleHotkey = text);
+            Update(() => set(text));
             box.Text = text.Length == 0 ? "None" : text;
             ShowProblem();
             System.Windows.Input.Keyboard.ClearFocus();

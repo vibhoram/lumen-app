@@ -71,6 +71,24 @@ public partial class MainWindow
                     _timer.Start(span);
                     return (true, $"Timer started for {TimerService.Format(span)}.", $"Timer · {TimerService.Format(span)}");
                 }
+                case "set_reminder":
+                {
+                    var minutes = doc.RootElement.TryGetProperty("minutes", out var v) && v.TryGetDouble(out var d) ? d : 0;
+                    var text = Str("text").Trim();
+                    if (minutes < 1 || minutes > 1440) return (false, "Minutes must be between 1 and 1440.", "");
+                    var at = DateTime.Now.AddMinutes(minutes);
+                    _settings.Alarms.Add(new Alarm { Time = at.ToString("HH:mm"), Enabled = true, Daily = false, Label = text.Length > 0 ? text : "Reminder" });
+                    _settings.Save();
+                    _alarms.Reschedule();
+                    return (true, $"Reminder set for {at:h:mm tt}.", $"Reminder · {Trim(text.Length > 0 ? text : "reminder", 22)} · {at:h:mm tt}");
+                }
+                case "quiet_mode":
+                {
+                    var minutes = doc.RootElement.TryGetProperty("minutes", out var v) && v.TryGetDouble(out var d) ? d : 0;
+                    if (minutes <= 0) { EndQuiet(); return (true, "Quiet mode is off.", "Quiet mode off"); }
+                    StartQuiet(TimeSpan.FromMinutes(Math.Min(minutes, 720)));
+                    return (true, $"Quiet for {minutes:0} minutes.", $"Quiet · {minutes:0} min");
+                }
                 case "add_todo":
                 {
                     var text = Str("text").Trim();

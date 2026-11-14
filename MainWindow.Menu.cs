@@ -128,4 +128,29 @@ public partial class MainWindow
         }
         if (ShowBubble(PinnedTimerBubble, show)) ApplyGeometry();
     }
+
+    // ------------------------------------------------------------------ shortcuts
+
+    /// <summary>Re-registers the Clara and quick-paste shortcuts when they change in Settings.</summary>
+    private void UpdateShortcuts()
+    {
+        if (new System.Windows.Interop.WindowInteropHelper(this).Handle == IntPtr.Zero) return;
+        if (_assistHotkeyText != _settings.AssistantHotkey)
+        {
+            _assistHotkeyText = _settings.AssistantHotkey;
+            _assistHotkey.Set(_settings.AssistantHotkey);
+        }
+        var paste = _settings.QuickPasteEnabled ? _settings.QuickPasteHotkey : "";
+        if (_pasteHotkeyText != paste)
+        {
+            _pasteHotkeyText = paste;
+            _pasteHotkey.Set(paste);
+        }
+    }
+
+    private void OnPasteHotkey()
+    {
+        if (!_settings.QuickPasteEnabled) return;
+        new QuickPasteWindow(_clipHistory).Show();
+    }
 }

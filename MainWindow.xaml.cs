@@ -46,6 +46,8 @@ public partial class MainWindow : Window
     private readonly VolumeKeyHook _volumeKeys = new();
     private readonly MouseShakeService _shake = new();
     private readonly Hotkey _assistHotkey = new(2);
+    private readonly Hotkey _pasteHotkey = new(3);
+    private string? _assistHotkeyText, _pasteHotkeyText;
     private AssistantPanel _assistant = null!;
     private bool _assistFit;
     private PetWidget _pet = null!;
@@ -447,6 +449,7 @@ public partial class MainWindow : Window
         _volumeKeys.Enabled = _settings.HideVolumeFlyout;
         ApplyMusicSettings();
         ApplyPetSettings();
+        UpdateShortcuts();
         _shake.Sensitivity = _settings.ShakeSensitivity;
         _shake.Enabled = _settings.MagicShake;
 
@@ -512,6 +515,11 @@ public partial class MainWindow : Window
             _assistHotkey.Attach(source);
             _assistHotkey.Pressed += OnAssistHotkey;
             _assistHotkey.Set(_settings.AssistantHotkey);
+            _assistHotkeyText = _settings.AssistantHotkey;
+            _pasteHotkey.Attach(source);
+            _pasteHotkey.Pressed += OnPasteHotkey;
+            _pasteHotkey.Set(_settings.QuickPasteEnabled ? _settings.QuickPasteHotkey : "");
+            _pasteHotkeyText = _settings.QuickPasteEnabled ? _settings.QuickPasteHotkey : "";
             _clipboard.Attach(source);
             _toggleHotkey.Attach(source);
             UpdateToggleHotkey();
@@ -858,6 +866,7 @@ public partial class MainWindow : Window
         _volumeKeys.Dispose();
         _shake.Dispose();
         _assistHotkey.Dispose();
+        _pasteHotkey.Dispose();
         _battery.Dispose();
         _devices.Dispose();
         _keyboard.Dispose();
@@ -2210,7 +2219,8 @@ public partial class MainWindow : Window
         if (_settings.CtrlPeek && !IslandHidden && GetIslandScreenRect() is { } r && NativeMethods.GetCursorPos(out var c))
         {
             inside = c.X >= r.Left && c.X <= r.Right && c.Y >= r.Top && c.Y <= r.Bottom;
-            want = inside && (NativeMethods.GetAsyncKeyState(NativeMethods.VK_CONTROL) & 0x8000) != 0;
+            var vk = _settings.PeekKey switch { PeekKey.Ctrl => 0x11, PeekKey.Shift => 0x10, _ => 0x12 /* Alt */ };
+            want = inside && (NativeMethods.GetAsyncKeyState(vk) & 0x8000) != 0;
         }
         SetPeek(want);
         if (!inside && !_peeking) _peekTimer.Stop();
@@ -3004,6 +3014,19 @@ public partial class MainWindow : Window
     }
 
     /// <summary>The Notifications page: newest first; click opens the app, ✕ dismisses.</summary>
+    private readonly HashSet<string> _expandedNotificationApps = new();
+    private (string App, int Count)? _pendingMoreRow;
+
+    /// <summary>A short label for notifications worth noticing: codes, deliveries, missed calls.</summary>
+    private static string? NotificationTag(IslandNotification n)
+    {
+        var text = n.Title + " " + n.Body;
+        if (ExtractCode(text) is not null) return "Code";
+        if (System.Text.RegularExpressions.Regex.IsMatch(text, @"\b(out for delivery|delivered|arriving|shipped|tracking|your order|parcel|package)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase)) return "Delivery";
+        if (System.Text.RegularExpressions.Regex.IsMatch(text, @"\bmissed (voice )?call\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase)) return "Missed call";
+        return null;
+    }
+
     private void BuildNotificationList()
     {
         var items = _notifications.Items;
@@ -3016,8 +3039,18 @@ public partial class MainWindow : Window
         NotificationsEmpty.Text = _notifications.Problem ?? (items.Count == 0 ? "No notifications" : "");
         NotificationsEmpty.Visibility = NotificationsEmpty.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
 
+        // Smart grouping: an app with several notifications shows its newest in full and "+N more" under it.
+        var seenApp = new Dictionary<string, int>();
         foreach (var n in items)
         {
+            seenApp.TryGetValue(n.AppName, out var earlier);
+            seenApp[n.AppName] = earlier + 1;
+            var groupSize = items.Count(x => x.AppName == n.AppName);
+            if (earlier >= 1 && groupSize > 1 && !_expandedNotificationApps.Contains(n.AppName)) continue;
+            if (earlier == 0 && groupSize > 1 && !_expandedNotificationApps.Contains(n.AppName))
+                _pendingMoreRow = (n.AppName, groupSize - 1);
+            else _pendingMoreRow = null;
+
             var dismiss = new Button
             {
                 Style = (Style)FindResource("IconButton"),
@@ -3031,6 +3064,16 @@ public partial class MainWindow : Window
             dismiss.Click += (_, _) => _notifications.Dismiss(id);
 
             var text = new StackPanel { Margin = new Thickness(10, 0, 6, 0) };
+            if (NotificationTag(n) is { } tag)
+                text.Children.Add(new Border
+                {
+                    CornerRadius = new CornerRadius(7),
+                    Padding = new Thickness(6, 1, 6, 1),
+                    Margin = new Thickness(0, 0, 0, 3),
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    Background = new SolidColorBrush(tag == "Code" ? Color.FromArgb(0x55, 0x8B, 0x6C, 0xFF) : tag == "Delivery" ? Color.FromArgb(0x55, 0xFF, 0x9F, 0x0A) : Color.FromArgb(0x55, 0xFF, 0x45, 0x3A)),
+                    Child = new TextBlock { Text = tag, FontSize = 10, FontWeight = FontWeights.Bold },
+                });
             text.Children.Add(new TextBlock
             {
                 Text = $"{n.AppName} · {TimeAgo(n.Time)}",
@@ -3086,6 +3129,22 @@ public partial class MainWindow : Window
                 QuickAppsService.Launch(appId);
             };
             NotificationList.Children.Add(row);
+            if (_pendingMoreRow is { } more)
+            {
+                var app = more.App;
+                var moreRow = new TextBlock
+                {
+                    Text = $"+{more.Count} more from {app}",
+                    FontSize = 11.5,
+                    FontWeight = FontWeights.SemiBold,
+                    Margin = new Thickness(38, -4, 0, 10),
+                    Cursor = Cursors.Hand,
+                    Foreground = (Brush)FindResource("Secondary"),
+                };
+                moreRow.MouseLeftButtonUp += (_, e) => { e.Handled = true; _expandedNotificationApps.Add(app); BuildNotificationList(); };
+                NotificationList.Children.Add(moreRow);
+                _pendingMoreRow = null;
+            }
         }
 
         if (IsLoaded && _state.IsExpanded && _page == ExpandedPage.Notifications) Render();
