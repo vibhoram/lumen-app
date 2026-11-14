@@ -1333,7 +1333,7 @@ public partial class MainWindow : Window
                      && ArtBanner.Visibility == Visibility.Visible && ArtBanner.IsLoaded && TabLozenge.Visibility == Visibility.Visible;
         if (!active)
         {
-            if (_lensBrush is not null || TabLozenge.Background is VisualBrush) TabLozenge.Background = (Brush)FindResource("GlassFill");
+            if (_lensBrush is not null || TabLozenge.Background is VisualBrush) { TabLozenge.Background = (Brush)FindResource("GlassFill"); TabLozenge.Child = null; }
             _lensBrush = null;
             return;
         }
@@ -1343,9 +1343,15 @@ public partial class MainWindow : Window
             _lensDx = origin.X;
             _lensDy = origin.Y;
             // painted inside the glass pill itself, so its edge and the bead can never disagree
-            _lensBrush = new VisualBrush(ArtBanner) { Stretch = Stretch.Fill, ViewboxUnits = BrushMappingMode.Absolute };
+            _lensBrush = new VisualBrush(ArtBanner) { Stretch = Stretch.Fill, ViewboxUnits = BrushMappingMode.Absolute, Opacity = 1 };
             SetLensViewbox(TabLozenge.Margin.Left, TabLozenge.Margin.Top, TabLozenge.Width, TabLozenge.Height);
             TabLozenge.Background = _lensBrush;
+            // a curved-glass highlight over the magnified art, so the bead reads as a lens even over dark or flat art
+            TabLozenge.Child = new Border
+            {
+                CornerRadius = TabLozenge.CornerRadius, IsHitTestVisible = false,
+                Background = new RadialGradientBrush(Color.FromArgb(0x48, 255, 255, 255), Color.FromArgb(0x00, 255, 255, 255)) { GradientOrigin = new Point(0.25, 0.2), Center = new Point(0.3, 0.3), RadiusX = 0.75, RadiusY = 1.1 },
+            };
         }
         catch (InvalidOperationException) { /* not in the same visual tree yet; the next layout retries */ }
     }
@@ -1354,7 +1360,7 @@ public partial class MainWindow : Window
     private void SetLensViewbox(double x, double y, double w, double h)
     {
         if (_lensBrush is null || w < 4 || h < 4) return;
-        const double zoom = 1.7;
+        const double zoom = 2.6; // a strong magnification, so the art visibly bends inside the glass bead
         var cx = x + w / 2 + _lensDx;
         var cy = y + h / 2 + _lensDy;
         _lensBrush.Viewbox = new Rect(cx - w / zoom / 2, cy - h / zoom / 2, w / zoom, h / zoom);
