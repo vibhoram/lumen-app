@@ -112,6 +112,7 @@ public partial class MainWindow
     /// <summary>Looks for the audio bars: Aura takes the cover's colours (like Samsung's Now Bar); the others are fixed palettes.</summary>
     private void ApplyEqualizerLook(Color accent)
     {
+        MediaWave.Style = _settings.WaveStyle;
         var i = 0;
         foreach (System.Windows.Shapes.Rectangle bar in Equalizer.Children)
         {

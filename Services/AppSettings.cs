@@ -233,6 +233,9 @@ public sealed class AppSettings
     public bool ClockOnMusicPill { get; set; } = true;
     /// <summary>How the audio-reactive bars look.</summary>
     public EqualizerLook EqualizerLook { get; set; } = EqualizerLook.Aura;
+
+    /// <summary>Shape of the animated line along the bottom of the music pill. Ribbon is the original.</summary>
+    public WaveStyle WaveStyle { get; set; } = WaveStyle.Ribbon;
     /// <summary>A notification or copy leaves a small bubble beside the pill for this many seconds (0 = off).</summary>
     public int CarrySeconds { get; set; } = 8;
 
