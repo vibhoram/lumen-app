@@ -1423,7 +1423,6 @@ public partial class MainWindow : Window
 
     private void OnPrivacyChanged(SensorUse old, SensorUse now)
     {
-        _inCall = now.MicrophoneInUse || now.CameraInUse;
         UpdatePrivacyIndicators();
 
         // Announce a start (not a stop), like the iPhone; camera wins when both start together.
@@ -2539,7 +2538,14 @@ public partial class MainWindow : Window
             return;
 
         ClockRow.Visibility = visibility;
-        ClockText.Text = idleText;
+        // Date quieter, time bold: a clear hierarchy instead of one flat string.
+        ClockText.Inlines.Clear();
+        if (_settings.ShowDateWhenIdle)
+        {
+            ClockText.Inlines.Add(new System.Windows.Documents.Run(now.ToString("ddd d MMM")) { Foreground = (Brush)FindResource("Secondary"), FontSize = 12.5, FontWeight = FontWeights.Medium });
+            ClockText.Inlines.Add(new System.Windows.Documents.Run("   "));
+        }
+        ClockText.Inlines.Add(new System.Windows.Documents.Run(time) { FontSize = 14.5, FontWeight = FontWeights.SemiBold });
         BigTime.Text = time;
         DateText.Text = now.ToString("dddd, MMMM d");
 
@@ -2672,7 +2678,7 @@ public partial class MainWindow : Window
         Brush? detailBrush = null, Brush? glyphBrush = null, double? seconds = null)
     {
         // Hidden: nothing to show, and animating an invisible window would only cost CPU.
-        if (IslandHidden || !_state.CanShowTransient(priority) || MeetingQuiet(priority)) return;
+        if (IslandHidden || !_state.CanShowTransient(priority)) return;
         InfoGlyph.Text = glyph;
         InfoGlyph.Foreground = glyphBrush ?? Brushes.White;
         InfoTitle.Text = title;
@@ -2786,7 +2792,7 @@ public partial class MainWindow : Window
     {
         // Windows holds toasts back during Do Not Disturb; so does the island.
         if (!_settings.NotificationsEnabled || IslandHidden || _focus.IsOn) return;
-        if (!_state.CanShowTransient(TransientPriority.Notification) || MeetingQuiet(TransientPriority.Notification)) return;
+        if (!_state.CanShowTransient(TransientPriority.Notification)) return;
 
         NotifIcon.Background = n.AppIcon is { } icon
             ? new ImageBrush(icon) { Stretch = Stretch.UniformToFill }

@@ -18,7 +18,6 @@ public partial class MainWindow
 
     private readonly DispatcherTimer _contextTimer = new() { Interval = TimeSpan.FromSeconds(2) };
     private bool _autoHidden;
-    private bool _inCall;
 
     private void WireContext()
     {
@@ -47,12 +46,4 @@ public partial class MainWindow
             SetIslandHidden(false); // only undo our own hiding, never one the user asked for
         }
     }
-
-    /// <summary>In a call (mic or camera in use) with Meeting mode on, minor alerts stay quiet.</summary>
-    private bool MeetingQuiet(int priority) =>
-        _settings.MeetingMode && _inCall && (priority <= TransientPriority.Osd || priority == TransientPriority.Notification && _calendarQuietOk);
-
-    // Other apps' notifications are held back during a call (they stay in the Notifications page); calendar
-    // reminders, battery, timers and alarms are not.
-    private bool _calendarQuietOk = true;
 }

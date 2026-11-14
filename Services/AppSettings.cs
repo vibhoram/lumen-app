@@ -111,7 +111,7 @@ public sealed class AppSettings
 
     public double OutlineWidth { get; set; }
     public double OutlineOpacity { get; set; } = 0.25;
-    public double ShadowStrength { get; set; }
+    public double ShadowStrength { get; set; } = 0.35;
 
     // ---- adaptive
     /// <summary>Fade the material over the bare desktop; use it fully when an app window is behind.</summary>
@@ -195,8 +195,6 @@ public sealed class AppSettings
 
     /// <summary>Hide the island by itself while a full-screen game, video or presentation is running.</summary>
     public bool HideInFullscreen { get; set; } = true;
-    /// <summary>While the mic or camera is in use (a call), only important alerts (timers, alarms) show.</summary>
-    public bool MeetingMode { get; set; } = true;
 
     // ---- Music
     public ProgressStyle ProgressStyle { get; set; } = ProgressStyle.Wavy;

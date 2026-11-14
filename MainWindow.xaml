@@ -108,8 +108,15 @@
                     <TextBlock x:Name="ClockText" VerticalAlignment="Center" FontSize="14" FontWeight="SemiBold" />
                     <!-- Optional weather: "| icon 26°" (UpdateClock). -->
                     <StackPanel x:Name="ClockWeather" Orientation="Horizontal" VerticalAlignment="Center" Visibility="Collapsed">
-                        <TextBlock Text="|" FontSize="14" Margin="9,0,9,1" VerticalAlignment="Center"
-                                   Foreground="{StaticResource Secondary}" />
+                        <Rectangle Width="1.2" Height="14" Margin="11,0,11,0" VerticalAlignment="Center" RadiusX="0.6" RadiusY="0.6">
+                            <Rectangle.Fill>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                    <GradientStop Color="#00FFFFFF" Offset="0" />
+                                    <GradientStop Color="#66FFFFFF" Offset="0.5" />
+                                    <GradientStop Color="#00FFFFFF" Offset="1" />
+                                </LinearGradientBrush>
+                            </Rectangle.Fill>
+                        </Rectangle>
                         <Border x:Name="ClockWeatherIcon" Width="18" Height="18" VerticalAlignment="Center" />
                         <TextBlock x:Name="ClockWeatherTemp" FontSize="14" FontWeight="SemiBold" Margin="5,0,0,0"
                                    VerticalAlignment="Center" />
