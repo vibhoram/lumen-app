@@ -532,6 +532,8 @@
 
                     <!-- AI assistant: the panel is built in code (AssistantPanel). -->
                     <Grid x:Name="AssistantPage" Background="Transparent" MouseLeftButtonUp="OnTypingPageMouseUp" />
+                    <!-- Clipboard history: the panel is built in code (ClipboardPanel). -->
+                    <Grid x:Name="ClipboardPage" Background="Transparent" MouseLeftButtonUp="OnTypingPageMouseUp" />
 
                     <!-- File shelf: files dropped on the island; tiles are built in code (BuildShelf).
                          Drag a tile (or "Drag all") out to drop the files anywhere. -->

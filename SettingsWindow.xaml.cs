@@ -188,6 +188,14 @@ public partial class SettingsWindow : Window
         Choice(calendar, "Remind me", new[] { (0, "Off"), (1, "1 min"), (5, "5 min"), (10, "10 min"), (15, "15 min") },
             () => s.CalendarReminderMinutes, v => s.CalendarReminderMinutes = v);
 
+        var clip = Section("CLIPBOARD HISTORY", "Clipboard");
+        Check(clip, "Keep a history of what I copy", () => s.ClipboardHistoryEnabled, v => s.ClipboardHistoryEnabled = v);
+        Check(clip, "Show the Clipboard page", () => s.ClipboardPageEnabled, v => s.ClipboardPageEnabled = v);
+        var wipe = new Button { Style = (Style)FindResource("ChipButton"), Content = "Clear clipboard history", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 6, 0, 2) };
+        wipe.Click += (_, _) => { _clipboardHistoryClear?.Invoke(); wipe.Content = "History cleared"; };
+        clip.Children.Add(wipe);
+        Note(clip, "Up to 100 items are kept on this PC (text, links, images, file lists). Anything a password manager marks private is never saved. Pinned items stay until you delete them.");
+
         var ai = Section("CLARA (AI ASSISTANT)", "Clara");
         Check(ai, "Show the Clara page", () => s.AssistantEnabled, v => s.AssistantEnabled = v);
         Check(ai, "Live screen: attach a fresh screenshot to every message", () => s.AssistantLiveScreen, v => s.AssistantLiveScreen = v);
@@ -1008,6 +1016,9 @@ public partial class SettingsWindow : Window
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 2, 0, 4),
         });
+
+    /// <summary>Set by the island so Settings can wipe the clipboard history.</summary>
+    internal static Action? _clipboardHistoryClear;
 
     private void TextRow(Panel panel, string label, Func<string> get, Action<string> set)
     {

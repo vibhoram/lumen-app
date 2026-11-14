@@ -48,6 +48,8 @@ public partial class MainWindow : Window
     private readonly Hotkey _assistHotkey = new(2);
     private AssistantPanel _assistant = null!;
     private bool _assistFit;
+    private readonly ClipboardHistory _clipHistory = new();
+    private ClipboardPanel _clipPanel = null!;
     private readonly BatteryService _battery = new();
     private readonly WallpaperEngineService _wallpaper = new();
     private readonly DeviceService _devices = new();
@@ -129,17 +131,25 @@ public partial class MainWindow : Window
         _assistant.OpenSettingsRequested += () => SettingsRequested?.Invoke();
         _assistant.ScreenRequested = CaptureScreenAsync;
         WireClara();
+        _clipPanel = new ClipboardPanel(_clipHistory);
+        ClipboardPage.Children.Add(_clipPanel);
+        _clipPanel.BeginTypingRequested += BeginTyping;
+        _clipPanel.EndTypingRequested += () => EndTyping(restoreFocus: true);
+        _clipPanel.AskClaraRequested += AskClaraAbout;
+        SettingsWindow._clipboardHistoryClear = () => _clipHistory.Clear(keepPinned: false);
         // The chat grows and shrinks (attachment, long answers, multi-line input): re-fit the island.
-        AssistantPage.SizeChanged += (_, _) =>
+        SizeChangedEventHandler refit = (_, _) =>
         {
             if (_assistFit) return;
             _assistFit = true;
             Dispatcher.BeginInvoke(() =>
             {
                 _assistFit = false;
-                if (_state.IsExpanded && _page == ExpandedPage.Assistant) Render();
+                if (_state.IsExpanded && _page is ExpandedPage.Assistant or ExpandedPage.Clipboard) Render();
             }, DispatcherPriority.Background);
         };
+        AssistantPage.SizeChanged += refit;
+        ClipboardPage.SizeChanged += refit;
         _windows = new WindowEventWatcher(TimeSpan.FromMilliseconds(30));
         _background = new BackgroundDetector(GetIslandScreenRect, _windows);
         _windows.Changed += () =>
@@ -426,7 +436,7 @@ public partial class MainWindow : Window
         _keyboard.LockKeysEnabled = _settings.LockKeyAlerts;
         _keyboard.PasteEnabled = _settings.PasteAlerts;
         _keyboard.Update();
-        _clipboard.Enabled = _settings.CopyAlerts;
+        _clipboard.Enabled = _settings.CopyAlerts || _settings.ClipboardHistoryEnabled;
         _clipboard.ReadText = _settings.ClipboardPreview;
         _clipboard.Update();
 
@@ -905,6 +915,7 @@ public partial class MainWindow : Window
         Todo,
         Notes,
         Assistant,
+        Clipboard,
         Shelf,
         Weather,
         Apps,
@@ -928,6 +939,7 @@ public partial class MainWindow : Window
     {
         var pages = new List<ExpandedPage> { ExpandedPage.Home };
         if (_settings.AssistantEnabled) pages.Add(ExpandedPage.Assistant);
+        if (_settings.ClipboardPageEnabled) pages.Add(ExpandedPage.Clipboard);
         if (_settings.NotificationsEnabled) pages.Add(ExpandedPage.Notifications);
         if (_settings.CalendarEnabled) pages.Add(ExpandedPage.Calendar);
         if (_settings.TodoEnabled) pages.Add(ExpandedPage.Todo);
@@ -935,7 +947,7 @@ public partial class MainWindow : Window
         if (_settings.ShelfEnabled) pages.Add(ExpandedPage.Shelf);
         if (_settings.WeatherEnabled) pages.Add(ExpandedPage.Weather);
         pages.Add(ExpandedPage.Apps);
-        if (_settings.WallpaperEngineControls && _wallpaper.IsRunning) pages.Add(ExpandedPage.Wallpaper);
+        // (the Wallpaper page was removed on purpose: it isn't wanted in this fork)
         return pages;
     }
 
@@ -946,6 +958,7 @@ public partial class MainWindow : Window
         ExpandedPage.Todo => TodoPage,
         ExpandedPage.Notes => NotesPage,
         ExpandedPage.Assistant => AssistantPage,
+        ExpandedPage.Clipboard => ClipboardPage,
         ExpandedPage.Shelf => ShelfPage,
         ExpandedPage.Weather => WeatherPage,
         ExpandedPage.Apps => AppsPage,
@@ -960,6 +973,7 @@ public partial class MainWindow : Window
         ExpandedPage.Todo => "", // checklist
         ExpandedPage.Notes => "", // quick note
         ExpandedPage.Assistant => "", // chat
+        ExpandedPage.Clipboard => "", // paste
         ExpandedPage.Shelf => "",
         ExpandedPage.Weather => "",
         ExpandedPage.Apps => "",
@@ -974,6 +988,7 @@ public partial class MainWindow : Window
         ExpandedPage.Todo => "To-Do",
         ExpandedPage.Notes => "Notes",
         ExpandedPage.Assistant => "Clara",
+        ExpandedPage.Clipboard => "Clipboard",
         ExpandedPage.Shelf => "Shelf",
         ExpandedPage.Weather => "Weather",
         ExpandedPage.Apps => "Apps",
@@ -2627,6 +2642,8 @@ public partial class MainWindow : Window
     private void OnCopied(ClipboardEvent copy)
     {
         _lastCopy = copy;
+        if (_settings.ClipboardHistoryEnabled) _clipHistory.CaptureCurrent();
+        if (!_settings.CopyAlerts) return;
         if (_typing) return; // copying inside the island's own note: no alert over it
         var (glyph, detail) = copy.Kind switch
         {

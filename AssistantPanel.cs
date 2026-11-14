@@ -21,7 +21,7 @@ namespace DIsland;
 
 public sealed class AssistantPanel : Grid
 {
-    private static readonly FontFamily IconFont = new("Segoe Fluent Icons, Segoe MDL2 Assets");
+    internal static readonly FontFamily IconFont = new("Segoe Fluent Icons, Segoe MDL2 Assets");
     private static readonly Color AccentA = Color.FromRgb(0x8B, 0x6C, 0xFF);
     private static readonly Color AccentB = Color.FromRgb(0x2D, 0xD4, 0xFF);
 
@@ -869,9 +869,9 @@ public sealed class AssistantPanel : Grid
 
     // ------------------------------------------------------------------ small helpers
 
-    private static Brush B(string hex) => (Brush)new BrushConverter().ConvertFromString(hex)!;
+    internal static Brush B(string hex) => (Brush)new BrushConverter().ConvertFromString(hex)!;
 
-    private static Brush AccentGradient() => new LinearGradientBrush(AccentA, AccentB, 35);
+    internal static Brush AccentGradient() => new LinearGradientBrush(AccentA, AccentB, 35);
 
     /// <summary>Clara's avatar: her portrait if one is on disk, otherwise a luminous glass presence.</summary>
     private static FrameworkElement MakeAvatar(double size)
@@ -969,7 +969,7 @@ public sealed class AssistantPanel : Grid
         return null;
     }
 
-    private static Border Chip(string glyph, string text, Action click)
+    internal static Border Chip(string glyph, string text, Action click)
     {
         var row = new StackPanel { Orientation = Orientation.Horizontal };
         if (glyph.Length > 0)
@@ -994,7 +994,7 @@ public sealed class AssistantPanel : Grid
         return chip;
     }
 
-    private static void PopScale(UIElement element, double to)
+    internal static void PopScale(UIElement element, double to)
     {
         if (element.RenderTransform is not ScaleTransform st) return;
         var a = new DoubleAnimation(to, TimeSpan.FromMilliseconds(140)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
@@ -1003,7 +1003,7 @@ public sealed class AssistantPanel : Grid
     }
 
     /// <summary>Fade and rise into place.</summary>
-    private static void Appear(FrameworkElement element, double rise)
+    internal static void Appear(FrameworkElement element, double rise)
     {
         var move = new TranslateTransform(0, rise);
         element.RenderTransform = move;

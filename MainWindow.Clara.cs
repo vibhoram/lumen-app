@@ -15,6 +15,23 @@ public partial class MainWindow
         _assistant.ToolRunner = RunClaraTool;
     }
 
+    /// <summary>"Ask Clara" on a clipboard item: open her page with the item attached and the cursor ready.</summary>
+    private async void AskClaraAbout(ClipItem item)
+    {
+        try
+        {
+            ShowPage(ExpandedPage.Assistant, animate: true);
+            if (item.Kind == ClipKind.Image) _assistant.AttachImage(_clipHistory.LoadImage(item));
+            else _assistant.AttachText(item.Text);
+            await Task.Delay(260);
+            BeginTyping(_assistant.Input);
+        }
+        catch (Exception ex)
+        {
+            App.LogError(ex);
+        }
+    }
+
     /// <summary>A few facts about right now. No names, places or account details: just time, music, battery, weather.</summary>
     private string ClaraContext()
     {

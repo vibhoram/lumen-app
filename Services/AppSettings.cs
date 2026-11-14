@@ -184,6 +184,10 @@ public sealed class AppSettings
     /// <summary>Hold Ctrl over the island and it fades and lets clicks through to the window behind (e.g. browser tabs).</summary>
     public bool CtrlPeek { get; set; } = true;
 
+    /// <summary>Keep a history of what you copy (text, links, images, files), on this PC only.</summary>
+    public bool ClipboardHistoryEnabled { get; set; } = true;
+    public bool ClipboardPageEnabled { get; set; } = true;
+
     // ---- AI assistant (Groq). The key lives only in this settings file, outside the source tree.
     public bool AssistantEnabled { get; set; } = true;
     public string GroqApiKey { get; set; } = "";
