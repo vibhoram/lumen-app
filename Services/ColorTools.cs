@@ -75,6 +75,66 @@ public static class ColorTools
         }
     }
 
+    /// <summary>
+    /// A small palette of distinct vivid colours from the artwork (the way a Now Bar tints itself from the cover):
+    /// hue buckets weighted toward saturated mid-tones, the heaviest few kept apart in hue, then made lively.
+    /// </summary>
+    public static List<Color> Palette(BitmapSource source, int count)
+    {
+        var result = new List<Color>();
+        try
+        {
+            const int size = 40;
+            var scaled = new TransformedBitmap(source, new ScaleTransform((double)size / source.PixelWidth, (double)size / source.PixelHeight));
+            var bgra = new FormatConvertedBitmap(scaled, PixelFormats.Bgra32, null, 0);
+            int w = bgra.PixelWidth, h = bgra.PixelHeight;
+            var pixels = new byte[w * h * 4];
+            bgra.CopyPixels(pixels, w * 4, 0);
+
+            const int buckets = 18;
+            var weight = new double[buckets];
+            var r = new double[buckets];
+            var g = new double[buckets];
+            var b = new double[buckets];
+            for (var i = 0; i < pixels.Length; i += 4)
+            {
+                var c = Color.FromRgb(pixels[i + 2], pixels[i + 1], pixels[i]);
+                var (hue, sat, light) = ToHsl(c);
+                var wgt = sat * (1 - Math.Abs(light - 0.5) * 1.6);
+                if (wgt <= 0.02) continue;
+                var k = (int)(hue / 360 * buckets) % buckets;
+                weight[k] += wgt;
+                r[k] += c.R * wgt;
+                g[k] += c.G * wgt;
+                b[k] += c.B * wgt;
+            }
+
+            var picked = new List<double>(); // hues already used
+            foreach (var k in Enumerable.Range(0, buckets).OrderByDescending(i => weight[i]))
+            {
+                if (weight[k] <= 0 || result.Count >= count) break;
+                var avg = Color.FromRgb((byte)(r[k] / weight[k]), (byte)(g[k] / weight[k]), (byte)(b[k] / weight[k]));
+                var (hue, sat, _) = ToHsl(avg);
+                if (picked.Any(p => Math.Min(Math.Abs(p - hue), 360 - Math.Abs(p - hue)) < 38)) continue;
+                picked.Add(hue);
+                result.Add(FromHsl(hue, Math.Clamp(Math.Max(sat, 0.6), 0, 1), 0.6)); // lively, readable on dark glass
+            }
+            // Mostly grey artwork: fall back to cool light tones so the bars still glow.
+            if (result.Count == 0) result.Add(Color.FromRgb(0xCF, 0xD6, 0xFF));
+            while (result.Count < count)
+            {
+                var (hue, sat, _) = ToHsl(result[0]);
+                result.Add(FromHsl((hue + 26 * result.Count) % 360, Math.Max(sat, 0.5), 0.64));
+            }
+        }
+        catch (Exception)
+        {
+            result.Clear();
+            result.AddRange(new[] { Color.FromRgb(0x9F, 0xB4, 0xFF), Color.FromRgb(0xFF, 0x9F, 0xD0), Color.FromRgb(0x9F, 0xF0, 0xFF), Color.FromRgb(0xFF, 0xD8, 0x9F) }.Take(count));
+        }
+        return result;
+    }
+
     private static (double H, double S, double L) ToHsl(Color c)
     {
         double r = c.R / 255.0, g = c.G / 255.0, b = c.B / 255.0;

@@ -819,12 +819,22 @@
               Visibility="Collapsed" RenderTransformOrigin="0,0.5" Cursor="Hand">
             <Grid.RenderTransform><ScaleTransform /></Grid.RenderTransform>
             <Ellipse Fill="{StaticResource BubbleFill}" Stroke="{StaticResource BubbleRim}" StrokeThickness="1" />
+                <Ellipse x:Name="AuraGlow" Margin="3" Opacity="0.35" IsHitTestVisible="False" RenderTransformOrigin="0.5,0.5">
+                    <Ellipse.RenderTransform><ScaleTransform x:Name="AuraScale" ScaleX="0.85" ScaleY="0.85" /></Ellipse.RenderTransform>
+                    <Ellipse.Fill>
+                        <RadialGradientBrush>
+                            <GradientStop x:Name="AuraStopA" Color="#FF9FB4FF" Offset="0" />
+                            <GradientStop x:Name="AuraStopB" Color="#009FB4FF" Offset="1" />
+                        </RadialGradientBrush>
+                    </Ellipse.Fill>
+                </Ellipse>
                 <StackPanel x:Name="Equalizer" Orientation="Horizontal"
                             VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0">
-                    <Rectangle Width="3" Height="14" RadiusX="1.5" RadiusY="1.5" Margin="1,0" Fill="{StaticResource Green}" />
-                    <Rectangle Width="3" Height="14" RadiusX="1.5" RadiusY="1.5" Margin="1,0" Fill="{StaticResource Green}" />
-                    <Rectangle Width="3" Height="14" RadiusX="1.5" RadiusY="1.5" Margin="1,0" Fill="{StaticResource Green}" />
-                    <Rectangle Width="3" Height="14" RadiusX="1.5" RadiusY="1.5" Margin="1,0" Fill="{StaticResource Green}" />
+                    <Rectangle Width="3.2" Height="22" RadiusX="1.6" RadiusY="1.6" Margin="1.3,0" Fill="{StaticResource Green}" />
+                    <Rectangle Width="3.2" Height="22" RadiusX="1.6" RadiusY="1.6" Margin="1.3,0" Fill="{StaticResource Green}" />
+                    <Rectangle Width="3.2" Height="22" RadiusX="1.6" RadiusY="1.6" Margin="1.3,0" Fill="{StaticResource Green}" />
+                    <Rectangle Width="3.2" Height="22" RadiusX="1.6" RadiusY="1.6" Margin="1.3,0" Fill="{StaticResource Green}" />
+                    <Rectangle Width="3.2" Height="22" RadiusX="1.6" RadiusY="1.6" Margin="1.3,0" Fill="{StaticResource Green}" />
                 </StackPanel>
         </Grid>
 
@@ -854,6 +864,16 @@
             <Border.RenderTransform><ScaleTransform /></Border.RenderTransform>
             <StackPanel x:Name="TrayRow" Orientation="Horizontal" />
         </Border>
+
+        <!-- Pinned timer: stays beside the island (even when it is open) until you unpin it. -->
+        <Grid x:Name="PinnedTimerBubble" HorizontalAlignment="Left" VerticalAlignment="Top" Width="40" Height="40"
+              Visibility="Collapsed" RenderTransformOrigin="1,0.5" Cursor="Hand">
+            <Grid.RenderTransform><ScaleTransform /></Grid.RenderTransform>
+            <Ellipse Fill="{StaticResource BubbleFill}" Stroke="{StaticResource BubbleRim}" StrokeThickness="1" />
+            <Path x:Name="PinnedTimerRing" StrokeThickness="2.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" IsHitTestVisible="False" />
+            <TextBlock x:Name="PinnedTimerText" FontSize="10.5" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       Typography.NumeralAlignment="Tabular" />
+        </Grid>
 
         <!-- Third activity: a second bubble after the first. -->
         <Grid x:Name="ActivityBubble2" HorizontalAlignment="Left" VerticalAlignment="Top" Width="36" Height="36"

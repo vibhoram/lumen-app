@@ -152,6 +152,7 @@ public partial class MainWindow : Window
         WirePet();
         WireSnooze();
         WireTray();
+        WireMenu();
         WireCarry();
         ApplyMusicLayout();
         FocusPage.Children.Add(new FocusPanel(_focusSession, _settings, _timer));
@@ -1455,6 +1456,13 @@ public partial class MainWindow : Window
             MediaDiscBubble.Width = MediaDiscBubble.Height = disc;
             MediaDiscBubble.Margin = new Thickness((BaseWidth - w) / 2 - 7 - disc, PillTop + (h - disc) / 2, 0, 0);
         }
+        if (PinnedTimerBubble.Visibility == Visibility.Visible)
+        {
+            var size = Math.Max(30, h + 4);
+            PinnedTimerBubble.Width = PinnedTimerBubble.Height = size;
+            var leftOfPill = (BaseWidth - w) / 2 - (MediaDiscBubble.Visibility == Visibility.Visible ? MediaDiscBubble.Width + 7 : 0);
+            PinnedTimerBubble.Margin = new Thickness(leftOfPill - 7 - size, PillTop + (h - size) / 2, 0, 0);
+        }
         foreach (var bubble in new[] { MediaPulseBubble, ActivityBubble, ActivityBubble2, IdleWeatherBubble, CarryBubble })
         {
             if (bubble.Visibility != Visibility.Visible) continue;
@@ -2612,6 +2620,7 @@ public partial class MainWindow : Window
             _ => now.ToString(seconds ? "T" : "t"),
         };
 
+        var timeSizeMoon = 14.0;
         var minimal = _settings.IdleStyle == IdleStyle.Minimal;
         var style = _settings.ClockStyle;
         var showDate = _settings.ShowDateWhenIdle && style is ClockStyle.Classic or ClockStyle.Stacked or ClockStyle.Analog;
@@ -2619,7 +2628,7 @@ public partial class MainWindow : Window
         var weather = _settings.WeatherEnabled && _settings.WeatherInIdlePill ? _weather.Current : null;
         var weatherKey = weather is null ? null : $"{weather.Kind}|{weather.IsDay}|{Degrees(weather.Temperature)}";
         var visibility = minimal ? Visibility.Collapsed : Visibility.Visible;
-        var styleKey = $"{style}|{_settings.ClockFont}|{showDate}|{_settings.WeatherSeparate}|{minimal}";
+        var styleKey = $"{style}|{_settings.ClockFont}|{showDate}|{_settings.WeatherSeparate}|{minimal}|{Quiet}";
         if (idleText == ClockText.Text && styleKey == _clockStyleKey && visibility == ClockRow.Visibility && time == BigTime.Text
             && weatherKey == _clockWeatherKey)
             return;
@@ -2632,6 +2641,7 @@ public partial class MainWindow : Window
         // The idle clock in the chosen style and font: date quiet, time bold.
         ClockText.FontFamily = new FontFamily($"{_settings.ClockFont}, Segoe UI Variable, Segoe UI");
         ClockText.Inlines.Clear();
+        if (Quiet) ClockText.Inlines.Add(new System.Windows.Documents.Run("\u263E  ") { FontSize = timeSizeMoon, Foreground = (Brush)FindResource("Secondary") });
         var secondaryBrush = (Brush)FindResource("Secondary");
         var timeSize = style == ClockStyle.Big ? 18.0 : 14.5;
         ClockFace.Visibility = style == ClockStyle.Analog ? Visibility.Visible : Visibility.Collapsed;
@@ -2792,7 +2802,7 @@ public partial class MainWindow : Window
         Brush? detailBrush = null, Brush? glyphBrush = null, double? seconds = null)
     {
         // Hidden: nothing to show, and animating an invisible window would only cost CPU.
-        if (IslandHidden || !_state.CanShowTransient(priority)) return;
+        if (IslandHidden || !_state.CanShowTransient(priority) || (Quiet && priority < TransientPriority.TimerDone)) return;
         InfoGlyph.Text = glyph;
         InfoGlyph.Foreground = glyphBrush ?? Brushes.White;
         InfoTitle.Text = title;
@@ -2909,6 +2919,7 @@ public partial class MainWindow : Window
     {
         // Windows holds toasts back during Do Not Disturb; so does the island.
         if (!_settings.NotificationsEnabled || IslandHidden || _focus.IsOn) return;
+        if (Quiet) return; // quiet mode: it stays in the Notifications page, nothing pops up
         _pet.React(PetEvent.Notification, n.AppName);
         _shownNotification = n;
         CarryNotification(n);
@@ -3789,6 +3800,7 @@ public partial class MainWindow : Window
         TimerTextSmall.Text = text;
         TimerTextLarge.Text = text;
         UpdateBubbleRings();
+        UpdatePinnedTimer();
     }
 
     private void OnTimerStateChanged()
@@ -4032,6 +4044,7 @@ public partial class MainWindow : Window
                 SetArt(MediaArtLarge, MediaArtLargeFallback, shownArt);
                 ArtBanner.Background = shownArt?.CreateBrush();
                 MediaDiscArt.Fill = shownArt is null ? new SolidColorBrush(Color.FromArgb(0x33, 255, 255, 255)) : shownArt.CreateBrush();
+                UpdatePalette();
             }
             PlayPauseGlyph.Text = media.IsPlaying ? "" : "";
             PrevButton.IsEnabled = media.CanPrevious;
@@ -4100,7 +4113,7 @@ public partial class MainWindow : Window
     // ---- real waveform: bars follow the output level (left / right peaks), 30 fps while visible.
     private readonly AudioMeter _meter = new();
     private readonly DispatcherTimer _meterTimer = new(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(33) };
-    private readonly double[] _barLevels = new double[4];
+    private readonly double[] _barLevels = new double[8];
     private bool _meterRunning;
 
     /// <summary>
@@ -4118,7 +4131,7 @@ public partial class MainWindow : Window
         var i = 0;
         foreach (UIElement bar in Equalizer.Children)
         {
-            var mix = i switch { 0 => l, 1 => 0.6 * l + 0.4 * r, 2 => 0.4 * l + 0.6 * r, _ => r };
+            var mix = i switch { 0 => l, 1 => 0.7 * l + 0.3 * r, 2 => 0.5 * l + 0.5 * r, 3 => 0.3 * l + 0.7 * r, _ => r };
             var wobble = 0.82 + 0.18 * Math.Sin(t * (7.3 + 2.9 * i) + i * 1.7);
             var target = Math.Clamp(mix * wobble, 0, 1);
             // Fast attack, slower release, different per bar.
@@ -4127,6 +4140,10 @@ public partial class MainWindow : Window
             ((ScaleTransform)bar.RenderTransform).ScaleY = 0.22 + 0.78 * _barLevels[i];
             i++;
         }
+        // the soft aura behind the bars breathes with the overall level
+        var average = _barLevels.Take(Math.Max(1, i)).Average();
+        AuraGlow.Opacity = 0.22 + 0.7 * average;
+        AuraScale.ScaleX = AuraScale.ScaleY = 0.82 + 0.4 * average;
     }
 
     private void SetMeterRunning(bool running)

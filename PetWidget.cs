@@ -10,7 +10,9 @@ using System.Windows.Threading;
 
 namespace DIsland;
 
-public enum PetKind { Cat, Dog, Bunny, Robot }
+public enum PetKind { Cat, Dog, Bunny, Robot, Fox, Panda }
+
+public enum PetOutfit { None, Hat, Bow, Glasses, Scarf }
 
 /// <summary>Things happening on the PC that the pet notices.</summary>
 public enum PetEvent { Notification, Copy, TimerDone, MusicStart, LowBattery, FocusStart, FocusEnd, Device, Click, Shake }
@@ -78,6 +80,18 @@ public sealed class PetWidget : Canvas
         MouseLeftButtonUp += (_, e) => { e.Handled = true; React(PetEvent.Click); };
         _timer.Tick += (_, _) => Tick();
         Build();
+        MouseRightButtonUp += (_, e) =>
+        {
+            e.Handled = true;
+            var dark = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x2A));
+            var menu = new ContextMenu { Background = dark, Foreground = Brushes.White, Padding = new Thickness(4) };
+            MenuItem Item(string text, Action a) { var m = new MenuItem { Header = text, Background = dark, Foreground = Brushes.White }; m.Click += (_, _) => a(); return m; }
+            menu.Items.Add(Item("Feed a treat", Feed));
+            menu.Items.Add(Item("Pet", () => React(PetEvent.Click)));
+            menu.Items.Add(Item(_mood == Mood.Sleep ? "Wake up" : "Take a nap", () => SetMood(_mood == Mood.Sleep ? Mood.Idle : Mood.Yawn)));
+            menu.PlacementTarget = this;
+            menu.IsOpen = true;
+        };
     }
 
     public PetKind Kind
@@ -111,6 +125,40 @@ public sealed class PetWidget : Canvas
         }
     }
 
+    public PetOutfit Outfit
+    {
+        get => _outfit;
+        set { if (value == _outfit) return; _outfit = value; Build(); }
+    }
+    private PetOutfit _outfit = PetOutfit.None;
+
+    /// <summary>Quiet mode: the pet curls up and says nothing.</summary>
+    public bool Quiet
+    {
+        get => _quiet;
+        set
+        {
+            if (value == _quiet) return;
+            _quiet = value;
+            if (value) { _bubble.Opacity = 0; SetMood(Mood.Sleep); _moodLeft = 9999; }
+            else SetMood(Mood.Idle);
+        }
+    }
+    private bool _quiet;
+
+    // ---- hunger and care
+    private double _hunger;
+
+    /// <summary>Feed the pet a treat.</summary>
+    public void Feed()
+    {
+        _hunger = 0;
+        _excitedT = 0;
+        SetMood(Mood.Excited);
+        _heart.Opacity = 1;
+        Say(Pick("yum!", "nom nom", "my favourite", "thank you!"));
+    }
+
     public bool Talks { get => _talks; set => _talks = value; }
 
     /// <summary>Studying (a focus session is running): the pet sits quietly with a little book.</summary>
@@ -137,6 +185,7 @@ public sealed class PetWidget : Canvas
 
     public void React(PetEvent evt, string? detail = null)
     {
+        if (_quiet && evt != PetEvent.Click) return;
         switch (evt)
         {
             case PetEvent.Notification:
@@ -188,7 +237,7 @@ public sealed class PetWidget : Canvas
     /// <summary>A little speech bubble beside the pet.</summary>
     private void Say(string text, double seconds = 2.8)
     {
-        if (!_talks) return;
+        if (!_talks || _quiet) return;
         ((TextBlock)_bubble.Child).Text = text;
         _bubble.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         var right = _x < (_minX + _maxX) / 2; // keep it on the side with room
@@ -218,6 +267,8 @@ public sealed class PetWidget : Canvas
             PetKind.Dog => (Solid("#D9A86C"), Solid("#8B5A2B"), Solid("#F0D5A8"), Solid("#8B5A2B")),
             PetKind.Bunny => (Solid("#F4F4F8"), Solid("#D8D8E2"), Solid("#FFFFFF"), Solid("#FFB3C7")),
             PetKind.Robot => (Solid("#9FB3C8"), Solid("#6B7F94"), Solid("#C9D6E3"), Solid("#2DD4FF")),
+            PetKind.Fox => (Solid("#E8803A"), Solid("#2B2B33"), Solid("#FFF2E2"), Solid("#2B2B33")),
+            PetKind.Panda => (Solid("#F6F6F9"), Solid("#2A2A32"), Solid("#FFFFFF"), Solid("#2A2A32")),
             _ => (Solid("#E9B27A"), Solid("#C98A52"), Solid("#F7DDBE"), Solid("#FFB3C7")),
         };
 
@@ -229,6 +280,13 @@ public sealed class PetWidget : Canvas
         {
             case PetKind.Cat:
                 tail.Children.Add(new Path { Data = Geometry.Parse("M 8,21 C 0,20 -2,12 3,9"), Stroke = body, StrokeThickness = 3.4, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round });
+                break;
+            case PetKind.Fox:
+                tail.Children.Add(new Path { Data = Geometry.Parse("M 8,22 C -1,22 -3,13 2,9"), Stroke = body, StrokeThickness = 6.4, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round });
+                tail.Children.Add(new Ellipse { Width = 5, Height = 5, Fill = belly, Margin = new Thickness(-0.5, 6, 0, 0) });
+                break;
+            case PetKind.Panda:
+                tail.Children.Add(new Ellipse { Width = 6, Height = 6, Fill = body, Stroke = dark, StrokeThickness = 0.6, Margin = new Thickness(1, 17, 0, 0) });
                 break;
             case PetKind.Dog:
                 tail.Children.Add(new Path { Data = Geometry.Parse("M 8,21 L 3,14"), Stroke = body, StrokeThickness = 4, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round });
@@ -246,8 +304,9 @@ public sealed class PetWidget : Canvas
         AddLeg(dark, 10, 0);
         AddLeg(dark, 24, Math.PI);
         _sprite.Children.Add(MakeBody(body, belly));
-        AddLeg(body, 14, Math.PI);
-        AddLeg(body, 29, 0);
+        var near = _kind == PetKind.Panda ? dark : body;
+        AddLeg(near, 14, Math.PI);
+        AddLeg(near, 29, 0);
 
         // head group nods independently
         var head = new Canvas { RenderTransform = _headNod };
@@ -262,9 +321,15 @@ public sealed class PetWidget : Canvas
             head.Children.Add(Place(new Ellipse { Width = 15, Height = 14, Fill = body }, 22, 10));
             switch (_kind)
             {
+                case PetKind.Panda:
+                    head.Children.Add(Place(new Ellipse { Width = 5.4, Height = 5.4, Fill = dark }, 23, 7.6));
+                    head.Children.Add(Place(new Ellipse { Width = 5.4, Height = 5.4, Fill = dark }, 33, 7.6));
+                    head.Children.Add(Place(new Ellipse { Width = 5.2, Height = 6, Fill = dark, RenderTransform = new RotateTransform(-18, 2.6, 3) }, 30.4, 12.4)); // eye patch
+                    break;
                 case PetKind.Cat:
-                    head.Children.Add(Place(new Polygon { Points = Points("0,7 1.2,0 5,4.6"), Fill = body }, 23.5, 7));
-                    head.Children.Add(Place(new Polygon { Points = Points("0,4.6 3.8,0 5,7"), Fill = body }, 31, 7));
+                case PetKind.Fox:
+                    head.Children.Add(Place(new Polygon { Points = Points("0,7 1.2,0 5,4.6"), Fill = _kind == PetKind.Fox ? dark : body }, 23.5, 7));
+                    head.Children.Add(Place(new Polygon { Points = Points("0,4.6 3.8,0 5,7"), Fill = _kind == PetKind.Fox ? dark : body }, 31, 7));
                     head.Children.Add(Place(new Polygon { Points = Points("1,5.4 1.8,2 3.6,4.2"), Fill = earInner }, 24, 8.4));
                     head.Children.Add(Place(new Polygon { Points = Points("0.4,4.2 2.2,2 3,5.4"), Fill = earInner }, 32, 8.4));
                     break;
@@ -280,11 +345,32 @@ public sealed class PetWidget : Canvas
                     break;
             }
         }
-        _eye.Fill = _kind == PetKind.Robot ? Solid("#2DD4FF") : Solid("#2B2B33");
+        _eye.Fill = _kind == PetKind.Robot ? Solid("#2DD4FF") : _kind == PetKind.Panda ? Solid("#FFFFFF") : Solid("#2B2B33");
         _eye.RenderTransform = new TransformGroup { Children = { _blink, _pupil } };
         head.Children.Add(Place(_eye, 32.6, 14.4));
         head.Children.Add(Place(new Ellipse { Width = 2.8, Height = 2.1, Fill = _kind == PetKind.Robot ? dark : Solid("#E58A9A") }, 36.2, 18.2));
         head.Children.Add(Place(_mouth, 35.6, 20.4));
+        switch (Outfit)
+        {
+            case PetOutfit.Hat:
+                head.Children.Add(Place(new Polygon { Points = Points("0,9 5,0 10,9"), Fill = Solid("#7C5CFF"), Stroke = Solid("#C9B8FF"), StrokeThickness = 0.6 }, 25.5, -1));
+                head.Children.Add(Place(new Ellipse { Width = 3.4, Height = 3.4, Fill = Solid("#FFD66B") }, 28.8, -3));
+                break;
+            case PetOutfit.Bow:
+                head.Children.Add(Place(new Polygon { Points = Points("0,0 6,3 0,6"), Fill = Solid("#FF6B9A") }, 22, 6.5));
+                head.Children.Add(Place(new Polygon { Points = Points("12,0 6,3 12,6"), Fill = Solid("#FF6B9A") }, 22, 6.5));
+                head.Children.Add(Place(new Ellipse { Width = 3.2, Height = 3.2, Fill = Solid("#FF3F7F") }, 26.4, 8));
+                break;
+            case PetOutfit.Glasses:
+                head.Children.Add(Place(new Ellipse { Width = 6.4, Height = 6.4, Stroke = Solid("#20202A"), StrokeThickness = 1.1, Fill = new SolidColorBrush(Color.FromArgb(0x30, 120, 200, 255)) }, 29.6, 11.6));
+                head.Children.Add(Place(new Ellipse { Width = 5.2, Height = 5.2, Stroke = Solid("#20202A"), StrokeThickness = 1.1, Fill = new SolidColorBrush(Color.FromArgb(0x30, 120, 200, 255)) }, 23.6, 11.8));
+                head.Children.Add(Place(new Line { X1 = 28.8, Y1 = 14.5, X2 = 29.8, Y2 = 14.5, Stroke = Solid("#20202A"), StrokeThickness = 1 }, 0, 0));
+                break;
+            case PetOutfit.Scarf:
+                head.Children.Add(Place(new Rectangle { Width = 12, Height = 4.2, RadiusX = 2, RadiusY = 2, Fill = Solid("#E8504A") }, 23.2, 20.6));
+                head.Children.Add(Place(new Rectangle { Width = 3.4, Height = 6, RadiusX = 1.2, RadiusY = 1.2, Fill = Solid("#C93A34") }, 24, 22.4));
+                break;
+        }
         _sprite.Children.Add(head);
         _sprite.Children.Add(Place(_book, 29, SpriteHeight - 9));
 
@@ -358,6 +444,8 @@ public sealed class PetWidget : Canvas
         _phase += dt;
         _moodLeft -= dt;
         if (!_cursorNear) _cursorAway += dt;
+        if (_quiet && _mood != Mood.Sleep) SetMood(Mood.Sleep);
+        if (_quiet) _moodLeft = 9999;
 
         // speech bubble fades out; now and then an idle remark
         if (_speechLeft > 0)
@@ -365,6 +453,8 @@ public sealed class PetWidget : Canvas
             _speechLeft -= dt;
             if (_speechLeft < 0.4) _bubble.Opacity = Math.Max(0, _speechLeft / 0.4);
         }
+        _hunger = Math.Min(1, _hunger + dt / 480);   // hungry after about eight minutes
+        if (_hunger > 0.9 && _speechLeft <= 0 && !_quiet && _mood is Mood.Idle or Mood.Walk or Mood.Watch && _rng.NextDouble() < dt / 40) Say(Pick("I'm hungry...", "is it snack time?", "my tummy is rumbling"), 3);
         _quipIn -= dt;
         if (_quipIn <= 0)
         {

@@ -29,7 +29,7 @@ public sealed class QuickLink
     public string Url { get; set; } = "";
 }
 
-public enum EqualizerLook { Silver, Song, Mint, Sunset }
+public enum EqualizerLook { Aura, Silver, Song, Mint, Sunset }
 
 public enum CompactTime { Off, Elapsed, Remaining }
 
@@ -209,6 +209,9 @@ public sealed class AppSettings
     /// <summary>Show a Copy button when a notification contains a verification code.</summary>
     public bool CopyCodes { get; set; } = true;
 
+    /// <summary>Pet look: 0 none, then hat, bow, glasses, scarf.</summary>
+    public PetOutfit PetOutfit { get; set; } = PetOutfit.None;
+
     /// <summary>Minutes a snoozed notification or alarm waits before it comes back.</summary>
     public int SnoozeMinutes { get; set; } = 10;
 
@@ -219,7 +222,7 @@ public sealed class AppSettings
     /// <summary>Collapsed music: the album art becomes a spinning disc and the equalizer a pulse bubble, separate from the title pill.</summary>
     public bool MusicSplit { get; set; } = true;
     /// <summary>How the audio-reactive bars look.</summary>
-    public EqualizerLook EqualizerLook { get; set; } = EqualizerLook.Silver;
+    public EqualizerLook EqualizerLook { get; set; } = EqualizerLook.Aura;
     /// <summary>A notification or copy leaves a small bubble beside the pill for this many seconds (0 = off).</summary>
     public int CarrySeconds { get; set; } = 8;
 

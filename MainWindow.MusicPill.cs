@@ -46,7 +46,7 @@ public partial class MainWindow
         MediaDiscSpin.BeginAnimation(RotateTransform.AngleProperty, null);
         if (show && _media.Current is { Duration.Ticks: > 0 } media)
         {
-            MediaDiscRing.Stroke = RingMedia;
+            MediaDiscRing.Stroke = _discRing;
             MediaDiscRing.Data = RingGeometry(Math.Max(26, MediaDiscBubble.Width), Math.Clamp(media.EstimatePosition(DateTimeOffset.Now) / media.Duration, 0, 1));
         }
         else MediaDiscRing.Data = Geometry.Empty;

@@ -178,7 +178,7 @@ public partial class SettingsWindow : Window
         Choice(media, "Time on the pill", new[] { (CompactTime.Off, "Off"), (CompactTime.Elapsed, "Elapsed"), (CompactTime.Remaining, "Remaining") },
             () => s.CompactMediaTime, v => s.CompactMediaTime = v);
         Check(media, "Split the collapsed music pill: spinning album disc and pulse bubble beside the title", () => s.MusicSplit, v => s.MusicSplit = v);
-        Choice(media, "Audio bars", new[] { (EqualizerLook.Silver, "Silver"), (EqualizerLook.Song, "Song colour"), (EqualizerLook.Mint, "Mint"), (EqualizerLook.Sunset, "Sunset") }, () => s.EqualizerLook, v => s.EqualizerLook = v);
+        Choice(media, "Audio bars", new[] { (EqualizerLook.Aura, "Aura (cover colours)"), (EqualizerLook.Silver, "Silver"), (EqualizerLook.Song, "Song colour"), (EqualizerLook.Mint, "Mint"), (EqualizerLook.Sunset, "Sunset") }, () => s.EqualizerLook, v => s.EqualizerLook = v);
         Check(media, "Artist name under the title on the collapsed pill", () => s.ShowArtistOnPill, v => s.ShowArtistOnPill = v);
         Check(media, "Thin progress line along the collapsed pill", () => s.CompactProgressLine, v => s.CompactProgressLine = v);
         Check(media, "Find real album art when a browser only gives an icon", () => s.AutoAlbumArt, v => s.AutoAlbumArt = v);
@@ -232,9 +232,10 @@ public partial class SettingsWindow : Window
 
         var pet = Section("COMPANION", "Companion");
         Check(pet, "A little pet walks beneath the island", () => s.PetEnabled, v => s.PetEnabled = v);
-        Choice(pet, "Pet", new[] { (PetKind.Cat, "Cat"), (PetKind.Dog, "Dog"), (PetKind.Bunny, "Bunny"), (PetKind.Robot, "Robot") }, () => s.PetKind, v => s.PetKind = v);
+        Choice(pet, "Pet", new[] { (PetKind.Cat, "Cat"), (PetKind.Dog, "Dog"), (PetKind.Bunny, "Bunny"), (PetKind.Robot, "Robot"), (PetKind.Fox, "Fox"), (PetKind.Panda, "Panda") }, () => s.PetKind, v => s.PetKind = v);
+        Choice(pet, "Outfit", new[] { (PetOutfit.None, "None"), (PetOutfit.Hat, "Party hat"), (PetOutfit.Bow, "Bow"), (PetOutfit.Glasses, "Glasses"), (PetOutfit.Scarf, "Scarf") }, () => s.PetOutfit, v => s.PetOutfit = v);
         Check(pet, "The pet talks (speech bubbles)", () => s.PetTalks, v => s.PetTalks = v);
-        Note(pet, "It walks, naps, yawns, watches your cursor and follows it, dances to music, studies during a focus session, reacts to notifications, timers, copies and low battery, and hops when you click it. It only appears while the island is collapsed.");
+        Note(pet, "Right-click the pet to feed it, pet it or send it to nap. Quiet mode (right-click the island) makes it sleep. It walks, naps, yawns, watches your cursor and follows it, dances to music, studies during a focus session, reacts to notifications, timers, copies and low battery, and hops when you click it. It only appears while the island is collapsed.");
 
         var clip = Section("CLIPBOARD HISTORY", "Clipboard");
         Check(clip, "Keep a history of what I copy", () => s.ClipboardHistoryEnabled, v => s.ClipboardHistoryEnabled = v);

@@ -91,24 +91,63 @@ public partial class MainWindow
         MusicTick();
     }
 
-    /// <summary>Soft, clean colours for the audio bars (silver by default) instead of a flat accent blue.</summary>
+    private List<Color> _palette = new() { Color.FromRgb(0xCF, 0xD6, 0xFF), Color.FromRgb(0xFF, 0xC8, 0xE8), Color.FromRgb(0xBF, 0xF2, 0xFF), Color.FromRgb(0xFF, 0xE2, 0xB0) };
+
+    /// <summary>The cover's colours drive the bars, the glow behind them and the disc's ring; they ease from song to song.</summary>
+    private void UpdatePalette()
+    {
+        var art = _shownArt?.Still;
+        if (art is not null) _palette = ColorTools.Palette(art, 4);
+        ApplyEqualizerLook(_media.Current?.Accent ?? Colors.White);
+    }
+
+    private static void EaseColor(GradientStop stop, Color to)
+    {
+        if (stop.IsFrozen) return;
+        stop.BeginAnimation(GradientStop.ColorProperty, new System.Windows.Media.Animation.ColorAnimation(to, TimeSpan.FromMilliseconds(650)) { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } });
+    }
+
+    /// <summary>Looks for the audio bars: Aura takes the cover's colours (like Samsung's Now Bar); the others are fixed palettes.</summary>
     private void ApplyEqualizerLook(Color accent)
     {
         var i = 0;
         foreach (System.Windows.Shapes.Rectangle bar in Equalizer.Children)
         {
-            Brush fill = _settings.EqualizerLook switch
+            if (_settings.EqualizerLook == EqualizerLook.Aura)
             {
-                EqualizerLook.Song => new LinearGradientBrush(Colors.White, BrightenAccent(accent), 90),
-                EqualizerLook.Mint => new LinearGradientBrush(Color.FromRgb(0xE8, 0xFF, 0xF4), Color.FromRgb(0x3F, 0xE0, 0xA0), 90),
-                EqualizerLook.Sunset => new SolidColorBrush(new[] { Color.FromRgb(0xFF, 0x7A, 0x9C), Color.FromRgb(0xFF, 0xA8, 0x5C), Color.FromRgb(0xFF, 0xD6, 0x6B), Color.FromRgb(0xA6, 0x8B, 0xFF) }[i % 4]),
-                _ => new LinearGradientBrush(Color.FromRgb(0xFF, 0xFF, 0xFF), Color.FromRgb(0xA9, 0xAF, 0xC2), 90),
-            };
-            if (fill.CanFreeze) fill.Freeze();
-            bar.Fill = fill;
+                var top = _palette[i % _palette.Count];
+                var bottom = ColorTools.Mix(_palette[(i + 1) % _palette.Count], Colors.White, 0.12);
+                if (bar.Fill is LinearGradientBrush existing && !existing.IsFrozen && existing.GradientStops.Count == 2)
+                {
+                    EaseColor(existing.GradientStops[0], top);
+                    EaseColor(existing.GradientStops[1], bottom);
+                }
+                else bar.Fill = new LinearGradientBrush(top, bottom, 90);
+            }
+            else
+            {
+                Brush fill = _settings.EqualizerLook switch
+                {
+                    EqualizerLook.Song => new LinearGradientBrush(Colors.White, BrightenAccent(accent), 90),
+                    EqualizerLook.Mint => new LinearGradientBrush(Color.FromRgb(0xE8, 0xFF, 0xF4), Color.FromRgb(0x3F, 0xE0, 0xA0), 90),
+                    EqualizerLook.Sunset => new SolidColorBrush(new[] { Color.FromRgb(0xFF, 0x7A, 0x9C), Color.FromRgb(0xFF, 0xA8, 0x5C), Color.FromRgb(0xFF, 0xD6, 0x6B), Color.FromRgb(0xA6, 0x8B, 0xFF) }[i % 4]),
+                    _ => new LinearGradientBrush(Color.FromRgb(0xFF, 0xFF, 0xFF), Color.FromRgb(0xA9, 0xAF, 0xC2), 90),
+                };
+                bar.Fill = fill;
+            }
             i++;
         }
+        var glow = _settings.EqualizerLook == EqualizerLook.Aura ? _palette[0] : Colors.White;
+        EaseColor(AuraStopA, glow);
+        EaseColor(AuraStopB, Color.FromArgb(0, glow.R, glow.G, glow.B));
+        AuraGlow.Visibility = _settings.EqualizerLook == EqualizerLook.Aura ? Visibility.Visible : Visibility.Collapsed;
+        // the disc's progress ring and the pill's thin line take the lead colour too
+        _discRing = new SolidColorBrush(_settings.EqualizerLook == EqualizerLook.Aura ? _palette[0] : Colors.White);
+        _discRing.Freeze();
+        MediaDiscRing.Stroke = _discRing;
     }
+
+    private Brush _discRing = Brushes.White;
 
     private static Color BrightenAccent(Color c)
     {
@@ -197,6 +236,7 @@ public partial class MainWindow
         else MediaTimeSmall.Visibility = Visibility.Collapsed;
         MediaLineScale.ScaleX = fraction;
         if (_state.IsExpanded) ProgressBar.Fraction = fraction;
+        UpdateBubbleRings(); // the disc's ring and the activity rings follow the song
 
         var line = _lyricLines is { } lines ? MusicLookup.LineAt(lines, position).Current : "";
         MediaLyricLarge.Text = line;

@@ -30,6 +30,7 @@ public partial class MainWindow
         if (_pet is null) return;
         _pet.Kind = _settings.PetKind;
         _pet.Talks = _settings.PetTalks;
+        _pet.Outfit = _settings.PetOutfit;
         if (!_settings.PetEnabled) { _pet.Visibility = Visibility.Collapsed; _pet.Running = false; }
     }
 
