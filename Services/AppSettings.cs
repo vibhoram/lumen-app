@@ -184,6 +184,15 @@ public sealed class AppSettings
     /// <summary>Hold Ctrl over the island and it fades and lets clicks through to the window behind (e.g. browser tabs).</summary>
     public bool CtrlPeek { get; set; } = true;
 
+    // ---- AI assistant (Groq). The key lives only in this settings file, outside the source tree.
+    public bool AssistantEnabled { get; set; } = true;
+    public string GroqApiKey { get; set; } = "";
+    public string GroqModel { get; set; } = "qwen/qwen3.8-27b";
+    /// <summary>Attach a fresh screenshot to every message automatically.</summary>
+    public bool AssistantLiveScreen { get; set; }
+    /// <summary>System-wide shortcut: grabs the screen, opens the assistant and focuses the input.</summary>
+    public string AssistantHotkey { get; set; } = "Ctrl+Alt+J";
+
     public ShakeSensitivity ShakeSensitivity { get; set; } = ShakeSensitivity.Medium;
 
     /// <summary>System-wide shortcut that hides / shows the island, e.g. "Ctrl+Alt+I"; empty = none.</summary>

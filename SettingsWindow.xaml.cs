@@ -188,6 +188,13 @@ public partial class SettingsWindow : Window
         Choice(calendar, "Remind me", new[] { (0, "Off"), (1, "1 min"), (5, "5 min"), (10, "10 min"), (15, "15 min") },
             () => s.CalendarReminderMinutes, v => s.CalendarReminderMinutes = v);
 
+        var ai = Section("AI ASSISTANT", "AI Assistant");
+        Check(ai, "Show the AI Assistant page", () => s.AssistantEnabled, v => s.AssistantEnabled = v);
+        Check(ai, "Live screen: attach a fresh screenshot to every message", () => s.AssistantLiveScreen, v => s.AssistantLiveScreen = v);
+        TextRow(ai, "Groq API key", () => s.GroqApiKey, v => s.GroqApiKey = v.Trim());
+        TextRow(ai, "Model", () => s.GroqModel, v => s.GroqModel = v.Trim());
+        Note(ai, $"Press {s.AssistantHotkey} anywhere to grab your screen and ask about it. Your key is stored only in your settings file on this PC. Messages and screenshots go to Groq (api.groq.com) only when you send them.");
+
         var notes = Section("TO-DO & NOTES", navLabel: "To-Do & Notes");
         Check(notes, "Show the To-Do page", () => s.TodoEnabled, v => s.TodoEnabled = v);
         Check(notes, "Show the Notes page", () => s.NotesEnabled, v => s.NotesEnabled = v);
@@ -997,6 +1004,19 @@ public partial class SettingsWindow : Window
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 2, 0, 4),
         });
+
+    private void TextRow(Panel panel, string label, Func<string> get, Action<string> set)
+    {
+        var row = new Grid { Margin = new Thickness(0, 4, 0, 4) };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
+        row.ColumnDefinitions.Add(new ColumnDefinition());
+        row.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
+        var box = new TextBox { Text = get(), Padding = new Thickness(8, 5, 8, 5) };
+        box.TextChanged += (_, _) => Update(() => set(box.Text));
+        Grid.SetColumn(box, 1);
+        row.Children.Add(box);
+        panel.Children.Add(row);
+    }
 
     private void Check(Panel panel, string label, Func<bool> get, Action<bool> set)
     {

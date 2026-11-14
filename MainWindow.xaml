@@ -530,6 +530,9 @@
                         </Grid>
                     </StackPanel>
 
+                    <!-- AI assistant: the panel is built in code (AssistantPanel). -->
+                    <Grid x:Name="AssistantPage" Background="Transparent" MouseLeftButtonUp="OnTypingPageMouseUp" />
+
                     <!-- File shelf: files dropped on the island; tiles are built in code (BuildShelf).
                          Drag a tile (or "Drag all") out to drop the files anywhere. -->
                     <Grid x:Name="ShelfPage">

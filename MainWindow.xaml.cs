@@ -45,6 +45,8 @@ public partial class MainWindow : Window
     private readonly BrightnessService _brightness = new();
     private readonly VolumeKeyHook _volumeKeys = new();
     private readonly MouseShakeService _shake = new();
+    private readonly Hotkey _assistHotkey = new(2);
+    private AssistantPanel _assistant = null!;
     private readonly BatteryService _battery = new();
     private readonly WallpaperEngineService _wallpaper = new();
     private readonly DeviceService _devices = new();
@@ -119,6 +121,12 @@ public partial class MainWindow : Window
         _calendar = new CalendarService(settings);
         _alarms = new AlarmService(settings);
         InitializeComponent();
+        _assistant = new AssistantPanel(_settings);
+        AssistantPage.Children.Add(_assistant);
+        _assistant.BeginTypingRequested += BeginTyping;
+        _assistant.EndTypingRequested += () => EndTyping(restoreFocus: true);
+        _assistant.OpenSettingsRequested += () => SettingsRequested?.Invoke();
+        _assistant.ScreenRequested = CaptureScreenAsync;
         _windows = new WindowEventWatcher(TimeSpan.FromMilliseconds(30));
         _background = new BackgroundDetector(GetIslandScreenRect, _windows);
         _windows.Changed += () =>
@@ -439,6 +447,9 @@ public partial class MainWindow : Window
         {
             source.AddHook(WndProc);
             _keyboard.Attach(source);
+            _assistHotkey.Attach(source);
+            _assistHotkey.Pressed += OnAssistHotkey;
+            _assistHotkey.Set(_settings.AssistantHotkey);
             _clipboard.Attach(source);
             _toggleHotkey.Attach(source);
             UpdateToggleHotkey();
@@ -762,6 +773,7 @@ public partial class MainWindow : Window
         _background.Dispose();
         _volumeKeys.Dispose();
         _shake.Dispose();
+        _assistHotkey.Dispose();
         _battery.Dispose();
         _devices.Dispose();
         _keyboard.Dispose();
@@ -878,6 +890,7 @@ public partial class MainWindow : Window
         Calendar,
         Todo,
         Notes,
+        Assistant,
         Shelf,
         Weather,
         Apps,
@@ -900,6 +913,7 @@ public partial class MainWindow : Window
     private List<ExpandedPage> AvailablePages()
     {
         var pages = new List<ExpandedPage> { ExpandedPage.Home };
+        if (_settings.AssistantEnabled) pages.Add(ExpandedPage.Assistant);
         if (_settings.NotificationsEnabled) pages.Add(ExpandedPage.Notifications);
         if (_settings.CalendarEnabled) pages.Add(ExpandedPage.Calendar);
         if (_settings.TodoEnabled) pages.Add(ExpandedPage.Todo);
@@ -917,6 +931,7 @@ public partial class MainWindow : Window
         ExpandedPage.Calendar => CalendarPage,
         ExpandedPage.Todo => TodoPage,
         ExpandedPage.Notes => NotesPage,
+        ExpandedPage.Assistant => AssistantPage,
         ExpandedPage.Shelf => ShelfPage,
         ExpandedPage.Weather => WeatherPage,
         ExpandedPage.Apps => AppsPage,
@@ -930,6 +945,7 @@ public partial class MainWindow : Window
         ExpandedPage.Calendar => "",
         ExpandedPage.Todo => "", // checklist
         ExpandedPage.Notes => "", // quick note
+        ExpandedPage.Assistant => "", // chat
         ExpandedPage.Shelf => "",
         ExpandedPage.Weather => "",
         ExpandedPage.Apps => "",
@@ -943,6 +959,7 @@ public partial class MainWindow : Window
         ExpandedPage.Calendar => "Calendar",
         ExpandedPage.Todo => "To-Do",
         ExpandedPage.Notes => "Notes",
+        ExpandedPage.Assistant => "Ask",
         ExpandedPage.Shelf => "Shelf",
         ExpandedPage.Weather => "Weather",
         ExpandedPage.Apps => "Apps",
@@ -1965,6 +1982,54 @@ public partial class MainWindow : Window
     }
 
     // ---------------------------------------------------------------- hover / click
+
+    // ---- AI assistant: screen grab and the global shortcut.
+    private async void OnAssistHotkey()
+    {
+        try
+        {
+            if (!_settings.AssistantEnabled) return;
+            var shot = await CaptureScreenAsync();
+            if (IslandHidden) SetIslandHidden(false);
+            ShowPage(ExpandedPage.Assistant, animate: false);
+            SetExpanded(true);
+            _assistant.AttachImage(shot);
+            await Task.Delay(120);
+            BeginTyping(_assistant.Input);
+        }
+        catch (Exception ex)
+        {
+            App.LogError(ex);
+        }
+    }
+
+    /// <summary>Copies the primary screen, with the island itself excluded from the picture.</summary>
+    private async Task<System.Windows.Media.Imaging.BitmapSource?> CaptureScreenAsync()
+    {
+        var hwnd = new WindowInteropHelper(this).Handle;
+        var restore = !_excludedFromCapture && hwnd != IntPtr.Zero;
+        if (restore)
+        {
+            NativeMethods.SetWindowDisplayAffinity(hwnd, NativeMethods.WDA_EXCLUDEFROMCAPTURE);
+            await Task.Delay(90); // let DWM drop the island from the next frame
+        }
+        try
+        {
+            var dpi = VisualTreeHelper.GetDpi(this);
+            var w = (int)Math.Round(SystemParameters.PrimaryScreenWidth * dpi.DpiScaleX);
+            var h = (int)Math.Round(SystemParameters.PrimaryScreenHeight * dpi.DpiScaleY);
+            using var capture = new ScreenCapture();
+            if (!capture.Capture(0, 0, w, h)) return null;
+            var bitmap = new System.Windows.Media.Imaging.WriteableBitmap(w, h, 96, 96, PixelFormats.Bgr32, null);
+            bitmap.WritePixels(new Int32Rect(0, 0, w, h), capture.Bits, capture.BufferSize, capture.Stride);
+            bitmap.Freeze();
+            return bitmap;
+        }
+        finally
+        {
+            if (restore) NativeMethods.SetWindowDisplayAffinity(hwnd, NativeMethods.WDA_NONE);
+        }
+    }
 
     // ---- Peek-through: hold Ctrl over the island and it fades and lets clicks pass to the window behind.
     private readonly DispatcherTimer _peekTimer = new() { Interval = TimeSpan.FromMilliseconds(40) };
