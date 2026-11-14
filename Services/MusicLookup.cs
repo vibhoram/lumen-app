@@ -77,7 +77,7 @@ public static class MusicLookup
                         ? Math.Abs(d.GetDouble() - duration.TotalSeconds) : 30;
                     if (gap < bestGap) { bestGap = gap; best = item; }
                 }
-                if (best is { } found && bestGap <= 20)
+                if (best is { } found && (bestGap <= 20 || (duration == TimeSpan.Zero && bestGap <= 30)))
                 {
                     lines = Parse(found.GetProperty("syncedLyrics").GetString() ?? "");
                     if (lines is not null) break;
@@ -85,6 +85,23 @@ public static class MusicLookup
             }
         }
         catch (Exception) when (!cancel.IsCancellationRequested) { /* offline or no match */ }
+
+        // Last resort: LRCLIB's exact lookup by title + artist (finds songs the free-text search misses).
+        if (lines is null && a.Length > 0 && !cancel.IsCancellationRequested)
+        {
+            try
+            {
+                var url = "https://lrclib.net/api/get?track_name=" + Uri.EscapeDataString(t) + "&artist_name=" + Uri.EscapeDataString(a);
+                using var response = await Http.GetAsync(url, cancel);
+                if (response.IsSuccessStatusCode)
+                {
+                    using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancel));
+                    if (doc.RootElement.TryGetProperty("syncedLyrics", out var synced) && synced.ValueKind == JsonValueKind.String)
+                        lines = Parse(synced.GetString() ?? "");
+                }
+            }
+            catch (Exception) when (!cancel.IsCancellationRequested) { }
+        }
 
         if (!cancel.IsCancellationRequested) LyricsCache[key] = lines;
         return lines;

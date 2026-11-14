@@ -200,6 +200,16 @@ internal sealed class GpuBlurBackdrop : IDisposable
         }
     }
 
+    /// <summary>Fully releases the lens (and its screen duplication); the next SetLens(true) builds a new one for the current monitor.</summary>
+    public void DisposeLens()
+    {
+        if (_lens is null) return;
+        if (_lensVisual is not null) { _root.RemoveVisual(_lensVisual); _lensVisual.Dispose(); _lensVisual = null; }
+        _lens.Dispose();
+        _lens = null;
+        _device.Commit();
+    }
+
     public bool LensActive => _lens is not null;
 
 #if DEBUG

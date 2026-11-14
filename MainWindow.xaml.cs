@@ -139,6 +139,7 @@ public partial class MainWindow : Window
         _assistant.ScreenRequested = CaptureScreenAsync;
         WireClara();
         WireContext();
+        WireMonitors();
         WireMusic();
         WireDock();
         _pet = new PetWidget { HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Visibility = Visibility.Collapsed };
@@ -596,6 +597,16 @@ public partial class MainWindow : Window
             MotionBanner.Source = new Uri(motionFile);
             MotionBanner.Play();
         }
+        if (Environment.GetEnvironmentVariable("DISLAND_PET_SWITCH") is { Length: > 0 } petSwitch)
+        {
+            // Debug aid: "Dog,Wolf" switches the pet through those species a second after start (tests rebuilding).
+            _ = Dispatcher.InvokeAsync(async () =>
+            {
+                await Task.Delay(1000);
+                foreach (var name in petSwitch.Split(','))
+                    if (Enum.TryParse<PetKind>(name, true, out var kind)) { _pet.Kind = kind; await Task.Delay(400); }
+            });
+        }
         if (Environment.GetEnvironmentVariable("DISLAND_ACTIVITIES") is { Length: > 0 } activities)
         {
             // Debug aid: "timer,stopwatch" starts those activities (to see the second-activity bubble).
@@ -905,8 +916,12 @@ public partial class MainWindow : Window
 
     private void Reposition()
     {
-        Left = (SystemParameters.PrimaryScreenWidth - Width) / 2;
-        Top = _settings.TopOffset;
+        // stay on the screen the island is on (display changes); the primary one at startup
+        var screen = IsLoaded ? CurrentScreen() : System.Windows.Forms.Screen.PrimaryScreen!;
+        var dpiScale = IsLoaded ? VisualTreeHelper.GetDpi(this).DpiScaleX : 1.0;
+        var area = screen.Bounds;
+        Left = IsLoaded ? (area.Left + (area.Width - Width * dpiScale) / 2) / dpiScale : (SystemParameters.PrimaryScreenWidth - Width) / 2;
+        Top = IsLoaded ? area.Top / dpiScale + _settings.TopOffset : _settings.TopOffset;
     }
 
     // ---------------------------------------------------------------- rendering

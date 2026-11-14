@@ -237,6 +237,9 @@ public sealed class AppSettings
     /// <summary>Your own saved looks (Settings > Look presets). Built-in ones live in code.</summary>
     public List<LookPreset> CustomPresets { get; set; } = new();
 
+    /// <summary>With several screens, the island moves to the one the cursor stays on.</summary>
+    public bool FollowCursorMonitor { get; set; } = true;
+
     /// <summary>Show every slider (otherwise just presets and the essentials).</summary>
     public bool ShowAdvanced { get; set; }
 

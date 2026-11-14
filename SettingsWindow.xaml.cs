@@ -349,6 +349,7 @@ public partial class SettingsWindow : Window
         Slider(alerts, "Battery & device alerts", 1, 8, 0.5, () => s.AlertSeconds, v => s.AlertSeconds = v, v => $"{v:0.0} s");
 
         var position = Section("POSITION");
+        Check(position, "With several screens, follow the cursor to the screen it stays on", () => s.FollowCursorMonitor, v => s.FollowCursorMonitor = v);
         Slider(position, "Top offset", 0, 120, 1, () => s.TopOffset, v => s.TopOffset = v, v => $"{v:0} px");
 
         var system = Section("SYSTEM");
