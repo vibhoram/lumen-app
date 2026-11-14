@@ -158,6 +158,7 @@ public partial class MainWindow : Window
         WireCarry();
         ApplyMusicLayout();
         FocusPage.Children.Add(new FocusPanel(_focusSession, _settings, _timer));
+        WireVitals();
         _clipPanel = new ClipboardPanel(_clipHistory);
         ClipboardPage.Children.Add(_clipPanel);
         _clipPanel.BeginTypingRequested += BeginTyping;
@@ -986,6 +987,7 @@ public partial class MainWindow : Window
         Clipboard,
         Focus,
         Lyrics,
+        Vitals,
         Shelf,
         Weather,
         Apps,
@@ -1012,6 +1014,7 @@ public partial class MainWindow : Window
         if (_settings.AssistantEnabled) pages.Add(ExpandedPage.Assistant);
         if (_settings.ClipboardPageEnabled) pages.Add(ExpandedPage.Clipboard);
         if (_settings.FocusEnabled) pages.Add(ExpandedPage.Focus);
+        if (_settings.VitalsEnabled) pages.Add(ExpandedPage.Vitals);
         if (_settings.NotificationsEnabled) pages.Add(ExpandedPage.Notifications);
         if (_settings.CalendarEnabled) pages.Add(ExpandedPage.Calendar);
         if (_settings.TodoEnabled) pages.Add(ExpandedPage.Todo);
@@ -1039,6 +1042,7 @@ public partial class MainWindow : Window
         ExpandedPage.Clipboard => ClipboardPage,
         ExpandedPage.Focus => FocusPage,
         ExpandedPage.Lyrics => LyricsPage,
+        ExpandedPage.Vitals => VitalsPage,
         ExpandedPage.Shelf => ShelfPage,
         ExpandedPage.Weather => WeatherPage,
         ExpandedPage.Apps => AppsPage,
@@ -1056,6 +1060,7 @@ public partial class MainWindow : Window
         ExpandedPage.Clipboard => "", // paste
         ExpandedPage.Focus => "", // stopwatch
         ExpandedPage.Lyrics => "", // music note
+        ExpandedPage.Vitals => "", // diagnostics
         ExpandedPage.Shelf => "",
         ExpandedPage.Weather => "",
         ExpandedPage.Apps => "",
@@ -1073,6 +1078,7 @@ public partial class MainWindow : Window
         ExpandedPage.Clipboard => "Clipboard",
         ExpandedPage.Focus => "Focus",
         ExpandedPage.Lyrics => "Lyrics",
+        ExpandedPage.Vitals => "System",
         ExpandedPage.Shelf => "Shelf",
         ExpandedPage.Weather => "Weather",
         ExpandedPage.Apps => "Apps",

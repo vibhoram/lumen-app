@@ -645,6 +645,8 @@
                     <Grid x:Name="FocusPage" Background="Transparent" MouseLeftButtonUp="OnTypingPageMouseUp" />
                     <!-- Lyrics: the panel is built in code (LyricsPanel). -->
                     <Grid x:Name="LyricsPage" Background="Transparent" MouseLeftButtonUp="OnTypingPageMouseUp" />
+                    <!-- System vitals: the panel is built in code (VitalsPanel). -->
+                    <Grid x:Name="VitalsPage" Background="Transparent" />
 
                     <!-- File shelf: files dropped on the island; tiles are built in code (BuildShelf).
                          Drag a tile (or "Drag all") out to drop the files anywhere. -->

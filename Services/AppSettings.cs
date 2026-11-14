@@ -274,6 +274,15 @@ public sealed class AppSettings
 
     // ---- Focus sessions (Pomodoro)
     public bool FocusEnabled { get; set; } = true;
+
+    /// <summary>The System page (RAM / CPU / GPU / network, top apps, free-RAM button).</summary>
+    public bool VitalsEnabled { get; set; } = true;
+
+    /// <summary>Show an alert (and let the pet worry) when RAM use stays above the limit below.</summary>
+    public bool VitalsAlertEnabled { get; set; } = true;
+
+    /// <summary>RAM percentage that raises the alert (80..99).</summary>
+    public int VitalsAlertPercent { get; set; } = 95;
     public int FocusMinutes { get; set; } = 25;
     public int ShortBreakMinutes { get; set; } = 5;
     public int LongBreakMinutes { get; set; } = 15;

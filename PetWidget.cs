@@ -15,7 +15,7 @@ public enum PetKind { Cat, Dog, Bunny, Robot, Fox, Panda, Dragon, Ghost, Axolotl
 public enum PetOutfit { None, Hat, Bow, Glasses, Scarf }
 
 /// <summary>Things happening on the PC that the pet notices.</summary>
-public enum PetEvent { Notification, Copy, TimerDone, MusicStart, LowBattery, FocusStart, FocusEnd, Device, Click, Shake }
+public enum PetEvent { Notification, Copy, TimerDone, MusicStart, LowBattery, FocusStart, FocusEnd, Device, Click, Shake, RamHigh, RamFreed }
 
 public sealed class PetWidget : Canvas
 {
@@ -215,6 +215,14 @@ public sealed class PetWidget : Canvas
                 break;
             case PetEvent.Device:
                 Say(Pick("something plugged in", "new friend?", "oh, a device"));
+                break;
+            case PetEvent.RamHigh:
+                SetMood(Mood.Worried);
+                Say(Pick("my head feels so full...", "too many tabs!", "RAM is almost gone!", "can we close something?"), 3.6);
+                break;
+            case PetEvent.RamFreed:
+                Excite();
+                Say(detail is { Length: > 0 } ? Pick($"{detail} freed, I feel light!", $"phew, {detail} back!") : "so much lighter!", 3.2);
                 break;
             case PetEvent.Shake:
                 Say(Pick("whoa!", "hey, easy!"));

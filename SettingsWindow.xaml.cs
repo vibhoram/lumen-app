@@ -266,6 +266,12 @@ public partial class SettingsWindow : Window
         clip.Children.Add(wipe);
         Note(clip, "Up to 100 items are kept on this PC (text, links, images, file lists). Anything a password manager marks private is never saved. Pinned items stay until you delete them.");
 
+        var vitals = Section("SYSTEM VITALS", "System");
+        Check(vitals, "Show the System page (RAM, CPU, GPU, network, free-RAM button)", () => s.VitalsEnabled, v => s.VitalsEnabled = v);
+        Check(vitals, "Alert me when RAM is nearly full", () => s.VitalsAlertEnabled, v => s.VitalsAlertEnabled = v);
+        Slider(vitals, "Alert at", 80, 99, 1, () => s.VitalsAlertPercent, v => s.VitalsAlertPercent = (int)v, v => $"{v:0}%");
+        Note(vitals, "The pet worries when RAM passes the limit, and cheers when you free some. Clearing RAM never closes apps; the deepest level needs administrator rights.");
+
         var focus = Section("FOCUS SESSION", "Focus");
         Check(focus, "Show the Focus page", () => s.FocusEnabled, v => s.FocusEnabled = v);
         Slider(focus, "Focus length", 5, 120, 5, () => s.FocusMinutes, v => s.FocusMinutes = (int)v, v => $"{v:0} min");
