@@ -45,6 +45,37 @@ public sealed class AssistantPanel : Grid
     private BitmapSource? _pending;
     private CancellationTokenSource? _cts;
     private bool _busy;
+    private DateTime _lastActivity = DateTime.MinValue;
+    private bool _engineLocal;
+    private string _engineName = "";
+
+    /// <summary>True while she is replying, and for a few seconds after: the island must not collapse under the cursor while you read.</summary>
+    public bool KeepOpen => _busy || (DateTime.UtcNow - _lastActivity).TotalSeconds < 10;
+
+    /// <summary>A tiny always-visible badge: green dot "local" (the model on this PC) or blue dot "cloud" (Groq).</summary>
+    private void SetEngine(bool local, string name)
+    {
+        _engineLocal = local;
+        _engineName = name;
+        ShowEngine();
+    }
+
+    private void ShowEngine()
+    {
+        _status.Inlines.Clear();
+        if (_engineName.Length == 0) { _status.Text = "online"; return; }
+        _status.Inlines.Add(new System.Windows.Documents.Run("● ") { Foreground = _engineLocal ? B("#30D158") : B("#4DA3FF"), FontSize = 9 });
+        _status.Inlines.Add(new System.Windows.Documents.Run(_engineLocal ? $"local · {_engineName}" : $"cloud · {_engineName}"));
+    }
+
+    /// <summary>Works out which brain the next plain-text message will use and shows it.</summary>
+    private async Task RefreshEngineAsync()
+    {
+        string? local = _settings.AssistantUseLocalAi ? await LocalAi.PickModelAsync(_settings) : null;
+        if (_busy) return;
+        if (local is not null) SetEngine(true, local.Split(':')[0]);
+        else SetEngine(false, "groq");
+    }
     private bool _focused;
     private string? _pendingText;
 
@@ -59,7 +90,7 @@ public sealed class AssistantPanel : Grid
         // ---- header
         var header = new Grid { Margin = new Thickness(0, 0, 0, 8) };
         // load the offline model as soon as the page opens, so the first reply isn't slow
-        IsVisibleChanged += (_, _) => { if (IsVisible) _ = LocalAi.WarmUpAsync(_settings); };
+        IsVisibleChanged += (_, _) => { if (IsVisible) { _ = LocalAi.WarmUpAsync(_settings); _ = RefreshEngineAsync(); } };
         _orb = MakeAvatar(34);
         _status = new TextBlock { Text = "online", FontSize = 10.5, Opacity = 0.55 };
         var title = new StackPanel { Orientation = Orientation.Horizontal };
@@ -413,7 +444,7 @@ public sealed class AssistantPanel : Grid
         var localModel = !cloudNeeded && _settings.AssistantUseLocalAi ? await LocalAi.PickModelAsync(_settings) : null;
         if (localModel is null && string.IsNullOrWhiteSpace(_settings.GroqApiKey)) { ShowNoKey(); SetBusy(false); return; }
         var useLocal = localModel is not null;
-        _status.Text = useLocal ? $"offline · {localModel}" : "online";
+        SetEngine(useLocal, useLocal ? localModel!.Split(':')[0] : "groq");
         var engineModel = useLocal ? localModel! : _settings.GroqModel;
         try
         {
@@ -432,6 +463,7 @@ public sealed class AssistantPanel : Grid
                         turn.Append(text);
                         reply.Append(text);
                         bubble.SetText(NoDashes(reply.ToString()));
+                        _lastActivity = DateTime.UtcNow;
                     }
                     if (ev.Calls is { } c) calls = c.ToList();
                 }
@@ -524,7 +556,8 @@ public sealed class AssistantPanel : Grid
         UpdateBorder();
         _sendGlyph.Text = busy ? "" : "";
         _placeholder.Text = busy ? "Clara's thinking…" : "Message Clara…";
-        _status.Text = busy ? "thinking…" : "online";
+        _lastActivity = DateTime.UtcNow;
+        if (busy) { _status.Inlines.Clear(); _status.Text = "thinking…"; } else ShowEngine();
         var pulse = busy
             ? new DoubleAnimation(1, 1.18, TimeSpan.FromMilliseconds(700)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() }
             : null;

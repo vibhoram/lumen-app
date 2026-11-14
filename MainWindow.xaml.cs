@@ -2542,7 +2542,9 @@ public partial class MainWindow : Window
         // Typing keeps it open while keys are still being pressed and the island still has the keyboard;
         // once you stop (or click into another app) it collapses like normal.
         var stillTyping = _typing && IsActive && Environment.TickCount64 - _lastKey < 8000;
-        if (stillTyping || IsCursorOverPill())
+        // Clara replying (or just finished): keep the island open wherever the cursor is, so the answer can be read
+        var claraBusy = _state.IsExpanded && _page == ExpandedPage.Assistant && _assistant.KeepOpen;
+        if (stillTyping || claraBusy || IsCursorOverPill())
         {
             _msOutside = 0;
             return;
