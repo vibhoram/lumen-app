@@ -226,7 +226,8 @@ public partial class SettingsWindow : Window
         var pet = Section("COMPANION", "Companion");
         Check(pet, "A little pet walks beneath the island", () => s.PetEnabled, v => s.PetEnabled = v);
         Choice(pet, "Pet", new[] { (PetKind.Cat, "Cat"), (PetKind.Dog, "Dog"), (PetKind.Bunny, "Bunny"), (PetKind.Robot, "Robot") }, () => s.PetKind, v => s.PetKind = v);
-        Note(pet, "It walks, sits, naps, dances when music plays, and hops when you click it. It only appears while the island is collapsed.");
+        Check(pet, "The pet talks (speech bubbles)", () => s.PetTalks, v => s.PetTalks = v);
+        Note(pet, "It walks, naps, yawns, watches your cursor and follows it, dances to music, studies during a focus session, reacts to notifications, timers, copies and low battery, and hops when you click it. It only appears while the island is collapsed.");
 
         var clip = Section("CLIPBOARD HISTORY", "Clipboard");
         Check(clip, "Keep a history of what I copy", () => s.ClipboardHistoryEnabled, v => s.ClipboardHistoryEnabled = v);

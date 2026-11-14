@@ -49,6 +49,7 @@ public partial class MainWindow : Window
     private AssistantPanel _assistant = null!;
     private bool _assistFit;
     private PetWidget _pet = null!;
+    private bool _petWasPlaying;
     private FocusSession _focusSession = null!;
     private readonly ClipboardHistory _clipHistory = new();
     private ClipboardPanel _clipPanel = null!;
@@ -148,6 +149,7 @@ public partial class MainWindow : Window
         LyricsInlineHost.Child = _lyricsInline;
         _lyricsInline.SeekRequested += time => _media.Seek(time);
         _focusSession = new FocusSession(_settings, _timer);
+        WirePet();
         FocusPage.Children.Add(new FocusPanel(_focusSession, _settings, _timer));
         _clipPanel = new ClipboardPanel(_clipHistory);
         ClipboardPage.Children.Add(_clipPanel);
@@ -211,6 +213,7 @@ public partial class MainWindow : Window
         // Shake: if an alert (notification, code...) is showing, it goes away and the pill stays; otherwise hide / show the pill.
         _shake.Shaken += () =>
         {
+            _pet.React(PetEvent.Shake);
             if (!IslandHidden && _state.Transient is not null) _state.DismissTransient();
             else SetIslandHidden(!IslandHidden);
         };
@@ -2084,7 +2087,7 @@ public partial class MainWindow : Window
         if (glass && (edge > 0 || outline > 0))
         {
             PillShape.Stroke = CreateGlassRim(Math.Max(edge, outline > 0 ? 0.3 : 0) * Math.Max(strength, 0.35));
-            PillShape.StrokeThickness = Math.Max(1.25, outline);
+            PillShape.StrokeThickness = Math.Max(1.0, outline);
         }
         else if (outline > 0)
         {
@@ -2720,6 +2723,7 @@ public partial class MainWindow : Window
 
     private void OnBatteryAlert(BatteryAlert alert, int percent)
     {
+        if (alert is BatteryAlert.Low or BatteryAlert.Critical) _pet.React(PetEvent.LowBattery);
         var green = (Brush)FindResource("Green");
         var orange = (Brush)FindResource("Orange");
         var red = new SolidColorBrush(Color.FromRgb(0xFF, 0x45, 0x3A));
@@ -2791,6 +2795,7 @@ public partial class MainWindow : Window
     private void OnCopied(ClipboardEvent copy)
     {
         _lastCopy = copy;
+        _pet.React(PetEvent.Copy);
         if (_settings.ClipboardHistoryEnabled) _clipHistory.CaptureCurrent();
         if (!_settings.CopyAlerts) return;
         if (_typing) return; // copying inside the island's own note: no alert over it
@@ -2813,6 +2818,7 @@ public partial class MainWindow : Window
 
     private void OnDeviceChanged(DeviceEvent device)
     {
+        if (device.Connected) _pet.React(PetEvent.Device);
         var glyph = device.Kind switch
         {
             DeviceKind.Headphones => "",
@@ -2879,6 +2885,7 @@ public partial class MainWindow : Window
     {
         // Windows holds toasts back during Do Not Disturb; so does the island.
         if (!_settings.NotificationsEnabled || IslandHidden || _focus.IsOn) return;
+        _pet.React(PetEvent.Notification, n.AppName);
         if (!_state.CanShowTransient(TransientPriority.Notification)) return;
 
         NotifIcon.Background = n.AppIcon is { } icon
@@ -3711,7 +3718,8 @@ public partial class MainWindow : Window
     {
         TimerDoneGlyph.Text = ""; // the view is shared with alarms
         TimerDoneText.Text = "Timer finished";
-        if (_focusSession.OnTimerFinished() is { } focusMessage) { TimerDoneText.Text = focusMessage; TimerDoneGlyph.Text = "\uE916"; }
+        if (_focusSession.OnTimerFinished() is { } focusMessage) { TimerDoneText.Text = focusMessage; TimerDoneGlyph.Text = "\uE916";  _pet.React(PetEvent.FocusEnd); }
+        else _pet.React(PetEvent.TimerDone);
         SystemSounds.Exclamation.Play();
         _state.ShowTransient(IslandView.TimerDone, TransientPriority.TimerDone, TimeSpan.FromSeconds(5));
     }
@@ -3942,6 +3950,8 @@ public partial class MainWindow : Window
         }
 
         _state.MediaPlaying = media?.IsPlaying == true;
+        if (media?.IsPlaying == true && !_petWasPlaying) _pet.React(PetEvent.MusicStart);
+        _petWasPlaying = media?.IsPlaying == true;
         _pet.Music = media?.IsPlaying == true;
         MusicTrackChanged(media);
         UpdateSecondActivity(); // the bubble may show this artwork

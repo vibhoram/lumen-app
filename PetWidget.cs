@@ -12,12 +12,15 @@ namespace DIsland;
 
 public enum PetKind { Cat, Dog, Bunny, Robot }
 
+/// <summary>Things happening on the PC that the pet notices.</summary>
+public enum PetEvent { Notification, Copy, TimerDone, MusicStart, LowBattery, FocusStart, FocusEnd, Device, Click, Shake }
+
 public sealed class PetWidget : Canvas
 {
     public const double SpriteWidth = 44;
     public const double SpriteHeight = 34;
 
-    private enum Mood { Walk, Idle, Sleep, Dance, Hop }
+    private enum Mood { Walk, Idle, Sleep, Dance, Hop, Watch, Yawn, Excited, Worried, Study, Follow }
 
     private readonly DispatcherTimer _timer = new(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(33) };
     private readonly Random _rng = new();
@@ -40,17 +43,39 @@ public sealed class PetWidget : Canvas
     private DateTime _last = DateTime.UtcNow;
     private double _nextBlink = 2;
     private bool _music;
+    private bool _studying;
+    private bool _talks = true;
+    private double _lookX, _lookY;            // cursor relative to the pet, in px
+    private bool _cursorNear;
+    private double _cursorAway;               // seconds since the cursor was last close
+    private double _excitedT;
+    private double _speechLeft;
+    private double _quipIn = 25;
+    private readonly Ellipse _mouth = new() { Width = 3.2, Height = 2.2, Fill = new SolidColorBrush(Color.FromRgb(0xB0, 0x55, 0x65)), Opacity = 0 };
+    private readonly Rectangle _book = new() { Width = 9, Height = 6, RadiusX = 1, RadiusY = 1, Fill = new SolidColorBrush(Color.FromRgb(0x5E, 0x8B, 0xFF)), Opacity = 0 };
+    private readonly TranslateTransform _pupil = new();
+    private readonly Border _bubble = new()
+    {
+        CornerRadius = new CornerRadius(9),
+        Background = new SolidColorBrush(Color.FromArgb(0xE6, 0xFF, 0xFF, 0xFF)),
+        Padding = new Thickness(7, 3, 7, 3),
+        Opacity = 0,
+        IsHitTestVisible = false,
+        Child = new TextBlock { FontSize = 10.5, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x2A)), TextWrapping = TextWrapping.NoWrap },
+    };
 
     public PetWidget()
     {
         Width = SpriteWidth;
         Height = SpriteHeight;
         Children.Add(_sprite);
+        Children.Add(_bubble);
+        Panel.SetZIndex(_bubble, 5);
         Cursor = System.Windows.Input.Cursors.Hand;
         Background = Brushes.Transparent; // the whole sprite box is clickable
         _sprite.RenderTransform = new TransformGroup { Children = { _squash, _flip, _bob } };
         RenderTransform = _move;
-        MouseLeftButtonUp += (_, e) => { e.Handled = true; Hop(); };
+        MouseLeftButtonUp += (_, e) => { e.Handled = true; React(PetEvent.Click); };
         _timer.Tick += (_, _) => Tick();
         Build();
     }
@@ -84,6 +109,93 @@ public sealed class PetWidget : Canvas
             if (value && !_timer.IsEnabled) { _last = DateTime.UtcNow; _timer.Start(); }
             else if (!value && _timer.IsEnabled) _timer.Stop();
         }
+    }
+
+    public bool Talks { get => _talks; set => _talks = value; }
+
+    /// <summary>Studying (a focus session is running): the pet sits quietly with a little book.</summary>
+    public bool Studying
+    {
+        get => _studying;
+        set
+        {
+            if (_studying == value) return;
+            _studying = value;
+            if (value) SetMood(Mood.Study);
+            else if (_mood == Mood.Study) SetMood(Mood.Idle);
+        }
+    }
+
+    /// <summary>Where the cursor is, relative to the pet's top-left corner (px), and whether it is close by.</summary>
+    public void Observe(double dx, double dy, bool near)
+    {
+        _lookX = dx;
+        _lookY = dy;
+        _cursorNear = near;
+        if (near) _cursorAway = 0;
+    }
+
+    public void React(PetEvent evt, string? detail = null)
+    {
+        switch (evt)
+        {
+            case PetEvent.Notification:
+                Excite();
+                Say(detail is { Length: > 0 } ? Pick($"{detail} wrote something!", "ooh, a message!", "you've got mail!") : Pick("ooh, a message!", "ding!"));
+                break;
+            case PetEvent.Copy:
+                Say(Pick("copied!", "ctrl+c, nice", "got it"));
+                break;
+            case PetEvent.TimerDone:
+                Excite();
+                Say(Pick("time's up!", "ding ding!", "that's the timer!"));
+                break;
+            case PetEvent.MusicStart:
+                Say(Pick("nice song", "ooh, music!", "play it loud"));
+                break;
+            case PetEvent.LowBattery:
+                SetMood(Mood.Worried);
+                Say(Pick("battery's low...", "need power!", "please plug in"));
+                break;
+            case PetEvent.FocusStart:
+                Say(Pick("focus time. I'll be quiet.", "let's do this", "I'll keep watch"));
+                break;
+            case PetEvent.FocusEnd:
+                Excite();
+                Say(Pick("break time!", "you did it!", "stretch your legs"));
+                break;
+            case PetEvent.Device:
+                Say(Pick("something plugged in", "new friend?", "oh, a device"));
+                break;
+            case PetEvent.Shake:
+                Say(Pick("whoa!", "hey, easy!"));
+                break;
+            case PetEvent.Click:
+                if (_mood == Mood.Sleep) { Say(Pick("mrrp?", "hm? five more minutes", "I was dreaming")); SetMood(Mood.Idle); }
+                else { Hop(); Say(Pick("hehe", "purr", "again!", "that tickles")); }
+                break;
+        }
+    }
+
+    private string Pick(params string[] options) => options[_rng.Next(options.Length)];
+
+    private void Excite()
+    {
+        _excitedT = 0;
+        SetMood(Mood.Excited);
+    }
+
+    /// <summary>A little speech bubble beside the pet.</summary>
+    private void Say(string text, double seconds = 2.8)
+    {
+        if (!_talks) return;
+        ((TextBlock)_bubble.Child).Text = text;
+        _bubble.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        var right = _x < (_minX + _maxX) / 2; // keep it on the side with room
+        SetLeft(_bubble, right ? SpriteWidth + 2 : -_bubble.DesiredSize.Width - 2);
+        SetTop(_bubble, 4);
+        _bubble.Opacity = 1;
+        _speechLeft = seconds;
     }
 
     public void Hop()
@@ -169,10 +281,12 @@ public sealed class PetWidget : Canvas
             }
         }
         _eye.Fill = _kind == PetKind.Robot ? Solid("#2DD4FF") : Solid("#2B2B33");
-        _eye.RenderTransform = _blink;
+        _eye.RenderTransform = new TransformGroup { Children = { _blink, _pupil } };
         head.Children.Add(Place(_eye, 32.6, 14.4));
         head.Children.Add(Place(new Ellipse { Width = 2.8, Height = 2.1, Fill = _kind == PetKind.Robot ? dark : Solid("#E58A9A") }, 36.2, 18.2));
+        head.Children.Add(Place(_mouth, 35.6, 20.4));
         _sprite.Children.Add(head);
+        _sprite.Children.Add(Place(_book, 29, SpriteHeight - 9));
 
         // sleepy z and hop heart float above the sprite
         _sprite.Children.Add(Place(_zzz, 34, 0));
@@ -224,10 +338,16 @@ public sealed class PetWidget : Canvas
             Mood.Walk => 3 + _rng.NextDouble() * 5,
             Mood.Idle => 2 + _rng.NextDouble() * 4,
             Mood.Sleep => 8 + _rng.NextDouble() * 10,
+            Mood.Yawn => 1.4,
+            Mood.Watch => 3 + _rng.NextDouble() * 4,
+            Mood.Follow => 6,
+            Mood.Excited => 1.6,
+            Mood.Worried => 3.2,
             _ => 99,
         };
         if (mood == Mood.Walk) _dir = _x > (_minX + _maxX) / 2 ? -1 : (_rng.Next(2) == 0 ? 1 : -1);
         if (mood != Mood.Sleep) _zzz.Opacity = 0;
+        if (mood != Mood.Study) _book.Opacity = 0;
     }
 
     private void Tick()
@@ -237,40 +357,104 @@ public sealed class PetWidget : Canvas
         _last = now;
         _phase += dt;
         _moodLeft -= dt;
+        if (!_cursorNear) _cursorAway += dt;
+
+        // speech bubble fades out; now and then an idle remark
+        if (_speechLeft > 0)
+        {
+            _speechLeft -= dt;
+            if (_speechLeft < 0.4) _bubble.Opacity = Math.Max(0, _speechLeft / 0.4);
+        }
+        _quipIn -= dt;
+        if (_quipIn <= 0)
+        {
+            _quipIn = 40 + _rng.NextDouble() * 50;
+            if (_speechLeft <= 0 && _mood is Mood.Idle or Mood.Walk or Mood.Watch)
+                Say(Pick("hm.", "what are we up to?", "nice day for it", "...", "I'm hungry", "don't mind me"), 2.4);
+        }
 
         // blink now and then (not while asleep)
         _nextBlink -= dt;
         var eyeScale = 1.0;
         if (_mood == Mood.Sleep) eyeScale = 0.12;
+        else if (_mood == Mood.Study) eyeScale = 0.45; // eyes down on the book
         else if (_nextBlink < 0.12) eyeScale = Math.Max(0.1, _nextBlink / 0.12);
         if (_nextBlink < 0) _nextBlink = 2 + _rng.NextDouble() * 3;
         _blink.ScaleY = eyeScale;
 
-        double bobY = 0, squash = 1, nod = 0, wag;
-        wag = Math.Sin(_phase * (_mood == Mood.Dance ? 14 : 5)) * (_mood == Mood.Sleep ? 2 : 14);
+        // watch the cursor with the eyes whenever it is near
+        if (_cursorNear && _mood != Mood.Sleep)
+        {
+            var len = Math.Max(1, Math.Sqrt(_lookX * _lookX + _lookY * _lookY));
+            _pupil.X = Math.Clamp(_lookX / len * 1.3, -1.3, 1.3) * _dir;
+            _pupil.Y = Math.Clamp(_lookY / len * 1.1, -1.1, 1.1);
+        }
+        else { _pupil.X *= 0.8; _pupil.Y *= 0.8; }
+
+        double bobY = 0, squash = 1, nod = 0, wag = Math.Sin(_phase * 5) * 14, shake = 0, mouth = 0;
+        _book.Opacity = _mood == Mood.Study ? 1 : 0;
+
+        // the cursor arriving close by interrupts what the pet is doing
+        if (_cursorNear && _mood is Mood.Walk or Mood.Idle)
+        {
+            SetMood(Mood.Watch);
+            if (_rng.NextDouble() < 0.4) Say(Pick("hi!", "I see you", "what's that?"), 1.8);
+        }
+        else if (_cursorNear && _mood == Mood.Sleep && Math.Abs(_lookX) < 60) { SetMood(Mood.Idle); Say(Pick("hm?", "mrrp?"), 1.6); }
 
         switch (_mood)
         {
             case Mood.Walk:
+            case Mood.Follow:
             {
-                _x += _dir * 20 * dt;
+                var speed = _mood == Mood.Follow ? 38 : 20;
+                if (_mood == Mood.Follow) _dir = _lookX >= 0 ? 1 : -1;
+                _x += _dir * speed * dt;
                 if (_x <= _minX) { _x = _minX; _dir = 1; }
                 else if (_x >= _maxX) { _x = _maxX; _dir = -1; }
-                foreach (var (_, rot, phase) in _legs) rot.Angle = Math.Sin(_phase * 11 + phase) * 30;
+                foreach (var (_, rot, phase) in _legs) rot.Angle = Math.Sin(_phase * (_mood == Mood.Follow ? 16 : 11) + phase) * 30;
                 bobY = -Math.Abs(Math.Sin(_phase * 11)) * 1.4;
                 nod = Math.Sin(_phase * 5.5) * 2;
-                if (_moodLeft <= 0) SetMood(_rng.NextDouble() < 0.5 ? Mood.Idle : Mood.Walk);
+                if (_mood == Mood.Follow && (Math.Abs(_lookX) < 34 || _moodLeft <= 0)) SetMood(Mood.Watch);
+                else if (_mood == Mood.Walk && _moodLeft <= 0) SetMood(_rng.NextDouble() < 0.5 ? Mood.Idle : Mood.Walk);
                 break;
             }
             case Mood.Idle:
                 foreach (var (_, rot, _) in _legs) rot.Angle *= 0.8;
                 nod = Math.Sin(_phase * 1.6) * 3;
-                if (_moodLeft <= 0) SetMood(_music ? Mood.Dance : _rng.NextDouble() < 0.35 ? Mood.Sleep : Mood.Walk);
+                if (_moodLeft <= 0)
+                {
+                    var night = DateTime.Now.Hour is < 6 or >= 23;
+                    SetMood(_music ? Mood.Dance : _rng.NextDouble() < (night ? 0.7 : 0.3) ? Mood.Yawn : Mood.Walk);
+                }
                 break;
+            case Mood.Watch:
+            {
+                foreach (var (_, rot, _) in _legs) rot.Angle *= 0.8;
+                squash = 0.94;
+                // face the cursor, tilt the head up or down toward it, and follow it if it lingers
+                if (Math.Abs(_lookX) > 8) _dir = _lookX >= 0 ? 1 : -1;
+                nod = Math.Clamp(_lookY / 20, -10, 10) * -0.8 + Math.Sin(_phase * 2.4) * 2;
+                if (_cursorNear && Math.Abs(_lookX) > 90 && _moodLeft < 1.5) SetMood(Mood.Follow);
+                else if (_cursorAway > 2.5 || _moodLeft <= 0 && !_cursorNear) SetMood(_music ? Mood.Dance : Mood.Idle);
+                else if (_moodLeft <= 0) _moodLeft = 3;
+                break;
+            }
+            case Mood.Yawn:
+            {
+                var u = Math.Clamp(1 - _moodLeft / 1.4, 0, 1);
+                nod = -Math.Sin(u * Math.PI) * 14;
+                mouth = Math.Sin(u * Math.PI);
+                squash = 1 + Math.Sin(u * Math.PI) * 0.05;
+                _blink.ScaleY = Math.Max(0.1, 1 - Math.Sin(u * Math.PI));
+                if (_moodLeft <= 0) SetMood(Mood.Sleep);
+                break;
+            }
             case Mood.Sleep:
                 foreach (var (_, rot, _) in _legs) rot.Angle *= 0.8;
                 squash = 0.86 + Math.Sin(_phase * 1.8) * 0.02; // slow breathing, lying low
                 nod = 16;
+                wag = Math.Sin(_phase * 1.2) * 2;
                 var zt = _phase * 0.8 % 1;
                 _zzz.Opacity = Math.Sin(zt * Math.PI);
                 SetTop(_zzz, 6 - zt * 8);
@@ -281,8 +465,33 @@ public sealed class PetWidget : Canvas
                 bobY = -Math.Abs(Math.Sin(_phase * 7)) * 3.2;
                 squash = 1 + Math.Sin(_phase * 14) * 0.05;
                 nod = Math.Sin(_phase * 7) * 10;
+                wag = Math.Sin(_phase * 14) * 20;
                 foreach (var (_, rot, phase) in _legs) rot.Angle = Math.Sin(_phase * 14 + phase) * 16;
                 if (!_music) SetMood(Mood.Idle);
+                break;
+            case Mood.Excited:
+            {
+                _excitedT += dt;
+                bobY = -Math.Abs(Math.Sin(_excitedT * 9)) * 6;
+                squash = 1 + Math.Abs(Math.Sin(_excitedT * 9)) * 0.08;
+                nod = -10;
+                wag = Math.Sin(_phase * 24) * 24;
+                if (_moodLeft <= 0) SetMood(_cursorNear ? Mood.Watch : Mood.Idle);
+                break;
+            }
+            case Mood.Worried:
+                shake = Math.Sin(_phase * 38) * 0.7;
+                nod = 6;
+                squash = 0.96;
+                wag = 0;
+                foreach (var (_, rot, _) in _legs) rot.Angle *= 0.8;
+                if (_moodLeft <= 0) SetMood(Mood.Idle);
+                break;
+            case Mood.Study:
+                foreach (var (_, rot, _) in _legs) rot.Angle *= 0.8;
+                squash = 0.93;
+                nod = 14 + Math.Sin(_phase * 1.2) * 1.5; // head down over the book
+                wag = Math.Sin(_phase * 1.1) * 3;
                 break;
             case Mood.Hop:
             {
@@ -294,16 +503,21 @@ public sealed class PetWidget : Canvas
                 _heart.Opacity = 1 - u;
                 SetTop(_heart, 4 - u * 12);
                 SetLeft(_heart, 28);
-                if (u >= 1) { _heart.Opacity = 0; SetMood(_music ? Mood.Dance : Mood.Idle); }
+                if (u >= 1) { _heart.Opacity = 0; SetMood(_studying ? Mood.Study : _music ? Mood.Dance : Mood.Idle); }
                 break;
             }
         }
+
+        // while it speaks, the mouth moves a little
+        if (_speechLeft > 0.5 && mouth == 0) mouth = (Math.Sin(_phase * 18) + 1) * 0.35;
+        _mouth.Opacity = mouth > 0.05 ? 1 : 0;
+        _mouth.RenderTransform = new ScaleTransform(1, Math.Max(0.2, mouth * 1.4), 1.6, 0);
 
         _tailWag.Angle = wag;
         _headNod.Angle = nod;
         _squash.ScaleY = squash;
         _bob.Y = bobY;
         _flip.ScaleX = _dir;
-        _move.X = _x;
+        _move.X = _x + shake;
     }
 }

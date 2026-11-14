@@ -23,6 +23,16 @@
         <SolidColorBrush x:Key="Green" Color="#FF30D158" />
         <SolidColorBrush x:Key="Cyan" Color="#FF64D2FF" />
         <SolidColorBrush x:Key="Secondary" Color="#99FFFFFF" />
+        <!-- Glass for the small bubbles beside the pill: translucent graphite with a lit top edge. -->
+        <LinearGradientBrush x:Key="BubbleFill" StartPoint="0,0" EndPoint="0.8,1">
+            <GradientStop Color="#9C3A3A42" Offset="0" />
+            <GradientStop Color="#9418181D" Offset="1" />
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="BubbleRim" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#55FFFFFF" Offset="0" />
+            <GradientStop Color="#18FFFFFF" Offset="0.5" />
+            <GradientStop Color="#2AFFFFFF" Offset="1" />
+        </LinearGradientBrush>
         <SolidColorBrush x:Key="ArtPlaceholder" Color="#FF2C2C2E" />
 
         <!-- Text boxes on the To-Do and Notes pages: no chrome, the field behind them draws it. -->
@@ -757,7 +767,7 @@
             <Grid.RenderTransform>
                 <ScaleTransform />
             </Grid.RenderTransform>
-            <Ellipse x:Name="ActivityBubbleBack" Fill="#F00B0B0C" />
+            <Ellipse x:Name="ActivityBubbleBack" Fill="{StaticResource BubbleFill}" Stroke="{StaticResource BubbleRim}" StrokeThickness="1" />
             <Ellipse x:Name="ActivityBubbleArt" Margin="5" Visibility="Collapsed" />
             <TextBlock x:Name="ActivityBubbleGlyph" Style="{StaticResource Glyph}" FontSize="15" Text="&#xE916;" />
             <Path x:Name="ActivityBubbleRing" StrokeThickness="2.4" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
@@ -768,7 +778,7 @@
         <Grid x:Name="IdleWeatherBubble" HorizontalAlignment="Left" VerticalAlignment="Top" Width="34" Height="34"
               Visibility="Collapsed" RenderTransformOrigin="0,0.5" Cursor="Hand">
             <Grid.RenderTransform><ScaleTransform /></Grid.RenderTransform>
-            <Ellipse Fill="#F00B0B0C" Stroke="#2EFFFFFF" StrokeThickness="1" />
+            <Ellipse Fill="{StaticResource BubbleFill}" Stroke="{StaticResource BubbleRim}" StrokeThickness="1" />
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                 <Border x:Name="IdleWeatherIcon" Width="16" Height="16" HorizontalAlignment="Center" />
                 <TextBlock x:Name="IdleWeatherTemp" FontSize="10" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,-1,0,0" />
@@ -781,7 +791,7 @@
             <Grid.RenderTransform>
                 <ScaleTransform />
             </Grid.RenderTransform>
-            <Ellipse Fill="#F00B0B0C" />
+            <Ellipse Fill="{StaticResource BubbleFill}" Stroke="{StaticResource BubbleRim}" StrokeThickness="1" />
             <Ellipse x:Name="ActivityBubbleArt2" Margin="5" Visibility="Collapsed" />
             <TextBlock x:Name="ActivityBubbleGlyph2" Style="{StaticResource Glyph}" FontSize="15" Text="&#xE916;" />
             <Path x:Name="ActivityBubbleRing2" StrokeThickness="2.4" StrokeStartLineCap="Round" StrokeEndLineCap="Round"

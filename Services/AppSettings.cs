@@ -101,7 +101,7 @@ public sealed class AppSettings
     public double GlassShine { get; set; } = 0.9;
 
     /// <summary>The bright line along the glass edge and the soft light just inside it (0 = none).</summary>
-    public double GlassRim { get; set; } = 0.45;
+    public double GlassRim { get; set; } = 0.2;
 
     /// <summary>How vivid the background looks through the glass (0 = as it is, 1 = very rich colour).</summary>
     public double GlassVibrancy { get; set; } = 0.65;
@@ -204,6 +204,8 @@ public sealed class AppSettings
     /// <summary>A little pet that wanders beneath the collapsed island.</summary>
     public bool PetEnabled { get; set; } = true;
     public PetKind PetKind { get; set; } = PetKind.Cat;
+    /// <summary>The pet speaks (little speech bubbles).</summary>
+    public bool PetTalks { get; set; } = true;
 
     /// <summary>Page icons swell under the cursor like the macOS Dock.</summary>
     public bool DockMagnify { get; set; } = true;
