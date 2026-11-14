@@ -75,14 +75,19 @@ public partial class SettingsWindow : Window
         _navSelected = null;
         var s = _settings;
 
+        BuildLookPresets();
+
         var style = Section("STYLE");
         Choice(style, "Shape", new[] { (IslandMode.DynamicIsland, "Dynamic Island"), (IslandMode.Notch, "Notch") },
             () => s.Mode, v => s.Mode = v);
         Slider(style, "Size", 0.75, 1.5, 0.05, () => s.IslandScale, v => s.IslandScale = v, v => $"{v * 100:0}%");
-        Slider(style, "Corner roundness", 0.2, 1, 0.05, () => s.CornerRoundness, v => s.CornerRoundness = v, v => $"{v * 100:0}%");
-        Slider(style, "Outline width", 0, 3, 0.25, () => s.OutlineWidth, v => s.OutlineWidth = v, v => v == 0 ? "Off" : $"{v:0.##} px");
-        Slider(style, "Outline opacity", 0, 1, 0.05, () => s.OutlineOpacity, v => s.OutlineOpacity = v, v => $"{v * 100:0}%");
-        Slider(style, "Shadow", 0, 1, 0.05, () => s.ShadowStrength, v => s.ShadowStrength = v, v => v == 0 ? "Off" : $"{v * 100:0}%");
+        if (s.ShowAdvanced)
+        {
+            Slider(style, "Corner roundness", 0.2, 1, 0.05, () => s.CornerRoundness, v => s.CornerRoundness = v, v => $"{v * 100:0}%");
+            Slider(style, "Outline width", 0, 3, 0.25, () => s.OutlineWidth, v => s.OutlineWidth = v, v => v == 0 ? "Off" : $"{v:0.##} px");
+            Slider(style, "Outline opacity", 0, 1, 0.05, () => s.OutlineOpacity, v => s.OutlineOpacity = v, v => $"{v * 100:0}%");
+            Slider(style, "Shadow", 0, 1, 0.05, () => s.ShadowStrength, v => s.ShadowStrength = v, v => v == 0 ? "Off" : $"{v * 100:0}%");
+        }
         Check(style, "Text shadow on see-through materials (keeps text readable)", () => s.TextShadow, v => s.TextShadow = v);
 
         var material = Section("MATERIAL");
@@ -360,11 +365,90 @@ public partial class SettingsWindow : Window
         var about = Section("ABOUT");
         about.Children.Add(new TextBlock { Text = "Lumen", FontSize = 15, FontWeight = FontWeights.SemiBold });
         about.Children.Add(new TextBlock { Text = "A personal island for Windows: music, focus, Clara, clipboard and a little pet.", Foreground = Secondary, Margin = new Thickness(0, 2, 0, 0), TextWrapping = TextWrapping.Wrap });
+        about.Children.Add(new TextBlock { Text = "Made by Vibhor and Claude", FontSize = 13, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 0) });
+        about.Children.Add(new TextBlock { Text = "Based on D-Island by h7 (ibuildrigs) - https://github.com/H7gamer/d-island", Foreground = Secondary, Margin = new Thickness(0, 2, 0, 0), TextWrapping = TextWrapping.Wrap });
+        var terms = new TextBlock
+        {
+            Text =
+                "TERMS OF USE (LUMEN)\n\n" +
+                "1. Lumen is a personal project by Vibhor and Claude. It is for the owner's own use and is not published or sold.\n" +
+                "2. It is built on D-Island (c) 2026 h7 (ibuildrigs), used under the D-Island License 1.0 (LICENSE.txt, NOTICE.txt). The credit above must stay visible, and anyone who ever shares this app must keep that license and credit, keep users informed about their data, and not use it to harm or deceive anyone.\n" +
+                "3. Your data stays on this PC. Clara sends only what you type (and a screenshot when you attach one) to the AI service you configured, using your own API key. Clipboard history, notes, memory and settings are stored locally in your user folders. See PRIVACY.txt.\n" +
+                "4. The app is provided as is, without warranty. The RAM tools only trim memory and never close apps; the glass effects use undocumented Windows features that may change with updates. Use at your own risk.\n" +
+                "5. Third-party names (Windows, Spotify, Groq, LRCLIB, iTunes and others) belong to their owners and are mentioned only to describe features.",
+            FontSize = 11.5,
+            Foreground = Secondary,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 10, 0, 0),
+            Visibility = Visibility.Collapsed,
+        };
+        var showTerms = new Button { Style = (Style)FindResource("ChipButton"), Content = "Terms & license", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 10, 0, 0) };
+        showTerms.Click += (_, _) => terms.Visibility = terms.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+        about.Children.Add(showTerms);
+        about.Children.Add(terms);
 
-        CreditText.Text = "Lumen  ·  made for me";
+        CreditText.Text = "Lumen  ·  made by Vibhor and Claude";
 
         _loading = false;
         Dispatcher.InvokeAsync(UpdateNavSelection, DispatcherPriority.Loaded); // after layout
+    }
+
+    /// <summary>One-click looks (built-in and your own), a save box, and the Advanced switch.</summary>
+    private void BuildLookPresets()
+    {
+        var panel = Section("LOOK PRESETS", "Looks");
+        var wrap = new WrapPanel { Margin = new Thickness(0, 0, 0, 4) };
+        void Chip(LookPreset preset, bool custom)
+        {
+            var chip = new Button { Style = (Style)FindResource("ChipButton"), Content = preset.Name, Margin = new Thickness(0, 0, 6, 6), ToolTip = custom ? "Right-click to delete" : null };
+            chip.Click += (_, _) =>
+            {
+                var offset = SettingsScroller.VerticalOffset;
+                Update(() => LookPresets.Apply(_settings, preset));
+                Build();
+                SettingsScroller.ScrollToVerticalOffset(offset);
+            };
+            if (custom)
+                chip.MouseRightButtonUp += (_, _) =>
+                {
+                    var offset = SettingsScroller.VerticalOffset;
+                    Update(() => _settings.CustomPresets.Remove(preset));
+                    Build();
+                    SettingsScroller.ScrollToVerticalOffset(offset);
+                };
+            wrap.Children.Add(chip);
+        }
+        foreach (var preset in LookPresets.BuiltIn) Chip(preset, false);
+        foreach (var preset in _settings.CustomPresets.ToList()) Chip(preset, true);
+        panel.Children.Add(wrap);
+
+        var row = new Grid { Margin = new Thickness(0, 2, 0, 6) };
+        row.ColumnDefinitions.Add(new ColumnDefinition());
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var name = new TextBox { Padding = new Thickness(8, 5, 8, 5), VerticalContentAlignment = VerticalAlignment.Center, ToolTip = "Name for your look" };
+        var save = new Button { Style = (Style)FindResource("ChipButton"), Content = "Save current look", Margin = new Thickness(8, 0, 0, 0) };
+        Grid.SetColumn(save, 1);
+        save.Click += (_, _) =>
+        {
+            var text = name.Text.Trim();
+            if (text.Length == 0) { name.Focus(); return; }
+            var offset = SettingsScroller.VerticalOffset;
+            Update(() =>
+            {
+                _settings.CustomPresets.RemoveAll(p => p.Name.Equals(text, StringComparison.OrdinalIgnoreCase));
+                _settings.CustomPresets.Add(LookPresets.Capture(_settings, text));
+            });
+            Build();
+            SettingsScroller.ScrollToVerticalOffset(offset);
+        };
+        row.Children.Add(name);
+        row.Children.Add(save);
+        panel.Children.Add(row);
+        Check(panel, "Advanced: show every slider", () => _settings.ShowAdvanced, v =>
+        {
+            _settings.ShowAdvanced = v;
+            Dispatcher.InvokeAsync(() => { var offset = SettingsScroller.VerticalOffset; Build(); SettingsScroller.ScrollToVerticalOffset(offset); });
+        });
     }
 
     private static readonly (string Name, double Blur, double Shine, double Rim, double Vibrancy, double Bend, double Tint)[] GlassPresets =
@@ -420,15 +504,18 @@ public partial class SettingsWindow : Window
                 break;
             case IslandMaterial.LiquidGlass:
                 GlassPresetRow(_materialOptions);
-                Slider(_materialOptions, "Blur", 0, 1, 0.05, () => s.GlassBlur, v => s.GlassBlur = v,
-                    v => v == 0 ? "Clear" : v >= 1 ? "Frosted" : $"{v * 100:0}%");
-                Slider(_materialOptions, "Shininess", 0, 1, 0.05, () => s.GlassShine, v => s.GlassShine = v,
-                    v => v == 0 ? "Matte" : $"{v * 100:0}%");
-                Slider(_materialOptions, "Edge light", 0, 1, 0.05, () => s.GlassRim, v => s.GlassRim = v, v => v == 0 ? "Off" : $"{v * 100:0}%");
-                Slider(_materialOptions, "Vibrancy", 0, 1, 0.05, () => s.GlassVibrancy, v => s.GlassVibrancy = v, v => v == 0 ? "Natural" : $"{v * 100:0}%");
-                Slider(_materialOptions, "Light bend", 0, 1, 0.05, () => s.GlassRefraction, v => s.GlassRefraction = v,
-                    v => v == 0 ? "None" : $"{v * 100:0}%");
-                Slider(_materialOptions, "Tint", 0, 0.9, 0.02, () => s.GlassTint, v => s.GlassTint = v, v => v == 0 ? "None" : $"{v * 100:0}%");
+                if (s.ShowAdvanced)
+                {
+                    Slider(_materialOptions, "Blur", 0, 1, 0.05, () => s.GlassBlur, v => s.GlassBlur = v,
+                        v => v == 0 ? "Clear" : v >= 1 ? "Frosted" : $"{v * 100:0}%");
+                    Slider(_materialOptions, "Shininess", 0, 1, 0.05, () => s.GlassShine, v => s.GlassShine = v,
+                        v => v == 0 ? "Matte" : $"{v * 100:0}%");
+                    Slider(_materialOptions, "Edge light", 0, 1, 0.05, () => s.GlassRim, v => s.GlassRim = v, v => v == 0 ? "Off" : $"{v * 100:0}%");
+                    Slider(_materialOptions, "Vibrancy", 0, 1, 0.05, () => s.GlassVibrancy, v => s.GlassVibrancy = v, v => v == 0 ? "Natural" : $"{v * 100:0}%");
+                    Slider(_materialOptions, "Light bend", 0, 1, 0.05, () => s.GlassRefraction, v => s.GlassRefraction = v,
+                        v => v == 0 ? "None" : $"{v * 100:0}%");
+                    Slider(_materialOptions, "Tint", 0, 0.9, 0.02, () => s.GlassTint, v => s.GlassTint = v, v => v == 0 ? "None" : $"{v * 100:0}%");
+                }
                 Choice(_materialOptions, "Blur engine", new[]
                 {
                     (GlassEngine.Auto, "Auto"),

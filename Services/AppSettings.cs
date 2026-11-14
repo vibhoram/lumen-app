@@ -234,6 +234,12 @@ public sealed class AppSettings
     /// <summary>How the audio-reactive bars look.</summary>
     public EqualizerLook EqualizerLook { get; set; } = EqualizerLook.Aura;
 
+    /// <summary>Your own saved looks (Settings > Look presets). Built-in ones live in code.</summary>
+    public List<LookPreset> CustomPresets { get; set; } = new();
+
+    /// <summary>Show every slider (otherwise just presets and the essentials).</summary>
+    public bool ShowAdvanced { get; set; }
+
     /// <summary>Shape of the animated line along the bottom of the music pill. Ribbon is the original.</summary>
     public WaveStyle WaveStyle { get; set; } = WaveStyle.Ribbon;
     /// <summary>A notification or copy leaves a small bubble beside the pill for this many seconds (0 = off).</summary>
