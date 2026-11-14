@@ -209,6 +209,13 @@ public sealed class AppSettings
     /// <summary>Show a Copy button when a notification contains a verification code.</summary>
     public bool CopyCodes { get; set; } = true;
 
+    /// <summary>Minutes a snoozed notification or alarm waits before it comes back.</summary>
+    public int SnoozeMinutes { get; set; } = 10;
+
+    /// <summary>Hovering the collapsed pill shows a quick tray (music controls, recent copies) instead of opening the whole island.</summary>
+    public bool HoverQuickTray { get; set; } = true;
+    public int TrayLingerMs { get; set; } = 1500;
+
     /// <summary>Collapsed music: the album art becomes a spinning disc and the equalizer a pulse bubble, separate from the title pill.</summary>
     public bool MusicSplit { get; set; } = true;
     /// <summary>How the audio-reactive bars look.</summary>

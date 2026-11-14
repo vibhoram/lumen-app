@@ -145,6 +145,9 @@ public partial class SettingsWindow : Window
         Slider(interaction, "Back to first page", 0, 120, 1, () => s.ReturnHomeSeconds, v => s.ReturnHomeSeconds = (int)v, v => v == 0 ? "Never" : $"{v:0} s");
         Note(interaction, "After the island has been collapsed this long, it reopens on the first page instead of the page you left.");
         Check(interaction, "Magic Shake: shake the mouse quickly to hide / show the island", () => s.MagicShake, v => s.MagicShake = v);
+        Check(interaction, "Hovering the pill shows a quick tray (music controls, recent copies); click to open everything", () => s.HoverQuickTray, v => s.HoverQuickTray = v);
+        Slider(interaction, "Tray stays", 500, 4000, 100, () => s.TrayLingerMs, v => s.TrayLingerMs = (int)v, v => $"{v / 1000:0.0} s");
+        Slider(interaction, "Snooze length", 1, 60, 1, () => s.SnoozeMinutes, v => s.SnoozeMinutes = (int)v, v => $"{v:0} min");
         Slider(interaction, "Carry bubble", 0, 20, 1, () => s.CarrySeconds, v => s.CarrySeconds = (int)v, v => v == 0 ? "Off" : $"{v:0} s");
         Note(interaction, "After a notification or a copy, a small bubble stays beside the pill for this long. Click it to open, shake the mouse to dismiss it.");
         Check(interaction, "Dock effect: page icons swell under the cursor", () => s.DockMagnify, v => s.DockMagnify = v);

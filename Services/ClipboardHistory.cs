@@ -138,6 +138,29 @@ public sealed class ClipboardHistory
         Changed?.Invoke();
     }
 
+    /// <summary>Puts the item back on the clipboard as the newest copy (the history just moves it to the top, no duplicate).</summary>
+    public void Restore(ClipItem item)
+    {
+        try
+        {
+            switch (item.Kind)
+            {
+                case ClipKind.Image:
+                    if (LoadImage(item) is { } image) Clipboard.SetImage(image);
+                    break;
+                case ClipKind.Files:
+                    var files = new System.Collections.Specialized.StringCollection();
+                    files.AddRange(item.Text.Split('\n'));
+                    Clipboard.SetFileDropList(files);
+                    break;
+                default:
+                    Clipboard.SetText(item.Text);
+                    break;
+            }
+        }
+        catch (Exception) { /* clipboard busy */ }
+    }
+
     public BitmapSource? LoadImage(ClipItem item, int decodeWidth = 0)
     {
         try

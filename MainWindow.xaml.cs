@@ -150,6 +150,8 @@ public partial class MainWindow : Window
         _lyricsInline.SeekRequested += time => _media.Seek(time);
         _focusSession = new FocusSession(_settings, _timer);
         WirePet();
+        WireSnooze();
+        WireTray();
         WireCarry();
         ApplyMusicLayout();
         FocusPage.Children.Add(new FocusPanel(_focusSession, _settings, _timer));
@@ -255,7 +257,10 @@ public partial class MainWindow : Window
         _hoverTimer.Tick += (_, _) =>
         {
             _hoverTimer.Stop();
-            if (!_peeking) SetExpanded(true);
+            if (_peeking) return;
+            // Hovering shows the quick tray when there is something in it; clicking opens the whole island.
+            if (_settings.HoverQuickTray && !_state.IsExpanded && TrayHasContent()) ShowTray();
+            else SetExpanded(true);
         };
         _leavePoll.Tick += OnLeavePoll;
         _progressTimer.Tick += (_, _) => UpdateProgress();
@@ -280,6 +285,7 @@ public partial class MainWindow : Window
         {
             // The alarm rings while its alert is up: clicked away or timed out stops the sound.
             if (_alarmSound is not null && _state.Transient != IslandView.TimerDone) StopAlarmSound();
+            if (_state.Transient != IslandView.TimerDone) HideAlarmActions();
         };
         _notifications.Arrived += OnNotificationArrived;
         _notifications.Changed += BuildNotificationList;
@@ -1352,7 +1358,7 @@ public partial class MainWindow : Window
     /// <summary>Grows the window before the pill grows; shrinks it only once the pill has settled small.</summary>
     private void UpdateWindowHeight()
     {
-        var needed = PillTop + Math.Max(_height.Value, _height.Target) + (_settings.PetEnabled ? 42 : 30); // overshoot + shadow room (+ the pet)
+        var needed = PillTop + Math.Max(_height.Value, _height.Target) + Math.Max(_settings.PetEnabled ? 42 : 30, _settings.HoverQuickTray ? 78 : 0); // overshoot + shadow room (+ the pet, the quick tray)
 
         // Expanded content can outgrow the base height (quick apps + wallpaper controls). The root
         // only ever grows, in 20-unit steps: resizing the window rebuilds the GPU blur's layers, so
@@ -1442,6 +1448,7 @@ public partial class MainWindow : Window
         // The second-activity bubble sits just right of the pill, as tall as it; the privacy dot after it.
         var right = (BaseWidth + w) / 2;
         PlacePet(w, h);
+        PlaceTray(w, h);
         if (MediaDiscBubble.Visibility == Visibility.Visible)
         {
             var disc = Math.Max(26, h);
@@ -2310,6 +2317,7 @@ public partial class MainWindow : Window
             BuildCalendar();
         }
         _state.IsExpanded = expanded;
+        if (expanded) HideTray();
         if (expanded) ArmDock();
         UpdateIdleWeatherBubble();
         UpdateMediaBubbles();
@@ -2902,6 +2910,7 @@ public partial class MainWindow : Window
         // Windows holds toasts back during Do Not Disturb; so does the island.
         if (!_settings.NotificationsEnabled || IslandHidden || _focus.IsOn) return;
         _pet.React(PetEvent.Notification, n.AppName);
+        _shownNotification = n;
         CarryNotification(n);
         if (!_state.CanShowTransient(TransientPriority.Notification)) return;
 
@@ -3794,6 +3803,7 @@ public partial class MainWindow : Window
 
     private void OnTimerFinished()
     {
+        HideAlarmActions();
         TimerDoneGlyph.Text = ""; // the view is shared with alarms
         TimerDoneText.Text = "Timer finished";
         if (_focusSession.OnTimerFinished() is { } focusMessage) { TimerDoneText.Text = focusMessage; TimerDoneGlyph.Text = "\uE916";  _pet.React(PetEvent.FocusEnd); }
@@ -3852,6 +3862,7 @@ public partial class MainWindow : Window
         catch (Exception) { SystemSounds.Exclamation.Play(); }
 
         if (IslandHidden) SetIslandHidden(false); // an alarm must be seen
+        ShowAlarmActions(alarm);
         _state.ShowTransient(IslandView.TimerDone, TransientPriority.Alarm, TimeSpan.FromMinutes(1));
     }
 
