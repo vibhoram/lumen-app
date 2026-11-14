@@ -33,6 +33,8 @@ public enum GlassEngine
     ScreenCapture,
     /// <summary>Screen copy bent through the island's shape by a pixel shader (true refraction).</summary>
     Refraction,
+    /// <summary>GPU blur plus a Direct3D lens ring that bends the background at the rim (needs the GPU engine).</summary>
+    Lens,
 }
 
 public enum AccentSource
@@ -183,6 +185,11 @@ public sealed class AppSettings
 
     /// <summary>Hold Ctrl over the island and it fades and lets clicks through to the window behind (e.g. browser tabs).</summary>
     public bool CtrlPeek { get; set; } = true;
+
+    /// <summary>After the island has been collapsed this many seconds, it reopens on the first page (0 = never).</summary>
+    public int ReturnHomeSeconds { get; set; } = 5;
+    /// <summary>Show a Copy button when a notification contains a verification code.</summary>
+    public bool CopyCodes { get; set; } = true;
 
     /// <summary>Keep a history of what you copy (text, links, images, files), on this PC only.</summary>
     public bool ClipboardHistoryEnabled { get; set; } = true;

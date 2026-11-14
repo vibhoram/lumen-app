@@ -69,6 +69,9 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     public static extern short GetAsyncKeyState(int vKey);
 
+    [DllImport("user32.dll")]
+    public static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
+
     public const int VK_CONTROL = 0x11;
 
     [DllImport("user32.dll")]

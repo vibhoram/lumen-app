@@ -41,6 +41,8 @@
     <PackageReference Include="Ical.Net" Version="4.3.1" />
     <PackageReference Include="System.Management" Version="8.0.0" />
     <PackageReference Include="Vortice.DirectComposition" Version="3.6.2" />
+    <PackageReference Include="Vortice.Direct3D11" Version="3.6.2" />
+    <PackageReference Include="Vortice.DXGI" Version="3.6.2" />
   </ItemGroup>
 
   <!-- Sparse package (identity for notifications + Windows calendar): the manifest and the script
@@ -52,6 +54,9 @@
   <!-- Compiled pixel shader for the Liquid Glass refraction (source: Shaders\LiquidGlass.fx). -->
   <ItemGroup>
     <Resource Include="Shaders\LiquidGlass.ps" />
+    <EmbeddedResource Include="Shaders\LensVS.cso" LogicalName="LensVS.cso" />
+    <EmbeddedResource Include="Shaders\LensPS.cso" LogicalName="LensPS.cso" />
+    <None Include="Shaders\*.hlsl" />
     <None Include="Shaders\LiquidGlass.fx" />
   </ItemGroup>
 

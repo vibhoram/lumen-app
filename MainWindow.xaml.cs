@@ -105,6 +105,8 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _leavePoll = new() { Interval = TimeSpan.FromMilliseconds(LeavePollMs) };
     private readonly DispatcherTimer _progressTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private int _msOutside;
+    private long _lastKey = Environment.TickCount64;
+    private DateTime _collapsedAt;
     private bool _hoverSuppressed;
     private bool _equalizerRunning;
     private bool _osdDimmed;
@@ -190,8 +192,14 @@ public partial class MainWindow : Window
         _volume.Changed += ShowVolume;
         _brightness.Changed += ShowBrightness;
         _volumeKeys.VolumeKey += OnVolumeKey;
-        _shake.Shaken += () => SetIslandHidden(!IslandHidden);
+        // Shake: if an alert (notification, code...) is showing, it goes away and the pill stays; otherwise hide / show the pill.
+        _shake.Shaken += () =>
+        {
+            if (!IslandHidden && _state.Transient is not null) _state.DismissTransient();
+            else SetIslandHidden(!IslandHidden);
+        };
         _peekTimer.Tick += (_, _) => PeekTick();
+        PreviewKeyDown += (_, _) => _lastKey = Environment.TickCount64;
         _battery.Alert += OnBatteryAlert;
         _devices.Changed += OnDeviceChanged;
         _keyboard.LockToggled += OnLockToggled;
@@ -577,6 +585,17 @@ public partial class MainWindow : Window
             if (Enum.TryParse<ExpandedPage>(expand, true, out var page)) ShowPage(page, animate: false);
             if (Environment.GetEnvironmentVariable("DISLAND_ASSIST_DEMO") == "1") _assistant.DebugDemo();
         }
+#if DEBUG
+        if (Environment.GetEnvironmentVariable("DISLAND_LENS_DUMP") is { Length: > 0 } lensPng)
+        {
+            // Debug aid: after 5 s write the lens ring composited over the captured screen to a PNG, plus a log line.
+            _ = Task.Delay(5000).ContinueWith(_ => Dispatcher.Invoke(() =>
+            {
+                var info = _gpuBlur is null ? "no gpu backdrop" : _gpuBlur.LensDebug(lensPng);
+                System.IO.File.WriteAllText(lensPng + ".txt", info + $" lensFailed={_lensFailed}");
+            }));
+        }
+#endif
         if (Environment.GetEnvironmentVariable("DISLAND_DEVICE") is { Length: > 0 } deviceName)
         {
             // Debug aid: "name" or "-name" fakes a device connecting / disconnecting after 1 s.
@@ -1496,6 +1515,16 @@ public partial class MainWindow : Window
             if (gpu) KeepOnTop(force: true);
         }
         _gpuActive = gpu;
+        if (gpu && _gpuBlur is not null)
+        {
+            // The lens ring reads the screen through Desktop Duplication (a GPU texture), sampling only outside the island's own shape.
+            var wantLens = _settings.GlassEngine == GlassEngine.Lens && !_lensFailed;
+            if (wantLens && !(_gpuBlur.SetLens(true, (float)(_settings.GlassRefraction * 30 * VisualTreeHelper.GetDpi(this).DpiScaleX * Scale), (float)_settings.GlassShine)))
+            {
+                _lensFailed = true; // keep the plain blur from now on
+            }
+            else if (!wantLens) _gpuBlur.SetLens(false, 0, 0);
+        }
         if (gpu) UpdateGpuShape();
 
         var capture = wantBlur && !gpu && _settings.GlassEngine != GlassEngine.Gpu && !_captureUnsupported;
@@ -1539,6 +1568,7 @@ public partial class MainWindow : Window
 
     private GpuBlurBackdrop? _gpuBlur;
     private bool _gpuActive;
+    private bool _lensFailed;
     private bool _gpuFailed;
     private bool _gpuProbeRunning;
     private double _glassStrength = 1;
@@ -2174,6 +2204,10 @@ public partial class MainWindow : Window
             _progressTimer.Stop();
         }
         var changed = _state.IsExpanded != expanded;
+        if (changed && !expanded) _collapsedAt = DateTime.Now;
+        if (changed && expanded && _settings.ReturnHomeSeconds > 0 && _collapsedAt != default && _page != ExpandedPage.Home
+            && (DateTime.Now - _collapsedAt).TotalSeconds >= _settings.ReturnHomeSeconds)
+            ShowPage(ExpandedPage.Home, animate: false);
         // Opening while (or just after) an alert is shown goes to that alert's page.
         if (expanded && changed && _alertPage is { } alertPage && DateTime.Now < _alertPageUntil
             && AvailablePages().Contains(alertPage))
@@ -2200,7 +2234,10 @@ public partial class MainWindow : Window
     private void OnLeavePoll(object? sender, EventArgs e)
     {
         // Typing in a note: stay open wherever the mouse goes, until the user clicks elsewhere or presses Esc.
-        if (_typing || IsCursorOverPill())
+        // Typing keeps it open while keys are still being pressed and the island still has the keyboard;
+        // once you stop (or click into another app) it collapses like normal.
+        var stillTyping = _typing && IsActive && Environment.TickCount64 - _lastKey < 8000;
+        if (stillTyping || IsCursorOverPill())
         {
             _msOutside = 0;
             return;
@@ -2736,13 +2773,59 @@ public partial class MainWindow : Window
             ? new ImageBrush(icon) { Stretch = Stretch.UniformToFill }
             : (Brush)FindResource("ArtPlaceholder");
         var hide = _settings.NotificationsHideText;
+        _pendingCode = _settings.CopyCodes ? ExtractCode(n.Title + " " + n.Body) : null;
+        NotifCopy.Visibility = _pendingCode is null ? Visibility.Collapsed : Visibility.Visible;
+        NotifApp.Visibility = _pendingCode is null ? Visibility.Visible : Visibility.Collapsed;
+        if (_pendingCode is not null) ResetCopyButton();
         NotifTitle.Text = hide ? n.AppName : n.Title;
         NotifBody.Text = hide ? "New notification" : FirstLine(n.Body);
+        if (_pendingCode is not null) { NotifTitle.Text = "Code  " + _pendingCode; NotifBody.Text = n.AppName + " · " + FirstLine(n.Body); }
         NotifBody.Visibility = NotifBody.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
         NotifApp.Text = hide ? "now" : n.AppName;
         var seconds = Math.Clamp(_settings.NotificationSeconds, 2, 15);
+        if (_pendingCode is not null) seconds = Math.Max(seconds, 8); // long enough to reach for the Copy button
         SetAlertPage(ExpandedPage.Notifications, seconds);
         _state.ShowTransient(IslandView.Notification, TransientPriority.Notification, TimeSpan.FromSeconds(seconds));
+    }
+
+    private string? _pendingCode;
+
+    private static readonly System.Text.RegularExpressions.Regex CodeWords = new(
+        @"\b(code|otp|verification|verify|passcode|pin|one[- ]time|security|authenticat\w*|login|log in|sign[- ]?in|2fa)\b",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex CodeDigits = new(
+        @"(?<![\d.])(\d{3}[- ]\d{3}|\d{4,8})(?![\d.])", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    /// <summary>A one-time code in a notification ("Your code is 482913"), or null.</summary>
+    private static string? ExtractCode(string text)
+    {
+        if (!CodeWords.IsMatch(text)) return null;
+        foreach (System.Text.RegularExpressions.Match m in CodeDigits.Matches(text))
+        {
+            var digits = m.Value.Replace(" ", "").Replace("-", "");
+            if (digits.Length is >= 4 and <= 8 && !(digits.Length == 4 && digits.StartsWith("20") && int.Parse(digits) is >= 2000 and <= 2099))
+                return m.Value;
+        }
+        return null;
+    }
+
+    private void ResetCopyButton()
+    {
+        NotifCopyGlyph.Text = "\uE8C8";
+        NotifCopyText.Text = "Copy";
+    }
+
+    private void OnNotifCopyClick(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        if (_pendingCode is null) return;
+        try { Clipboard.SetText(_pendingCode.Replace(" ", "").Replace("-", "")); } catch (Exception) { return; }
+        NotifCopyGlyph.Text = "\uE73E";
+        NotifCopyText.Text = "Copied";
+        // a little pop
+        var pop = new DoubleAnimation(1.12, TimeSpan.FromMilliseconds(110)) { AutoReverse = true, EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+        NotifCopyScale.BeginAnimation(ScaleTransform.ScaleXProperty, pop);
+        NotifCopyScale.BeginAnimation(ScaleTransform.ScaleYProperty, pop);
     }
 
     private static string FirstLine(string text) => text.Split('\n', 2)[0].Trim();

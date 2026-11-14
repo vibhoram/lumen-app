@@ -65,6 +65,9 @@ internal sealed class GpuBlurBackdrop : IDisposable
     private NativeMethods.RECT _bounds;
     private bool _visible = true;
     private (float X, float Y, float W, float H, float R, float Blur, float Opacity) _shape;
+    private LensRenderer? _lens;
+    private IDCompositionVisual2? _lensVisual;
+    private float _lensStrength = 14, _lensShine = 0.9f;
 
     private sealed record Layer(IntPtr Hwnd, IntPtr Thumbnail, IDCompositionVisual2 Visual)
     {
@@ -123,6 +126,55 @@ internal sealed class GpuBlurBackdrop : IDisposable
         ClearLayers();
         SyncWindows();
     }
+
+    /// <summary>Turns the refraction ring on or off. Returns false if the GPU path isn't available (the blur keeps working).</summary>
+    public bool SetLens(bool enabled, float strength, float shine)
+    {
+        _lensStrength = strength;
+        _lensShine = shine;
+        if (!enabled)
+        {
+            if (_lens is not null)
+            {
+                if (_lensVisual is not null) { _root.RemoveVisual(_lensVisual); _lensVisual.Dispose(); _lensVisual = null; }
+                _lens.Dispose();
+                _lens = null;
+                _device.Commit();
+            }
+            return true;
+        }
+        if (_lens is not null) return true;
+        try
+        {
+            _lens = new LensRenderer(_hwnd, Math.Max(16, _bounds.Right - _bounds.Left), Math.Max(16, _bounds.Bottom - _bounds.Top));
+            _lensVisual = _device.CreateVisual();
+            _lensVisual.SetContent(_lens.SwapChain);
+            _root.AddVisual(_lensVisual, false, null);
+            _device.Commit();
+            _shape = default; // force the next SetShape to push the shape to the lens
+            return true;
+        }
+        catch (Exception ex)
+        {
+            App.LogError(ex);
+            _lens?.Dispose();
+            _lens = null;
+            _lensVisual?.Dispose();
+            _lensVisual = null;
+            return false;
+        }
+    }
+
+    public bool LensActive => _lens is not null;
+
+#if DEBUG
+    public string LensDebug(string pngPath)
+    {
+        if (_lens is null) return "lens off";
+        var dumped = _lens.DumpPng(pngPath);
+        return $"frames={_lens.FramesReceived} dumped={dumped} err={_lens.LastError}";
+    }
+#endif
 
     public void SetVisible(bool visible)
     {
@@ -216,10 +268,12 @@ internal sealed class GpuBlurBackdrop : IDisposable
         _blur.SetStandardDeviation(Math.Max(0.01f, blurRadius / 3f));
         _root3?.SetOpacity(Math.Clamp(opacity, 0, 1));
         _device.Commit();
+        _lens?.SetShape(x, y, width, height, radius, _bounds.Left, _bounds.Top, blurRadius * 0.6f, _lensStrength, 0.07f, _lensShine);
     }
 
     public void Dispose()
     {
+        SetLens(false, 0, 0);
         ClearLayers();
         _blur.Dispose();
         _clip.Dispose();

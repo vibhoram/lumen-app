@@ -132,6 +132,8 @@ public partial class SettingsWindow : Window
         Check(interaction, "Expand on hover (click always works)", () => s.ExpandOnHover, v => s.ExpandOnHover = v);
         Slider(interaction, "Hover delay", 0, 1000, 10, () => s.HoverDelayMs, v => s.HoverDelayMs = (int)v, v => $"{v:0} ms");
         Slider(interaction, "Collapse delay", 0, 1500, 10, () => s.CollapseDelayMs, v => s.CollapseDelayMs = (int)v, v => $"{v:0} ms");
+        Slider(interaction, "Back to first page", 0, 120, 1, () => s.ReturnHomeSeconds, v => s.ReturnHomeSeconds = (int)v, v => v == 0 ? "Never" : $"{v:0} s");
+        Note(interaction, "After the island has been collapsed this long, it reopens on the first page instead of the page you left.");
         Check(interaction, "Magic Shake: shake the mouse quickly to hide / show the island", () => s.MagicShake, v => s.MagicShake = v);
         Check(interaction, "Peek-through: hold Ctrl over the island to click through to what's behind it", () => s.CtrlPeek, v => s.CtrlPeek = v);
         Choice(interaction, "Shake sensitivity", new[] { (ShakeSensitivity.Low, "Low"), (ShakeSensitivity.Medium, "Medium"), (ShakeSensitivity.High, "High") },
@@ -331,7 +333,7 @@ public partial class SettingsWindow : Window
                     v => v == 0 ? "Clear" : v >= 1 ? "Frosted" : $"{v * 100:0}%");
                 Slider(_materialOptions, "Shininess", 0, 1, 0.05, () => s.GlassShine, v => s.GlassShine = v,
                     v => v == 0 ? "Matte" : $"{v * 100:0}%");
-                Slider(_materialOptions, "Refraction", 0, 1, 0.05, () => s.GlassRefraction, v => s.GlassRefraction = v,
+                Slider(_materialOptions, "Light bend", 0, 1, 0.05, () => s.GlassRefraction, v => s.GlassRefraction = v,
                     v => v == 0 ? "None" : $"{v * 100:0}%");
                 Slider(_materialOptions, "Tint", 0, 0.9, 0.02, () => s.GlassTint, v => s.GlassTint = v, v => v == 0 ? "None" : $"{v * 100:0}%");
                 Choice(_materialOptions, "Blur engine", new[]
@@ -339,7 +341,7 @@ public partial class SettingsWindow : Window
                     (GlassEngine.Auto, "Auto"),
                     (GlassEngine.Gpu, "GPU"),
                     (GlassEngine.ScreenCapture, "Screen capture"),
-                    (GlassEngine.Refraction, "Refraction (beta)"),
+                    (GlassEngine.Lens, "Liquid lens (GPU)"),
                 }, () => s.GlassEngine, v => s.GlassEngine = v);
                 Note(_materialOptions,
                     "GPU: Windows draws what's behind the island and the GPU blurs it. Near-zero CPU, and the island " +

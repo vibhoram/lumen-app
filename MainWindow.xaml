@@ -241,6 +241,22 @@
                     </StackPanel>
                     <TextBlock x:Name="NotifApp" Grid.Column="2" FontSize="11" MaxWidth="90" Margin="0,11,0,0"
                                VerticalAlignment="Top" TextTrimming="CharacterEllipsis" Foreground="{StaticResource Secondary}" />
+                    <!-- Verification code: a one-tap Copy button replaces the app name. -->
+                    <Border x:Name="NotifCopy" Grid.Column="2" Visibility="Collapsed" CornerRadius="15" Padding="13,7"
+                            VerticalAlignment="Center" Cursor="Hand" RenderTransformOrigin="0.5,0.5"
+                            MouseLeftButtonUp="OnNotifCopyClick">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#FF8B6CFF" Offset="0" />
+                                <GradientStop Color="#FF2DD4FF" Offset="1" />
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <Border.RenderTransform><ScaleTransform x:Name="NotifCopyScale" ScaleX="1" ScaleY="1" /></Border.RenderTransform>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock x:Name="NotifCopyGlyph" Style="{StaticResource Glyph}" Text="&#xE8C8;" FontSize="12" Margin="0,0,7,0" />
+                            <TextBlock x:Name="NotifCopyText" Text="Copy" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
                 </Grid>
             </Grid>
 
