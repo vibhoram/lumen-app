@@ -160,6 +160,7 @@ public partial class SettingsWindow : Window
         }, () => s.ProgressStyle, v => s.ProgressStyle = v);
         Choice(media, "Time on the pill", new[] { (CompactTime.Off, "Off"), (CompactTime.Elapsed, "Elapsed"), (CompactTime.Remaining, "Remaining") },
             () => s.CompactMediaTime, v => s.CompactMediaTime = v);
+        Check(media, "Artist name under the title on the collapsed pill", () => s.ShowArtistOnPill, v => s.ShowArtistOnPill = v);
         Check(media, "Thin progress line along the collapsed pill", () => s.CompactProgressLine, v => s.CompactProgressLine = v);
         Check(media, "Find real album art when a browser only gives an icon", () => s.AutoAlbumArt, v => s.AutoAlbumArt = v);
         Check(media, "Synced lyrics", () => s.LyricsEnabled, v => s.LyricsEnabled = v);

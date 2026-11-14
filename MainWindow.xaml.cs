@@ -3868,8 +3868,11 @@ public partial class MainWindow : Window
     /// Animate the bars only while they're on screen: any running WPF animation keeps the whole window
     /// re-rendering every frame, which competes with Wallpaper Engine for the GPU.
     /// </summary>
-    private void UpdateEqualizer() =>
+    private void UpdateEqualizer()
+    {
         SetEqualizerRunning(_media.Current?.IsPlaying == true && _currentView == MediaView && !IslandHidden);
+        UpdateMarquee();
+    }
 
     private void UpdateProgress()
     {

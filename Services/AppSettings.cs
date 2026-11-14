@@ -204,6 +204,8 @@ public sealed class AppSettings
     /// <summary>Look up real album art (iTunes) when the player only gives a browser icon.</summary>
     public bool AutoAlbumArt { get; set; } = true;
     public bool LyricsEnabled { get; set; } = true;
+    /// <summary>Artist name under the title on the collapsed music pill.</summary>
+    public bool ShowArtistOnPill { get; set; } = true;
     public bool LyricsInCompact { get; set; }
     public bool LyricsInExpanded { get; set; } = true;
 

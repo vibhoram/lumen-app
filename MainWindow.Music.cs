@@ -35,7 +35,13 @@ public partial class MainWindow
     private void MusicTrackChanged(MediaInfo? media)
     {
         ProgressBar.Playing = media?.IsPlaying == true;
-        if (media is not null) ProgressBar.Accent = BrightenAccent(media.Accent);
+        if (media is not null)
+        {
+            ProgressBar.Accent = BrightenAccent(media.Accent);
+            var bars = new SolidColorBrush(BrightenAccent(media.Accent));
+            bars.Freeze();
+            foreach (System.Windows.Shapes.Rectangle bar in Equalizer.Children) bar.Fill = bars;
+        }
         if (media?.IsPlaying == true) _musicTimer.Start();
         else _musicTimer.Stop();
 
@@ -111,6 +117,59 @@ public partial class MainWindow
         MediaLyricLarge.Text = line;
         MediaLyricLarge.Visibility = _settings.LyricsInExpanded && line.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         var title = string.IsNullOrWhiteSpace(media.Title) ? "Unknown title" : media.Title;
-        MediaTitleSmall.Text = _settings.LyricsInCompact && line.Length > 0 ? "♪ " + line : title;
+        var shown = _settings.LyricsInCompact && line.Length > 0 ? "♪ " + line : title;
+        var artist = _settings.ShowArtistOnPill && !(_settings.LyricsInCompact && line.Length > 0) ? media.Artist : "";
+        MediaArtistSmall.Text = artist;
+        MediaArtistSmall.Visibility = artist.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (shown != MediaTitleSmall.Text)
+        {
+            MediaTitleSmall.Text = shown;
+            _marqueeKey = null; // new text: re-measure the scroll
+            UpdateMarquee();
+        }
+    }
+
+    private string? _marqueeKey;
+
+    /// <summary>
+    /// A title that doesn't fit scrolls to its end and back. Only while the music pill is on screen: a running
+    /// animation keeps the whole window rendering, so it stops the moment the pill isn't shown.
+    /// </summary>
+    private void UpdateMarquee()
+    {
+        var onScreen = _currentView == MediaView && !IslandHidden && !_state.IsExpanded;
+        if (!onScreen)
+        {
+            if (_marqueeKey is not null)
+            {
+                MediaTitleShift.BeginAnimation(System.Windows.Media.TranslateTransform.XProperty, null);
+                MediaTitleShift.X = 0;
+                _marqueeKey = null;
+            }
+            return;
+        }
+        var key = MediaTitleSmall.Text;
+        if (key == _marqueeKey) return;
+        _marqueeKey = key;
+        MediaTitleShift.BeginAnimation(System.Windows.Media.TranslateTransform.XProperty, null);
+        MediaTitleShift.X = 0;
+
+        MediaTitleSmall.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        var available = MediaTitleClip.ActualWidth > 0 ? MediaTitleClip.ActualWidth : 190;
+        var overflow = MediaTitleSmall.DesiredSize.Width - available;
+        if (overflow <= 2) return;
+
+        var distance = overflow + 14;
+        var travel = TimeSpan.FromSeconds(distance / 30); // 30 px per second, easy to read
+        var hold = TimeSpan.FromSeconds(1.8);
+        var back = TimeSpan.FromSeconds(0.7);
+        var total = hold + travel + TimeSpan.FromSeconds(1.2) + back;
+        var frames = new System.Windows.Media.Animation.DoubleAnimationUsingKeyFrames { Duration = total, RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever };
+        frames.KeyFrames.Add(new System.Windows.Media.Animation.LinearDoubleKeyFrame(0, hold));
+        frames.KeyFrames.Add(new System.Windows.Media.Animation.LinearDoubleKeyFrame(-distance, hold + travel));
+        frames.KeyFrames.Add(new System.Windows.Media.Animation.LinearDoubleKeyFrame(-distance, hold + travel + TimeSpan.FromSeconds(1.2)));
+        frames.KeyFrames.Add(new System.Windows.Media.Animation.EasingDoubleKeyFrame(0, total, new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseInOut }));
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(frames, 30);
+        MediaTitleShift.BeginAnimation(System.Windows.Media.TranslateTransform.XProperty, frames);
     }
 }
