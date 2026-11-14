@@ -773,7 +773,7 @@
 
                 </StackPanel>
 
-                <Button Style="{StaticResource IconButton}" Width="30" Height="30"
+                <Button Style="{StaticResource ChipButton}" Width="30" Height="30" Padding="0"
                         HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,12,0"
                         Click="OnSettingsClick" ToolTip="Settings (or right-click the island)">
                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE713;" FontSize="14"

@@ -235,7 +235,7 @@ public sealed class FocusPanel : Grid
     private Color PhaseColor => _session.Phase switch
     {
         FocusPhase.ShortBreak or FocusPhase.LongBreak => Color.FromRgb(0x30, 0xD1, 0x58),
-        _ => Color.FromRgb(0xFF, 0x9F, 0x0A),
+        _ => Color.FromRgb(0xF7, 0xF8, 0xFC), // focus is pure light: white on glass, like the rest of the island
     };
 
     private void Refresh()
@@ -255,8 +255,15 @@ public sealed class FocusPanel : Grid
         _mainGlyph.Text = phase == FocusPhase.Idle || _session.Paused || !_session.Running ? "" : "";
 
         var color = PhaseColor;
-        _mainButton.Background = new LinearGradientBrush(color, phase is FocusPhase.ShortBreak or FocusPhase.LongBreak ? Color.FromRgb(0x64, 0xE8, 0xA0) : Color.FromRgb(0xFF, 0xC8, 0x6B), 35);
-        _arc.Stroke = new LinearGradientBrush(color, phase is FocusPhase.ShortBreak or FocusPhase.LongBreak ? Color.FromRgb(0x64, 0xE8, 0xA0) : Color.FromRgb(0xFF, 0xC8, 0x6B), 45);
+        var onBreak = phase is FocusPhase.ShortBreak or FocusPhase.LongBreak;
+        var second = onBreak ? Color.FromRgb(0x64, 0xE8, 0xA0) : Color.FromRgb(0xC9, 0xD6, 0xF2);
+        // a prominent glass button: bright white (dark text) while focusing, green (white text) on a break
+        _mainButton.Background = new LinearGradientBrush(color, onBreak ? second : Color.FromRgb(0xDD, 0xE2, 0xEE), 90);
+        var ink = onBreak ? Brushes.White : AssistantPanel.B("#15161B");
+        _main.Foreground = ink;
+        _mainGlyph.Foreground = ink;
+        _arc.Stroke = new LinearGradientBrush(color, second, 45);
+        _arc.Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = onBreak ? Color.FromRgb(0x30, 0xD1, 0x58) : Colors.White, BlurRadius = 12, ShadowDepth = 0, Opacity = 0.35 };
 
         var fraction = total.TotalSeconds <= 0 ? 0 : Math.Clamp(remaining.TotalSeconds / total.TotalSeconds, 0, 1);
         if (phase == FocusPhase.Idle) fraction = 1;

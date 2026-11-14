@@ -27,6 +27,23 @@
             <GradientStop Color="#78FFFFFF" Offset="1" />
         </LinearGradientBrush>
 
+        <!-- Tooltips: a small dark glass label (the default is a white Windows box). -->
+        <Style TargetType="ToolTip">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="HasDropShadow" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToolTip">
+                        <Border Background="#EB1E1F24" BorderBrush="{StaticResource GlassRim}" BorderThickness="1"
+                                CornerRadius="10" Padding="9,5">
+                            <ContentPresenter TextElement.Foreground="White" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="IconButton" TargetType="Button">
             <Setter Property="Foreground" Value="White" />
             <Setter Property="Background" Value="Transparent" />
