@@ -135,6 +135,8 @@ public partial class SettingsWindow : Window
         Slider(interaction, "Back to first page", 0, 120, 1, () => s.ReturnHomeSeconds, v => s.ReturnHomeSeconds = (int)v, v => v == 0 ? "Never" : $"{v:0} s");
         Note(interaction, "After the island has been collapsed this long, it reopens on the first page instead of the page you left.");
         Check(interaction, "Magic Shake: shake the mouse quickly to hide / show the island", () => s.MagicShake, v => s.MagicShake = v);
+        Check(interaction, "Hide automatically in full-screen games, video and presentations", () => s.HideInFullscreen, v => s.HideInFullscreen = v);
+        Check(interaction, "Meeting mode: stay quiet while the mic or camera is in use", () => s.MeetingMode, v => s.MeetingMode = v);
         Check(interaction, "Peek-through: hold Ctrl over the island to click through to what's behind it", () => s.CtrlPeek, v => s.CtrlPeek = v);
         Choice(interaction, "Shake sensitivity", new[] { (ShakeSensitivity.Low, "Low"), (ShakeSensitivity.Medium, "Medium"), (ShakeSensitivity.High, "High") },
             () => s.ShakeSensitivity, v => s.ShakeSensitivity = v);

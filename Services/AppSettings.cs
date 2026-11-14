@@ -193,6 +193,11 @@ public sealed class AppSettings
     /// <summary>Show a Copy button when a notification contains a verification code.</summary>
     public bool CopyCodes { get; set; } = true;
 
+    /// <summary>Hide the island by itself while a full-screen game, video or presentation is running.</summary>
+    public bool HideInFullscreen { get; set; } = true;
+    /// <summary>While the mic or camera is in use (a call), only important alerts (timers, alarms) show.</summary>
+    public bool MeetingMode { get; set; } = true;
+
     // ---- Music
     public ProgressStyle ProgressStyle { get; set; } = ProgressStyle.Wavy;
     public CompactTime CompactMediaTime { get; set; } = CompactTime.Remaining;

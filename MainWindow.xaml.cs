@@ -134,6 +134,7 @@ public partial class MainWindow : Window
         _assistant.OpenSettingsRequested += () => SettingsRequested?.Invoke();
         _assistant.ScreenRequested = CaptureScreenAsync;
         WireClara();
+        WireContext();
         WireMusic();
         _focusSession = new FocusSession(_settings, _timer);
         FocusPage.Children.Add(new FocusPanel(_focusSession, _settings, _timer));
@@ -1422,6 +1423,7 @@ public partial class MainWindow : Window
 
     private void OnPrivacyChanged(SensorUse old, SensorUse now)
     {
+        _inCall = now.MicrophoneInUse || now.CameraInUse;
         UpdatePrivacyIndicators();
 
         // Announce a start (not a stop), like the iPhone; camera wins when both start together.
@@ -2670,7 +2672,7 @@ public partial class MainWindow : Window
         Brush? detailBrush = null, Brush? glyphBrush = null, double? seconds = null)
     {
         // Hidden: nothing to show, and animating an invisible window would only cost CPU.
-        if (IslandHidden || !_state.CanShowTransient(priority)) return;
+        if (IslandHidden || !_state.CanShowTransient(priority) || MeetingQuiet(priority)) return;
         InfoGlyph.Text = glyph;
         InfoGlyph.Foreground = glyphBrush ?? Brushes.White;
         InfoTitle.Text = title;
@@ -2784,7 +2786,7 @@ public partial class MainWindow : Window
     {
         // Windows holds toasts back during Do Not Disturb; so does the island.
         if (!_settings.NotificationsEnabled || IslandHidden || _focus.IsOn) return;
-        if (!_state.CanShowTransient(TransientPriority.Notification)) return;
+        if (!_state.CanShowTransient(TransientPriority.Notification) || MeetingQuiet(TransientPriority.Notification)) return;
 
         NotifIcon.Background = n.AppIcon is { } icon
             ? new ImageBrush(icon) { Stretch = Stretch.UniformToFill }
