@@ -191,6 +191,18 @@ public sealed class AppSettings
     /// <summary>Show a Copy button when a notification contains a verification code.</summary>
     public bool CopyCodes { get; set; } = true;
 
+    // ---- Focus sessions (Pomodoro)
+    public bool FocusEnabled { get; set; } = true;
+    public int FocusMinutes { get; set; } = 25;
+    public int ShortBreakMinutes { get; set; } = 5;
+    public int LongBreakMinutes { get; set; } = 15;
+    public int FocusCyclesBeforeLong { get; set; } = 4;
+    /// <summary>Start the next phase by itself when one finishes.</summary>
+    public bool FocusAutoStart { get; set; } = true;
+
+    /// <summary>Order of the island's pages after Home (page names); anything missing follows in the default order.</summary>
+    public List<string> PageOrder { get; set; } = new();
+
     /// <summary>Keep a history of what you copy (text, links, images, files), on this PC only.</summary>
     public bool ClipboardHistoryEnabled { get; set; } = true;
     public bool ClipboardPageEnabled { get; set; } = true;

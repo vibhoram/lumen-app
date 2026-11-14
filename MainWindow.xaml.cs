@@ -48,6 +48,7 @@ public partial class MainWindow : Window
     private readonly Hotkey _assistHotkey = new(2);
     private AssistantPanel _assistant = null!;
     private bool _assistFit;
+    private FocusSession _focusSession = null!;
     private readonly ClipboardHistory _clipHistory = new();
     private ClipboardPanel _clipPanel = null!;
     private readonly BatteryService _battery = new();
@@ -133,6 +134,8 @@ public partial class MainWindow : Window
         _assistant.OpenSettingsRequested += () => SettingsRequested?.Invoke();
         _assistant.ScreenRequested = CaptureScreenAsync;
         WireClara();
+        _focusSession = new FocusSession(_settings, _timer);
+        FocusPage.Children.Add(new FocusPanel(_focusSession, _settings, _timer));
         _clipPanel = new ClipboardPanel(_clipHistory);
         ClipboardPage.Children.Add(_clipPanel);
         _clipPanel.BeginTypingRequested += BeginTyping;
@@ -935,6 +938,7 @@ public partial class MainWindow : Window
         Notes,
         Assistant,
         Clipboard,
+        Focus,
         Shelf,
         Weather,
         Apps,
@@ -959,6 +963,7 @@ public partial class MainWindow : Window
         var pages = new List<ExpandedPage> { ExpandedPage.Home };
         if (_settings.AssistantEnabled) pages.Add(ExpandedPage.Assistant);
         if (_settings.ClipboardPageEnabled) pages.Add(ExpandedPage.Clipboard);
+        if (_settings.FocusEnabled) pages.Add(ExpandedPage.Focus);
         if (_settings.NotificationsEnabled) pages.Add(ExpandedPage.Notifications);
         if (_settings.CalendarEnabled) pages.Add(ExpandedPage.Calendar);
         if (_settings.TodoEnabled) pages.Add(ExpandedPage.Todo);
@@ -966,6 +971,12 @@ public partial class MainWindow : Window
         if (_settings.ShelfEnabled) pages.Add(ExpandedPage.Shelf);
         if (_settings.WeatherEnabled) pages.Add(ExpandedPage.Weather);
         pages.Add(ExpandedPage.Apps);
+        // The user's own order (Settings > Pages); Home always stays first.
+        var order = _settings.PageOrder;
+        if (order.Count > 0)
+            pages = new List<ExpandedPage> { ExpandedPage.Home }
+                .Concat(pages.Skip(1).OrderBy(p => { var i = order.IndexOf(p.ToString()); return i < 0 ? int.MaxValue : i; }))
+                .ToList();
         // (the Wallpaper page was removed on purpose: it isn't wanted in this fork)
         return pages;
     }
@@ -978,6 +989,7 @@ public partial class MainWindow : Window
         ExpandedPage.Notes => NotesPage,
         ExpandedPage.Assistant => AssistantPage,
         ExpandedPage.Clipboard => ClipboardPage,
+        ExpandedPage.Focus => FocusPage,
         ExpandedPage.Shelf => ShelfPage,
         ExpandedPage.Weather => WeatherPage,
         ExpandedPage.Apps => AppsPage,
@@ -993,6 +1005,7 @@ public partial class MainWindow : Window
         ExpandedPage.Notes => "", // quick note
         ExpandedPage.Assistant => "", // chat
         ExpandedPage.Clipboard => "", // paste
+        ExpandedPage.Focus => "", // stopwatch
         ExpandedPage.Shelf => "",
         ExpandedPage.Weather => "",
         ExpandedPage.Apps => "",
@@ -1008,6 +1021,7 @@ public partial class MainWindow : Window
         ExpandedPage.Notes => "Notes",
         ExpandedPage.Assistant => "Clara",
         ExpandedPage.Clipboard => "Clipboard",
+        ExpandedPage.Focus => "Focus",
         ExpandedPage.Shelf => "Shelf",
         ExpandedPage.Weather => "Weather",
         ExpandedPage.Apps => "Apps",
@@ -3598,6 +3612,7 @@ public partial class MainWindow : Window
     {
         TimerDoneGlyph.Text = ""; // the view is shared with alarms
         TimerDoneText.Text = "Timer finished";
+        if (_focusSession.OnTimerFinished() is { } focusMessage) { TimerDoneText.Text = focusMessage; TimerDoneGlyph.Text = "\uE916"; }
         SystemSounds.Exclamation.Play();
         _state.ShowTransient(IslandView.TimerDone, TransientPriority.TimerDone, TimeSpan.FromSeconds(5));
     }

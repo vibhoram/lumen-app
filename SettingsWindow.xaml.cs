@@ -198,6 +198,18 @@ public partial class SettingsWindow : Window
         clip.Children.Add(wipe);
         Note(clip, "Up to 100 items are kept on this PC (text, links, images, file lists). Anything a password manager marks private is never saved. Pinned items stay until you delete them.");
 
+        var focus = Section("FOCUS SESSION", "Focus");
+        Check(focus, "Show the Focus page", () => s.FocusEnabled, v => s.FocusEnabled = v);
+        Slider(focus, "Focus length", 5, 120, 5, () => s.FocusMinutes, v => s.FocusMinutes = (int)v, v => $"{v:0} min");
+        Slider(focus, "Short break", 1, 30, 1, () => s.ShortBreakMinutes, v => s.ShortBreakMinutes = (int)v, v => $"{v:0} min");
+        Slider(focus, "Long break", 5, 60, 5, () => s.LongBreakMinutes, v => s.LongBreakMinutes = (int)v, v => $"{v:0} min");
+        Slider(focus, "Rounds before long break", 2, 8, 1, () => s.FocusCyclesBeforeLong, v => s.FocusCyclesBeforeLong = (int)v, v => $"{v:0}");
+        Check(focus, "Start the next phase automatically", () => s.FocusAutoStart, v => s.FocusAutoStart = v);
+
+        var order = Section("PAGE ORDER", "Page order");
+        Note(order, "Drag a page by its handle, or use the arrows. Home always stays first.");
+        BuildPageOrder(order);
+
         var ai = Section("CLARA (AI ASSISTANT)", "Clara");
         Check(ai, "Show the Clara page", () => s.AssistantEnabled, v => s.AssistantEnabled = v);
         Check(ai, "Live screen: attach a fresh screenshot to every message", () => s.AssistantLiveScreen, v => s.AssistantLiveScreen = v);
@@ -1021,6 +1033,98 @@ public partial class SettingsWindow : Window
 
     /// <summary>Set by the island so Settings can wipe the clipboard history.</summary>
     internal static Action? _clipboardHistoryClear;
+
+    private static readonly (string Key, string Label)[] OrderablePages =
+    {
+        ("Assistant", "Clara"), ("Clipboard", "Clipboard"), ("Focus", "Focus"), ("Notifications", "Notifications"), ("Calendar", "Calendar"),
+        ("Todo", "To-Do"), ("Notes", "Notes"), ("Shelf", "Shelf"), ("Weather", "Weather"), ("Apps", "Apps"),
+    };
+
+    private List<string> CurrentOrder()
+    {
+        var saved = _settings.PageOrder;
+        return OrderablePages.Select(p => p.Key).OrderBy(k => { var i = saved.IndexOf(k); return i < 0 ? int.MaxValue : i; }).ToList();
+    }
+
+    /// <summary>A reorderable list: drag the handle, or press the arrows.</summary>
+    private void BuildPageOrder(Panel host)
+    {
+        var list = new StackPanel();
+        host.Children.Add(list);
+        Border? dragging = null;
+
+        void Move(int from, int to)
+        {
+            var order = CurrentOrder();
+            if (to < 0 || to >= order.Count || from == to) return;
+            var item = order[from];
+            order.RemoveAt(from);
+            order.Insert(to, item);
+            Update(() => _settings.PageOrder = order);
+            Rebuild();
+        }
+
+        void Rebuild()
+        {
+            list.Children.Clear();
+            var order = CurrentOrder();
+            for (var i = 0; i < order.Count; i++)
+            {
+                var index = i;
+                var label = OrderablePages.First(p => p.Key == order[i]).Label;
+                var row = new Border
+                {
+                    CornerRadius = new CornerRadius(10),
+                    Background = Frozen(Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF)),
+                    Padding = new Thickness(10, 6, 8, 6),
+                    Margin = new Thickness(0, 2, 0, 2),
+                    Tag = index,
+                };
+                var grid = new Grid();
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                grid.ColumnDefinitions.Add(new ColumnDefinition());
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                var handle = new TextBlock { Text = "\u2630", FontSize = 14, Opacity = 0.55, Cursor = System.Windows.Input.Cursors.SizeAll, Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center };
+                var name = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
+                Grid.SetColumn(name, 1);
+                var arrows = new StackPanel { Orientation = Orientation.Horizontal };
+                foreach (var (glyph, delta) in new[] { ("\u2191", -1), ("\u2193", 1) })
+                {
+                    var b = new Button { Style = (Style)FindResource("ChipButton"), Content = glyph, Margin = new Thickness(4, 0, 0, 0), MinWidth = 30 };
+                    b.Click += (_, _) => Move(index, index + delta);
+                    arrows.Children.Add(b);
+                }
+                Grid.SetColumn(arrows, 2);
+                grid.Children.Add(handle);
+                grid.Children.Add(name);
+                grid.Children.Add(arrows);
+                row.Child = grid;
+
+                handle.MouseLeftButtonDown += (_, e) =>
+                {
+                    dragging = row;
+                    row.Background = Frozen(Color.FromArgb(0x33, 0x0A, 0x84, 0xFF));
+                    handle.CaptureMouse();
+                    e.Handled = true;
+                };
+                handle.MouseMove += (_, e) =>
+                {
+                    if (dragging != row || e.LeftButton != System.Windows.Input.MouseButtonState.Pressed) return;
+                    var y = e.GetPosition(list).Y;
+                    var target = 0;
+                    foreach (Border r in list.Children)
+                    {
+                        if (y > r.TranslatePoint(new Point(0, r.ActualHeight / 2), list).Y) target = list.Children.IndexOf(r) + (r == row ? 0 : 0);
+                    }
+                    target = Math.Clamp(target, 0, order.Count - 1);
+                    if (target != index) { dragging = null; handle.ReleaseMouseCapture(); Move(index, target); }
+                };
+                handle.MouseLeftButtonUp += (_, _) => { dragging = null; handle.ReleaseMouseCapture(); row.Background = Frozen(Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF)); };
+                list.Children.Add(row);
+            }
+        }
+        Rebuild();
+    }
 
     private void TextRow(Panel panel, string label, Func<string> get, Action<string> set)
     {
