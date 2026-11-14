@@ -32,6 +32,13 @@ public partial class MainWindow
 
     private void BarTick()
     {
+#if DEBUG
+        if (Environment.GetEnvironmentVariable("DISLAND_POS_LOG") is { Length: > 0 } plog)
+        {
+            var d = System.Windows.Media.VisualTreeHelper.GetDpi(this);
+            System.IO.File.WriteAllText(plog, $"Left={Left:0.0} Top={Top:0.0} Width={Width:0.0} ActualWidth={ActualWidth:0.0} Scale={Scale:0.000} dpi={d.DpiScaleX:0.00} RootW={Root.ActualWidth:0.0} RootLT={Root.LayoutTransform} pillW={_width.Value:0.0} nativeRect={(NativeMethods.GetWindowRect(new System.Windows.Interop.WindowInteropHelper(this).Handle, out var nr) ? $"{nr.Left},{nr.Top},{nr.Right},{nr.Bottom}" : "?")} screen={System.Windows.Forms.Screen.FromHandle(new System.Windows.Interop.WindowInteropHelper(this).Handle).Bounds}");
+        }
+#endif
         if (_settings.Mode != IslandMode.Bar)
         {
             if (_barWasIdle) { _barWasIdle = false; Render(); }

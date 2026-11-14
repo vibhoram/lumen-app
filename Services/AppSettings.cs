@@ -292,11 +292,13 @@ public sealed class AppSettings
     public string GeminiApiKey { get; set; } = "";
 
     /// <summary>Gemini model used when the provider is Gemini.</summary>
-    public string GeminiModel { get; set; } = "gemini-2.0-flash";
+    public string GeminiModel { get; set; } = "gemini-2.5-flash";
+
+    public const string GeminiEndpoint = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 
     public string CloudKey => CloudProvider == CloudProvider.Gemini ? GeminiApiKey : GroqApiKey;
-    public string CloudModel => CloudProvider == CloudProvider.Gemini ? (string.IsNullOrWhiteSpace(GeminiModel) ? "gemini-2.0-flash" : GeminiModel) : GroqModel;
-    public string CloudEndpoint => CloudProvider == CloudProvider.Gemini ? "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions" : "";
+    public string CloudModel => CloudProvider == CloudProvider.Gemini ? (string.IsNullOrWhiteSpace(GeminiModel) ? "gemini-2.5-flash" : GeminiModel) : GroqModel;
+    public string CloudEndpoint => CloudProvider == CloudProvider.Gemini ? GeminiEndpoint : "";
 
     /// <summary>Show every slider (otherwise just presets and the essentials).</summary>
     public bool ShowAdvanced { get; set; }

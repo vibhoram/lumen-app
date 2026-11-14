@@ -52,7 +52,9 @@ public sealed class GlassText : FrameworkElement
             case ClockLook.Outline:
             {
                 var g = Format(Brushes.White).BuildGeometry(origin);
-                dc.DrawGeometry(null, new Pen(new SolidColorBrush(Color.FromArgb(0xE6, 255, 255, 255)), Math.Max(1.2, FontSize / 26)) { LineJoin = PenLineJoin.Round }, g);
+                var line = new SolidColorBrush(Color.FromArgb(0xEE, 255, 255, 255));
+                // a thin hairline around a Light face: each stroke shows as two parallel lines, like the lock-screen digits
+                dc.DrawGeometry(null, new Pen(line, Math.Max(1.0, FontSize / 38)) { LineJoin = PenLineJoin.Round }, g);
                 break;
             }
             default: // Glass

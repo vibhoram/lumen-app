@@ -2889,7 +2889,7 @@ public partial class MainWindow : Window
         if (style == ClockStyle.Stacked)
         {
             ClockText.TextAlignment = TextAlignment.Center;
-            ClockText.Inlines.Add(new System.Windows.Documents.Run(time) { FontSize = 15, FontWeight = FontWeights.SemiBold });
+            ClockText.Inlines.Add(TimeInline(time, 15, FontWeights.SemiBold));
             if (_settings.ShowDateWhenIdle)
             {
                 ClockText.Inlines.Add(new System.Windows.Documents.LineBreak());
@@ -2904,7 +2904,7 @@ public partial class MainWindow : Window
                 ClockText.Inlines.Add(new System.Windows.Documents.Run(now.ToString("ddd d MMM")) { Foreground = secondaryBrush, FontSize = 12.5, FontWeight = FontWeights.Medium });
                 ClockText.Inlines.Add(new System.Windows.Documents.Run("   "));
             }
-            ClockText.Inlines.Add(new System.Windows.Documents.Run(time) { FontSize = timeSize, FontWeight = style == ClockStyle.Big ? FontWeights.Light : FontWeights.SemiBold });
+            ClockText.Inlines.Add(TimeInline(time, timeSize, style == ClockStyle.Big ? FontWeights.Light : FontWeights.SemiBold));
         }
 
         // "| icon 26°" after the time (only when the weather isn't in its own bubble); icon rebuilt when the condition changes.
@@ -3303,6 +3303,19 @@ public partial class MainWindow : Window
     }
 
     /// <summary>"Bahnschrift Condensed" means the Bahnschrift family at condensed width (the tall, narrow iOS look).</summary>
+    /// <summary>The time in the idle pill: plain text, or the outlined lock-screen lettering when that look is chosen.</summary>
+    private System.Windows.Documents.Inline TimeInline(string time, double size, FontWeight weight)
+    {
+        if (_settings.ClockLook == ClockLook.Solid) return new System.Windows.Documents.Run(time) { FontSize = size, FontWeight = weight };
+        var (family, stretch) = ClockFontParts(_settings.ClockFont);
+        var glass = new GlassText
+        {
+            Text = time, Look = _settings.ClockLook, FontSize = size + 5, FontWeight = FontWeights.Light, FontStretch = stretch,
+            FontFamily = new FontFamily($"{family}, Segoe UI Variable, Segoe UI"),
+        };
+        return new System.Windows.Documents.InlineUIContainer(glass) { BaselineAlignment = BaselineAlignment.Center };
+    }
+
     private static (string Family, FontStretch Stretch) ClockFontParts(string font) =>
         font.EndsWith(" Condensed", StringComparison.OrdinalIgnoreCase)
             ? (font[..^" Condensed".Length], FontStretches.Condensed)

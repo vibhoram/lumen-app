@@ -444,6 +444,35 @@ public sealed class AssistantPanel : Grid
         var useLocal = localModel is not null;
         SetEngine(useLocal, useLocal ? localModel!.Split(':')[0] : _settings.CloudProvider == CloudProvider.Gemini ? "gemini" : "groq");
         var engineModel = useLocal ? localModel! : _settings.CloudModel;
+        string? cKey = useLocal ? null : _settings.CloudKey;
+        string? cUrl = useLocal ? LocalAi.ChatEndpoint : _settings.CloudEndpoint is { Length: > 0 } primaryUrl ? primaryUrl : null;
+        var backupUsed = false;
+
+        // If the brain in use fails before saying anything (offline model down, rate limit, bad key), quietly move to the next one:
+        // offline -> your chosen cloud brain -> the other cloud brain (Groq is the safety net for Gemini and the other way round).
+        bool SwitchToBackup()
+        {
+            if (useLocal)
+            {
+                if (string.IsNullOrWhiteSpace(_settings.CloudKey)) return false;
+                useLocal = false;
+                cKey = _settings.CloudKey;
+                engineModel = _settings.CloudModel;
+                cUrl = _settings.CloudEndpoint is { Length: > 0 } u ? u : null;
+                SetEngine(false, _settings.CloudProvider == CloudProvider.Gemini ? "gemini" : "groq");
+                return true;
+            }
+            if (backupUsed) return false;
+            var toGemini = _settings.CloudProvider != CloudProvider.Gemini;
+            var key = toGemini ? _settings.GeminiApiKey : _settings.GroqApiKey;
+            if (string.IsNullOrWhiteSpace(key)) return false;
+            backupUsed = true;
+            cKey = key;
+            engineModel = toGemini ? (string.IsNullOrWhiteSpace(_settings.GeminiModel) ? "gemini-2.5-flash" : _settings.GeminiModel) : _settings.GroqModel;
+            cUrl = toGemini ? AppSettings.GeminiEndpoint : null;
+            SetEngine(false, toGemini ? "gemini" : "groq");
+            return true;
+        }
         try
         {
             // A turn can need several rounds: the model asks for tools, we run them, it then answers.
@@ -456,7 +485,9 @@ public sealed class AssistantPanel : Grid
                 system += Environment.NewLine + Environment.NewLine + "REMINDER: answer in one short casual line unless they asked for detail. No long explanations, no lists unless needed.";
                 var turn = new StringBuilder();
                 List<ToolCall>? calls = null;
-                await foreach (var ev in GroqService.StreamAsync(useLocal ? null : _settings.CloudKey, engineModel, system, _history.ToList(), offerTools ? tools : null, _cts.Token, useLocal ? LocalAi.ChatEndpoint : _settings.CloudEndpoint is { Length: > 0 } cloudUrl ? cloudUrl : null, useLocal ? 220 : 700))
+                try
+                {
+                await foreach (var ev in GroqService.StreamAsync(cKey, engineModel, system, _history.ToList(), offerTools ? tools : null, _cts.Token, cUrl, useLocal ? 220 : 700))
                 {
                     if (ev.Text is { } text)
                     {
@@ -466,6 +497,12 @@ public sealed class AssistantPanel : Grid
                         _lastActivity = DateTime.UtcNow;
                     }
                     if (ev.Calls is { } c) calls = c.ToList();
+                }
+                }
+                catch (Exception) when (!_cts.IsCancellationRequested && turn.Length == 0 && SwitchToBackup())
+                {
+                    round--; // run this round again on the next brain
+                    continue;
                 }
 
                 if (calls is null && useLocal)
