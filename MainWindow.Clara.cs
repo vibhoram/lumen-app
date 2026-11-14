@@ -148,6 +148,45 @@ public partial class MainWindow
                     Clipboard.SetText(text);
                     return (true, "Copied to the clipboard.", "Copied to clipboard");
                 }
+                case "get_notifications":
+                {
+                    var items = _notifications.Items.Take(8).ToList();
+                    if (items.Count == 0) return (true, "There are no notifications right now.", "Checked notifications");
+                    var lines = items.Select(n => $"{n.AppName} ({(DateTimeOffset.Now - n.Time).TotalMinutes:0} min ago): {n.Title} - {Trim(n.Body.Replace(Environment.NewLine, " "), 120)}");
+                    return (true, string.Join(Environment.NewLine, lines), $"{items.Count} notifications");
+                }
+                case "get_clipboard":
+                {
+                    var items = _clipHistory.Items.Where(c => c.Kind is ClipKind.Text or ClipKind.Link).Take(5).ToList();
+                    if (items.Count == 0) return (true, "The clipboard history has no text yet.", "Checked clipboard");
+                    return (true, string.Join(Environment.NewLine + "---" + Environment.NewLine, items.Select(c => Trim(c.Text, 500))), $"{items.Count} clipboard items");
+                }
+                case "apply_look":
+                {
+                    var wanted = Str("name").Trim();
+                    var preset = LookPresets.BuiltIn.Concat(_settings.CustomPresets).FirstOrDefault(p => p.Name.Equals(wanted, StringComparison.OrdinalIgnoreCase))
+                                 ?? LookPresets.BuiltIn.Concat(_settings.CustomPresets).FirstOrDefault(p => p.Name.Contains(wanted, StringComparison.OrdinalIgnoreCase));
+                    if (preset is null) return (false, "No look with that name. Available: " + string.Join(", ", LookPresets.BuiltIn.Concat(_settings.CustomPresets).Select(p => p.Name)) + ".", "");
+                    LookPresets.Apply(_settings, preset);
+                    _settings.NotifyChanged();
+                    _settings.Save();
+                    return (true, $"Applied the {preset.Name} look.", $"Look · {preset.Name}");
+                }
+                case "set_pet":
+                {
+                    if (!Enum.TryParse<PetKind>(Str("species"), true, out var kind)) return (false, "Species must be one of: " + string.Join(", ", Enum.GetNames<PetKind>()) + ".", "");
+                    _settings.PetKind = kind;
+                    _settings.PetEnabled = true;
+                    _settings.NotifyChanged();
+                    _settings.Save();
+                    return (true, $"The pet is now a {kind}.", $"Pet · {kind}");
+                }
+                case "open_page":
+                {
+                    if (!Enum.TryParse<ExpandedPage>(Str("page"), true, out var page) || !AvailablePages().Contains(page)) return (false, "That page isn't available.", "");
+                    ShowPage(page, animate: true);
+                    return (true, $"Opened {PageTitle(page)}.", $"Opened {PageTitle(page)}");
+                }
                 case "list_todos":
                 {
                     var items = _notes.Todos;

@@ -1242,7 +1242,7 @@ public partial class SettingsWindow : Window
     private static readonly (string Key, string Label)[] OrderablePages =
     {
         ("Lyrics", "Lyrics"), ("Assistant", "Clara"), ("Clipboard", "Clipboard"), ("Focus", "Focus"), ("Notifications", "Notifications"), ("Calendar", "Calendar"),
-        ("Todo", "To-Do"), ("Notes", "Notes"), ("Shelf", "Shelf"), ("Weather", "Weather"), ("Apps", "Apps"),
+        ("Todo", "To-Do"), ("Notes", "Notes"), ("Shelf", "Shelf"), ("Weather", "Weather"), ("Vitals", "System"), ("Apps", "Apps"),
     };
 
     private List<string> CurrentOrder()
@@ -1251,12 +1251,25 @@ public partial class SettingsWindow : Window
         return OrderablePages.Select(p => p.Key).OrderBy(k => { var i = saved.IndexOf(k); return i < 0 ? int.MaxValue : i; }).ToList();
     }
 
-    /// <summary>A reorderable list: drag the handle, or press the arrows.</summary>
+    /// <summary>Which setting switches each page on (the same ones as the "Show the ... page" checkboxes elsewhere in Settings).</summary>
+    private static readonly Dictionary<string, string> PageSwitch = new()
+    {
+        ["Lyrics"] = nameof(AppSettings.LyricsPageEnabled), ["Assistant"] = nameof(AppSettings.AssistantEnabled),
+        ["Clipboard"] = nameof(AppSettings.ClipboardPageEnabled), ["Focus"] = nameof(AppSettings.FocusEnabled),
+        ["Notifications"] = nameof(AppSettings.NotificationsEnabled), ["Calendar"] = nameof(AppSettings.CalendarEnabled),
+        ["Todo"] = nameof(AppSettings.TodoEnabled), ["Notes"] = nameof(AppSettings.NotesEnabled),
+        ["Shelf"] = nameof(AppSettings.ShelfEnabled), ["Weather"] = nameof(AppSettings.WeatherEnabled),
+        ["Vitals"] = nameof(AppSettings.VitalsEnabled),
+    };
+
+    /// <summary>
+    /// A reorderable list: grab a row anywhere on its left side and drag (the others slide out of the way as you go),
+    /// or use the arrows. Each row has the page's on/off switch, wired to the same setting as everywhere else.
+    /// </summary>
     private void BuildPageOrder(Panel host)
     {
         var list = new StackPanel();
         host.Children.Add(list);
-        Border? dragging = null;
 
         void Move(int from, int to)
         {
@@ -1273,25 +1286,62 @@ public partial class SettingsWindow : Window
         {
             list.Children.Clear();
             var order = CurrentOrder();
+            var shifts = new TranslateTransform[order.Count];
+            var offsets = new double[order.Count];
+            var rows = new Border[order.Count];
+
+            void Slide(int j, double to)
+            {
+                if (Math.Abs(offsets[j] - to) < 0.5) return;
+                offsets[j] = to;
+                shifts[j].BeginAnimation(TranslateTransform.YProperty, new System.Windows.Media.Animation.DoubleAnimation(to, TimeSpan.FromMilliseconds(150))
+                    { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } });
+            }
+
             for (var i = 0; i < order.Count; i++)
             {
                 var index = i;
-                var label = OrderablePages.First(p => p.Key == order[i]).Label;
+                var key = order[i];
+                var label = OrderablePages.First(p => p.Key == key).Label;
+                shifts[i] = new TranslateTransform();
                 var row = new Border
                 {
-                    CornerRadius = new CornerRadius(10),
+                    CornerRadius = new CornerRadius(12),
                     Background = Frozen(Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF)),
-                    Padding = new Thickness(10, 6, 8, 6),
+                    Padding = new Thickness(10, 5, 8, 5),
                     Margin = new Thickness(0, 2, 0, 2),
-                    Tag = index,
+                    RenderTransform = shifts[i],
                 };
+                rows[i] = row;
                 var grid = new Grid();
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                 grid.ColumnDefinitions.Add(new ColumnDefinition());
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                var handle = new TextBlock { Text = "\u2630", FontSize = 14, Opacity = 0.55, Cursor = System.Windows.Input.Cursors.SizeAll, Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center };
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                var grip = new Border { Background = Brushes.Transparent, Cursor = System.Windows.Input.Cursors.SizeAll, Padding = new Thickness(0, 4, 0, 4) };
+                var gripRow = new StackPanel { Orientation = Orientation.Horizontal };
+                gripRow.Children.Add(new TextBlock { Text = "\u2630", FontSize = 14, Opacity = 0.55, Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center });
                 var name = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
-                Grid.SetColumn(name, 1);
+                gripRow.Children.Add(name);
+                grip.Child = gripRow;
+                grid.Children.Add(grip);
+
+                // the page's own on/off switch (Apps is always on)
+                if (PageSwitch.TryGetValue(key, out var propertyName))
+                {
+                    var property = typeof(AppSettings).GetProperty(propertyName)!;
+                    var toggle = new CheckBox { IsChecked = (bool)property.GetValue(_settings)!, Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center, ToolTip = "Show this page" };
+                    toggle.Click += (_, _) =>
+                    {
+                        Update(() => property.SetValue(_settings, toggle.IsChecked == true));
+                        // the matching "Show the ... page" checkboxes elsewhere in Settings pick up the new value
+                        Dispatcher.InvokeAsync(() => { var offset = SettingsScroller.VerticalOffset; Build(); SettingsScroller.ScrollToVerticalOffset(offset); });
+                    };
+                    Grid.SetColumn(toggle, 1);
+                    grid.Children.Add(toggle);
+                    name.Opacity = toggle.IsChecked == true ? 1 : 0.45;
+                }
+
                 var arrows = new StackPanel { Orientation = Orientation.Horizontal };
                 foreach (var (glyph, delta) in new[] { ("\u2191", -1), ("\u2193", 1) })
                 {
@@ -1300,31 +1350,50 @@ public partial class SettingsWindow : Window
                     arrows.Children.Add(b);
                 }
                 Grid.SetColumn(arrows, 2);
-                grid.Children.Add(handle);
-                grid.Children.Add(name);
                 grid.Children.Add(arrows);
                 row.Child = grid;
 
-                handle.MouseLeftButtonDown += (_, e) =>
+                // ---- drag: the row follows the pointer 1:1, the others slide aside
+                var dragging = false;
+                double startY = 0, rowH = 0;
+                var target = index;
+                grip.MouseLeftButtonDown += (_, e) =>
                 {
-                    dragging = row;
-                    row.Background = Frozen(Color.FromArgb(0x33, 0x0A, 0x84, 0xFF));
-                    handle.CaptureMouse();
+                    dragging = true;
+                    startY = e.GetPosition(list).Y;
+                    rowH = row.ActualHeight + row.Margin.Top + row.Margin.Bottom;
+                    target = index;
+                    System.Windows.Controls.Panel.SetZIndex(row, 10);
+                    row.Background = Frozen(Color.FromArgb(0x38, 0x0A, 0x84, 0xFF));
+                    grip.CaptureMouse();
                     e.Handled = true;
                 };
-                handle.MouseMove += (_, e) =>
+                grip.MouseMove += (_, e) =>
                 {
-                    if (dragging != row || e.LeftButton != System.Windows.Input.MouseButtonState.Pressed) return;
-                    var y = e.GetPosition(list).Y;
-                    var target = 0;
-                    foreach (Border r in list.Children)
+                    if (!dragging) return;
+                    var dy = Math.Clamp(e.GetPosition(list).Y - startY, -index * rowH, (order.Count - 1 - index) * rowH);
+                    shifts[index].BeginAnimation(TranslateTransform.YProperty, null);
+                    shifts[index].Y = dy;
+                    target = Math.Clamp((int)Math.Round(index + dy / rowH), 0, order.Count - 1);
+                    for (var j = 0; j < order.Count; j++)
                     {
-                        if (y > r.TranslatePoint(new Point(0, r.ActualHeight / 2), list).Y) target = list.Children.IndexOf(r) + (r == row ? 0 : 0);
+                        if (j == index) continue;
+                        var to = 0.0;
+                        if (j > index && j <= target) to = -rowH;
+                        else if (j < index && j >= target) to = rowH;
+                        Slide(j, to);
                     }
-                    target = Math.Clamp(target, 0, order.Count - 1);
-                    if (target != index) { dragging = null; handle.ReleaseMouseCapture(); Move(index, target); }
                 };
-                handle.MouseLeftButtonUp += (_, _) => { dragging = null; handle.ReleaseMouseCapture(); row.Background = Frozen(Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF)); };
+                grip.MouseLeftButtonUp += (_, _) =>
+                {
+                    if (!dragging) return;
+                    dragging = false;
+                    grip.ReleaseMouseCapture();
+                    var settle = new System.Windows.Media.Animation.DoubleAnimation((target - index) * rowH, TimeSpan.FromMilliseconds(130))
+                        { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } };
+                    settle.Completed += (_, _) => { if (target != index) Move(index, target); else Rebuild(); };
+                    shifts[index].BeginAnimation(TranslateTransform.YProperty, settle);
+                };
                 list.Children.Add(row);
             }
         }

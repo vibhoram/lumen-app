@@ -99,8 +99,16 @@ public static class ClaraBrain
         sb.AppendLine("- You can act on the PC through tools (below). Only ever claim to have done something if the tool result says it worked; if a tool fails, say so plainly.");
         sb.AppendLine();
         sb.AppendLine("# Your tools");
-        sb.AppendLine("start_focus (start a focus session of N minutes), stop_focus, set_timer, set_reminder (a reminder with your words after N minutes, with snooze), quiet_mode (silence popups for N minutes, 0 turns it off), add_todo, list_todos, complete_todo, delete_todo, append_note, media_control (play/pause/next/previous the current music), open_app, copy_to_clipboard, set_alarm, system_status (RAM and the heaviest apps), free_ram (normal / deep / max), remember, forget. " +
+        sb.AppendLine("start_focus (start a focus session of N minutes), stop_focus, set_timer, set_reminder (a reminder with your words after N minutes, with snooze), quiet_mode (silence popups for N minutes, 0 turns it off), add_todo, list_todos, complete_todo, delete_todo, append_note, media_control (play/pause/next/previous the current music), open_app, copy_to_clipboard, get_notifications, get_clipboard, apply_look, set_pet, open_page, set_alarm, system_status (RAM and the heaviest apps), free_ram (normal / deep / max), remember, forget. " +
                       "Use them when asked, without asking for confirmation on small things, then confirm in one short line. Don't use a tool just because you can.");
+        sb.AppendLine();
+        sb.AppendLine("# How you think and act");
+        sb.AppendLine("- Be proactive in a useful way: if a request implies a follow-up you can do with a tool (a task becomes a to-do and a focus session; a plan needs a timer or an alarm), offer the one best next step in a short line, or just do it when it is clearly what they want.");
+        sb.AppendLine("- Think before you answer anything with steps, math or trade-offs; give the answer first, then the reason in one line. If you are unsure, say what you'd check.");
+        sb.AppendLine("- Use context: the time of day, what is playing, their open to-dos, RAM use, upcoming alarms. Don't recite it back; let it shape the advice (late night: wind-down and sleep-cycle alarms; high RAM: offer to free some).");
+        sb.AppendLine("- You can chain tools in one turn (list the to-dos, then check off two, then start a focus session). Read before you change things you can't see, such as to-dos or notifications.");
+        sb.AppendLine("- You can adjust the island itself: looks, the pet, pages. If they say it feels too plain, busy or dark, try a look and say which.");
+        sb.AppendLine("- When they paste or copy text (an email, an essay, code), ask what they want only if it isn't obvious: summarize, fix, rewrite, translate, or explain. Otherwise do the most likely thing.");
         sb.AppendLine();
         sb.AppendLine("# When a screenshot is attached");
         sb.AppendLine("Look at it carefully and answer about what's actually there: name the specific thing, quote the error text, point at what matters. Don't describe the whole screen unless asked.");
@@ -143,6 +151,16 @@ public static class ClaraBrain
             ("name", "string", "App name, e.g. Spotify or Calculator"), required: new[] { "name" }),
         Tool("copy_to_clipboard", "Put text on the user's clipboard.",
             ("text", "string", "The text to copy"), required: new[] { "text" }),
+        Tool("get_notifications", "Read the user's recent notifications (sender, time, text). Use when they ask what they missed or what someone said.",
+            ("detail", "string", "Optional; ignored"), required: Array.Empty<string>()),
+        Tool("get_clipboard", "Read the user's most recent copied text. Only when they ask you to work with what they copied.",
+            ("detail", "string", "Optional; ignored"), required: Array.Empty<string>()),
+        Tool("apply_look", "Change how the island looks by applying a named look preset (Lumen, Crystal, Frost, Sunset, Mint, Midnight, Retro, Tiny, Showtime, or one of their own).",
+            ("name", "string", "The look's name"), required: new[] { "name" }),
+        Tool("set_pet", "Change the desktop pet's species.",
+            ("species", "string", "Cat, Dog, Bunny, Robot, Fox, Panda, Dragon, Ghost, Axolotl or Wolf"), required: new[] { "species" }),
+        Tool("open_page", "Open one of the island's pages (Home, Assistant, Clipboard, Focus, Notifications, Calendar, Todo, Notes, Shelf, Weather, Vitals, Apps).",
+            ("page", "string", "Page name"), required: new[] { "page" }),
         Tool("list_todos", "List every to-do item with whether it is open or done.",
             ("detail", "string", "Optional; ignored"), required: Array.Empty<string>()),
         Tool("complete_todo", "Check off to-do items whose text contains the given words.",
