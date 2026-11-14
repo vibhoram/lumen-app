@@ -1221,6 +1221,7 @@ public partial class MainWindow : Window
         if (done) { _lozX = _lozTargetX; _lozW = _lozTargetW; }
         TabLozenge.Margin = new Thickness(_lozX, _lozTop, 0, 0);
         TabLozenge.Width = Math.Max(10, _lozW);
+        if (_lensBrush is not null) SetLensViewbox(_lozX, _lozTop, Math.Max(10, _lozW), TabLozenge.Height);
         if (done)
         {
             CompositionTarget.Rendering -= LozengeFrame;
@@ -1279,26 +1280,40 @@ public partial class MainWindow : Window
     /// The Home tab sits right over the album-art banner, so it acts as a small glass bead: what is under it is shown
     /// magnified, which reads as the art being bent by the glass. Only while the banner is there; otherwise it stays plain glass.
     /// </summary>
+    private VisualBrush? _lensBrush;
+    private double _lensDx, _lensDy;
+
     private void UpdateHomeLens()
     {
-        var tab = _tabs.FirstOrDefault(t => t.Page == ExpandedPage.Home);
-        if (tab is null || _page != ExpandedPage.Home || _settings.PageNavigation == PageNavigation.Dots) return;
-        var button = tab.Button;
-        if (ArtBanner.Visibility != Visibility.Visible || !button.IsLoaded || button.ActualWidth < 8 || !ArtBanner.IsLoaded) return;
+        var active = _page == ExpandedPage.Home && _settings.PageNavigation != PageNavigation.Dots
+                     && ArtBanner.Visibility == Visibility.Visible && ArtBanner.IsLoaded && TabLozenge.Visibility == Visibility.Visible;
+        if (!active)
+        {
+            if (_lensBrush is not null || TabLozenge.Background is VisualBrush) TabLozenge.Background = (Brush)FindResource("GlassFill");
+            _lensBrush = null;
+            return;
+        }
         try
         {
-            var origin = button.TranslatePoint(new Point(0, 0), ArtBanner);
-            double w = button.ActualWidth, h = button.ActualHeight, zoom = 1.7;
-            var cx = origin.X + w / 2;
-            var cy = origin.Y + h / 2;
-            button.Background = new VisualBrush(ArtBanner)
-            {
-                Stretch = Stretch.Fill,
-                ViewboxUnits = BrushMappingMode.Absolute,
-                Viewbox = new Rect(cx - w / zoom / 2, cy - h / zoom / 2, w / zoom, h / zoom),
-            };
+            var origin = PageNav.TranslatePoint(new Point(0, 0), ArtBanner);
+            _lensDx = origin.X;
+            _lensDy = origin.Y;
+            // painted inside the glass pill itself, so its edge and the bead can never disagree
+            _lensBrush = new VisualBrush(ArtBanner) { Stretch = Stretch.Fill, ViewboxUnits = BrushMappingMode.Absolute };
+            SetLensViewbox(TabLozenge.Margin.Left, TabLozenge.Margin.Top, TabLozenge.Width, TabLozenge.Height);
+            TabLozenge.Background = _lensBrush;
         }
         catch (InvalidOperationException) { /* not in the same visual tree yet; the next layout retries */ }
+    }
+
+    /// <summary>What the bead shows: the art under the pill, magnified; follows the pill while it springs.</summary>
+    private void SetLensViewbox(double x, double y, double w, double h)
+    {
+        if (_lensBrush is null || w < 4 || h < 4) return;
+        const double zoom = 1.7;
+        var cx = x + w / 2 + _lensDx;
+        var cy = y + h / 2 + _lensDy;
+        _lensBrush.Viewbox = new Rect(cx - w / zoom / 2, cy - h / zoom / 2, w / zoom, h / zoom);
     }
 
     /// <summary>Switches page, sliding in the direction of travel; the island resizes to the new page.</summary>
