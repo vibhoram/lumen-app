@@ -31,6 +31,7 @@ public partial class MainWindow
     /// <summary>Applies the music-related settings (progress look, time, lyrics visibility).</summary>
     private void ApplyMusicSettings()
     {
+        ApplyMusicLayout();
         ProgressBar.Style = _settings.ProgressStyle;
         if (_rawLyrics is not null && _romanizedApplied != _settings.RomanizeHindi) { _romanizedApplied = _settings.RomanizeHindi; ReshapeLyrics(); }
         _lyricsPanel?.SetFont(_settings.LyricsFont, _settings.LyricsFontSize);

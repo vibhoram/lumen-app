@@ -201,6 +201,11 @@ public sealed class AppSettings
     /// <summary>Show a Copy button when a notification contains a verification code.</summary>
     public bool CopyCodes { get; set; } = true;
 
+    /// <summary>Collapsed music: the album art becomes a spinning disc and the equalizer a pulse bubble, separate from the title pill.</summary>
+    public bool MusicSplit { get; set; } = true;
+    /// <summary>A notification or copy leaves a small bubble beside the pill for this many seconds (0 = off).</summary>
+    public int CarrySeconds { get; set; } = 8;
+
     /// <summary>A little pet that wanders beneath the collapsed island.</summary>
     public bool PetEnabled { get; set; } = true;
     public PetKind PetKind { get; set; } = PetKind.Cat;

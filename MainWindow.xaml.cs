@@ -150,6 +150,8 @@ public partial class MainWindow : Window
         _lyricsInline.SeekRequested += time => _media.Seek(time);
         _focusSession = new FocusSession(_settings, _timer);
         WirePet();
+        WireCarry();
+        ApplyMusicLayout();
         FocusPage.Children.Add(new FocusPanel(_focusSession, _settings, _timer));
         _clipPanel = new ClipboardPanel(_clipHistory);
         ClipboardPage.Children.Add(_clipPanel);
@@ -214,7 +216,8 @@ public partial class MainWindow : Window
         _shake.Shaken += () =>
         {
             _pet.React(PetEvent.Shake);
-            if (!IslandHidden && _state.Transient is not null) _state.DismissTransient();
+            if (CarryVisible) HideCarry();
+            else if (!IslandHidden && _state.Transient is not null) _state.DismissTransient();
             else SetIslandHidden(!IslandHidden);
         };
         _peekTimer.Tick += (_, _) => PeekTick();
@@ -1320,6 +1323,7 @@ public partial class MainWindow : Window
         UpdateEqualizer();
         AnimateView(target, opacity: 1, fromScale: 0.94, toScale: 1, durationMs: 200 * time, delayMs: 35 * time);
         UpdateIdleWeatherBubble();
+        UpdateMediaBubbles();
     }
 
     private void AnimateView(FrameworkElement view, double opacity, double? fromScale, double toScale,
@@ -1438,7 +1442,13 @@ public partial class MainWindow : Window
         // The second-activity bubble sits just right of the pill, as tall as it; the privacy dot after it.
         var right = (BaseWidth + w) / 2;
         PlacePet(w, h);
-        foreach (var bubble in new[] { ActivityBubble, ActivityBubble2, IdleWeatherBubble })
+        if (MediaDiscBubble.Visibility == Visibility.Visible)
+        {
+            var disc = Math.Max(26, h);
+            MediaDiscBubble.Width = MediaDiscBubble.Height = disc;
+            MediaDiscBubble.Margin = new Thickness((BaseWidth - w) / 2 - 7 - disc, PillTop + (h - disc) / 2, 0, 0);
+        }
+        foreach (var bubble in new[] { MediaPulseBubble, ActivityBubble, ActivityBubble2, IdleWeatherBubble, CarryBubble })
         {
             if (bubble.Visibility != Visibility.Visible) continue;
             var size = Math.Max(26, h);
@@ -2299,6 +2309,8 @@ public partial class MainWindow : Window
         }
         _state.IsExpanded = expanded;
         UpdateIdleWeatherBubble();
+        UpdateMediaBubbles();
+        if (expanded) HideCarry();
         if (changed) UpdatePrivacyIndicators(); // the dot hides while expanded (the chip shows instead)
         UpdateWallpaperThumb();
         UpdateMotionPlayback();
@@ -2796,6 +2808,7 @@ public partial class MainWindow : Window
     {
         _lastCopy = copy;
         _pet.React(PetEvent.Copy);
+        CarryCopy(copy);
         if (_settings.ClipboardHistoryEnabled) _clipHistory.CaptureCurrent();
         if (!_settings.CopyAlerts) return;
         if (_typing) return; // copying inside the island's own note: no alert over it
@@ -2886,6 +2899,7 @@ public partial class MainWindow : Window
         // Windows holds toasts back during Do Not Disturb; so does the island.
         if (!_settings.NotificationsEnabled || IslandHidden || _focus.IsOn) return;
         _pet.React(PetEvent.Notification, n.AppName);
+        CarryNotification(n);
         if (!_state.CanShowTransient(TransientPriority.Notification)) return;
 
         NotifIcon.Background = n.AppIcon is { } icon
@@ -3942,6 +3956,7 @@ public partial class MainWindow : Window
                 SetArt(MediaArtSmall, MediaArtSmallFallback, shownArt);
                 SetArt(MediaArtLarge, MediaArtLargeFallback, shownArt);
                 ArtBanner.Background = shownArt?.CreateBrush();
+                MediaDiscArt.Fill = shownArt is null ? new SolidColorBrush(Color.FromArgb(0x33, 255, 255, 255)) : shownArt.CreateBrush();
             }
             PlayPauseGlyph.Text = media.IsPlaying ? "" : "";
             PrevButton.IsEnabled = media.CanPrevious;
@@ -3953,6 +3968,7 @@ public partial class MainWindow : Window
         if (media?.IsPlaying == true && !_petWasPlaying) _pet.React(PetEvent.MusicStart);
         _petWasPlaying = media?.IsPlaying == true;
         _pet.Music = media?.IsPlaying == true;
+        UpdateMediaBubbles();
         MusicTrackChanged(media);
         UpdateSecondActivity(); // the bubble may show this artwork
         UpdateMotionArtwork(media);

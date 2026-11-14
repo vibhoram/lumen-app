@@ -189,13 +189,6 @@
                 </Grid>
                 <TextBlock x:Name="MediaTimeSmall" Grid.Column="2" FontSize="11.5" Margin="0,0,8,0" VerticalAlignment="Center"
                            Foreground="{StaticResource Secondary}" Typography.NumeralAlignment="Tabular" Visibility="Collapsed" />
-                <StackPanel x:Name="Equalizer" Grid.Column="3" Orientation="Horizontal"
-                            VerticalAlignment="Center" Margin="0,0,14,0">
-                    <Rectangle Width="3" Height="14" RadiusX="1.5" RadiusY="1.5" Margin="1,0" Fill="{StaticResource Green}" />
-                    <Rectangle Width="3" Height="14" RadiusX="1.5" RadiusY="1.5" Margin="1,0" Fill="{StaticResource Green}" />
-                    <Rectangle Width="3" Height="14" RadiusX="1.5" RadiusY="1.5" Margin="1,0" Fill="{StaticResource Green}" />
-                    <Rectangle Width="3" Height="14" RadiusX="1.5" RadiusY="1.5" Margin="1,0" Fill="{StaticResource Green}" />
-                </StackPanel>
             </Grid>
 
             <!-- Timer (compact) -->
@@ -783,6 +776,45 @@
                 <Border x:Name="IdleWeatherIcon" Width="16" Height="16" HorizontalAlignment="Center" />
                 <TextBlock x:Name="IdleWeatherTemp" FontSize="10" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,-1,0,0" />
             </StackPanel>
+        </Grid>
+
+        <!-- Music split: the album art as a spinning disc with a progress ring, left of the title pill. -->
+        <Grid x:Name="MediaDiscBubble" HorizontalAlignment="Left" VerticalAlignment="Top" Width="36" Height="36"
+              Visibility="Collapsed" RenderTransformOrigin="1,0.5" Cursor="Hand">
+            <Grid.RenderTransform><ScaleTransform /></Grid.RenderTransform>
+            <Ellipse Fill="{StaticResource BubbleFill}" Stroke="{StaticResource BubbleRim}" StrokeThickness="1" />
+            <Ellipse x:Name="MediaDiscArt" Margin="4.5" RenderTransformOrigin="0.5,0.5" Fill="#33FFFFFF">
+                <Ellipse.RenderTransform><RotateTransform x:Name="MediaDiscSpin" /></Ellipse.RenderTransform>
+            </Ellipse>
+            <Ellipse Width="6" Height="6" Fill="#E6101014" Stroke="#66FFFFFF" StrokeThickness="0.8" />
+            <Path x:Name="MediaDiscRing" StrokeThickness="2.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" IsHitTestVisible="False" />
+        </Grid>
+
+        <!-- Music split: the equalizer as a small pulse bubble right of the title pill. -->
+        <Grid x:Name="MediaPulseBubble" HorizontalAlignment="Left" VerticalAlignment="Top" Width="36" Height="36"
+              Visibility="Collapsed" RenderTransformOrigin="0,0.5" Cursor="Hand">
+            <Grid.RenderTransform><ScaleTransform /></Grid.RenderTransform>
+            <Ellipse Fill="{StaticResource BubbleFill}" Stroke="{StaticResource BubbleRim}" StrokeThickness="1" />
+                <StackPanel x:Name="Equalizer" Orientation="Horizontal"
+                            VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0">
+                    <Rectangle Width="3" Height="14" RadiusX="1.5" RadiusY="1.5" Margin="1,0" Fill="{StaticResource Green}" />
+                    <Rectangle Width="3" Height="14" RadiusX="1.5" RadiusY="1.5" Margin="1,0" Fill="{StaticResource Green}" />
+                    <Rectangle Width="3" Height="14" RadiusX="1.5" RadiusY="1.5" Margin="1,0" Fill="{StaticResource Green}" />
+                    <Rectangle Width="3" Height="14" RadiusX="1.5" RadiusY="1.5" Margin="1,0" Fill="{StaticResource Green}" />
+                </StackPanel>
+        </Grid>
+
+        <!-- Carry: a notification or a copy waits as a small bubble for a few seconds. -->
+        <Grid x:Name="CarryBubble" HorizontalAlignment="Left" VerticalAlignment="Top" Width="36" Height="36"
+              Visibility="Collapsed" RenderTransformOrigin="0,0.5" Cursor="Hand" MouseLeftButtonUp="OnCarryClick">
+            <Grid.RenderTransform><ScaleTransform /></Grid.RenderTransform>
+            <Ellipse Fill="{StaticResource BubbleFill}" Stroke="{StaticResource BubbleRim}" StrokeThickness="1" />
+            <Ellipse x:Name="CarryIcon" Margin="5" Visibility="Collapsed" />
+            <TextBlock x:Name="CarryGlyph" Style="{StaticResource Glyph}" FontSize="15" Text="&#xE77F;" />
+            <Border x:Name="CarryBadge" Width="15" Height="15" CornerRadius="8" Background="#FFFF453A" HorizontalAlignment="Right"
+                    VerticalAlignment="Top" Margin="0,-3,-3,0" Visibility="Collapsed">
+                <TextBlock x:Name="CarryBadgeText" FontSize="9.5" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
         </Grid>
 
         <!-- Third activity: a second bubble after the first. -->

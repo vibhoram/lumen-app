@@ -145,6 +145,8 @@ public partial class SettingsWindow : Window
         Slider(interaction, "Back to first page", 0, 120, 1, () => s.ReturnHomeSeconds, v => s.ReturnHomeSeconds = (int)v, v => v == 0 ? "Never" : $"{v:0} s");
         Note(interaction, "After the island has been collapsed this long, it reopens on the first page instead of the page you left.");
         Check(interaction, "Magic Shake: shake the mouse quickly to hide / show the island", () => s.MagicShake, v => s.MagicShake = v);
+        Slider(interaction, "Carry bubble", 0, 20, 1, () => s.CarrySeconds, v => s.CarrySeconds = (int)v, v => v == 0 ? "Off" : $"{v:0} s");
+        Note(interaction, "After a notification or a copy, a small bubble stays beside the pill for this long. Click it to open, shake the mouse to dismiss it.");
         Check(interaction, "Dock effect: page icons swell under the cursor", () => s.DockMagnify, v => s.DockMagnify = v);
         Check(interaction, "Hovering a page icon opens that page", () => s.HoverSwitchPages, v => s.HoverSwitchPages = v);
         Check(interaction, "Hide automatically in full-screen games, video and presentations", () => s.HideInFullscreen, v => s.HideInFullscreen = v);
@@ -172,6 +174,7 @@ public partial class SettingsWindow : Window
         }, () => s.ProgressStyle, v => s.ProgressStyle = v);
         Choice(media, "Time on the pill", new[] { (CompactTime.Off, "Off"), (CompactTime.Elapsed, "Elapsed"), (CompactTime.Remaining, "Remaining") },
             () => s.CompactMediaTime, v => s.CompactMediaTime = v);
+        Check(media, "Split the collapsed music pill: spinning album disc and pulse bubble beside the title", () => s.MusicSplit, v => s.MusicSplit = v);
         Check(media, "Artist name under the title on the collapsed pill", () => s.ShowArtistOnPill, v => s.ShowArtistOnPill = v);
         Check(media, "Thin progress line along the collapsed pill", () => s.CompactProgressLine, v => s.CompactProgressLine = v);
         Check(media, "Find real album art when a browser only gives an icon", () => s.AutoAlbumArt, v => s.AutoAlbumArt = v);
