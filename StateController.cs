@@ -80,7 +80,8 @@ public sealed class StateController
         if (_alarmArmed) yield return IslandView.AlarmSet;
     }
 
-    public IslandView PersistentView => Activities().Where(v => v != IslandView.AlarmSet).DefaultIfEmpty(IslandView.Clock).First();
+    /// <summary>The pill itself: music while it plays, otherwise the clock. A timer, stopwatch or alarm never takes the pill over; each rides beside it as a bubble.</summary>
+    public IslandView PersistentView => _mediaPlaying ? IslandView.Media : IslandView.Clock;
 
     /// <summary>Everything running except the activity that owns the pill: these become bubbles.</summary>
     private IEnumerable<IslandView> Bubbles()
