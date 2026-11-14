@@ -142,6 +142,7 @@ public partial class MainWindow : Window
         WireMonitors();
         WireMusic();
         WireDock();
+        ArtBanner.IsVisibleChanged += (_, _) => { ApplyTabSelection(); };
         _pet = new PetWidget { HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Visibility = Visibility.Collapsed };
         Root.Children.Add(_pet);
         ApplyPetSettings();
@@ -1154,6 +1155,7 @@ public partial class MainWindow : Window
                 }
                 var target = page;
                 button.Click += (_, _) => ShowPage(target, animate: true);
+                if (page == ExpandedPage.Home) button.SizeChanged += (_, _) => UpdateHomeLens();
                 PageTabs.Children.Add(button);
                 _tabs.Add(new TabItemParts(page, button, glyph, label, dot));
             }
@@ -1183,6 +1185,33 @@ public partial class MainWindow : Window
             if (tab.Glyph is not null) tab.Glyph.Foreground = selected ? Brushes.White : secondary;
             if (tab.Label is not null) tab.Label.Visibility = selected ? Visibility.Visible : Visibility.Collapsed;
         }
+        Dispatcher.InvokeAsync(UpdateHomeLens, DispatcherPriority.Loaded);
+    }
+
+    /// <summary>
+    /// The Home tab sits right over the album-art banner, so it acts as a small glass bead: what is under it is shown
+    /// magnified, which reads as the art being bent by the glass. Only while the banner is there; otherwise it stays plain glass.
+    /// </summary>
+    private void UpdateHomeLens()
+    {
+        var tab = _tabs.FirstOrDefault(t => t.Page == ExpandedPage.Home);
+        if (tab is null || _page != ExpandedPage.Home || _settings.PageNavigation == PageNavigation.Dots) return;
+        var button = tab.Button;
+        if (ArtBanner.Visibility != Visibility.Visible || !button.IsLoaded || button.ActualWidth < 8 || !ArtBanner.IsLoaded) return;
+        try
+        {
+            var origin = button.TranslatePoint(new Point(0, 0), ArtBanner);
+            double w = button.ActualWidth, h = button.ActualHeight, zoom = 1.7;
+            var cx = origin.X + w / 2;
+            var cy = origin.Y + h / 2;
+            button.Background = new VisualBrush(ArtBanner)
+            {
+                Stretch = Stretch.Fill,
+                ViewboxUnits = BrushMappingMode.Absolute,
+                Viewbox = new Rect(cx - w / zoom / 2, cy - h / zoom / 2, w / zoom, h / zoom),
+            };
+        }
+        catch (InvalidOperationException) { /* not in the same visual tree yet; the next layout retries */ }
     }
 
     /// <summary>Switches page, sliding in the direction of travel; the island resizes to the new page.</summary>
