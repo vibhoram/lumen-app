@@ -262,8 +262,7 @@ public partial class MainWindow : Window
             _hoverTimer.Stop();
             if (_peeking) return;
             // Hovering shows the quick tray when there is something in it; clicking opens the whole island.
-            if (_settings.HoverQuickTray && !_state.IsExpanded && TrayHasContent()) ShowTray();
-            else SetExpanded(true);
+            SetExpanded(true);
         };
         _leavePoll.Tick += OnLeavePoll;
         _progressTimer.Tick += (_, _) => UpdateProgress();
@@ -4061,6 +4060,21 @@ public partial class MainWindow : Window
     private void OpenMediaApp()
     {
         if (_media.Current?.AppId is not { Length: > 0 } appId) return;
+        if (BrowserHints.Any(h => appId.Contains(h, StringComparison.OrdinalIgnoreCase)))
+        {
+            // A browser tab is playing: bring that browser forward. Launching it would open a brand new window.
+            foreach (var hint in BrowserHints)
+                foreach (var process in Process.GetProcesses().Where(pr => pr.ProcessName.Contains(hint, StringComparison.OrdinalIgnoreCase)))
+                {
+                    var hwnd = process.MainWindowHandle;
+                    process.Dispose();
+                    if (hwnd == IntPtr.Zero) continue;
+                    if (NativeMethods.IsIconic(hwnd)) NativeMethods.ShowWindow(hwnd, 9);
+                    SetForegroundWindow(hwnd);
+                    return;
+                }
+            return;
+        }
         if (appId.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
         {
             // Desktop players (Spotify.exe, …): bring the running window forward. The click on the
@@ -4201,6 +4215,7 @@ public partial class MainWindow : Window
         }
         // the soft aura behind the bars breathes with the overall level
         var average = _barLevels.Take(Math.Max(1, i)).Average();
+        MediaWave.Level = average;
         AuraGlow.Opacity = 0.22 + 0.7 * average;
         AuraScale.ScaleX = AuraScale.ScaleY = 0.82 + 0.4 * average;
     }

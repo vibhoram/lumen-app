@@ -47,13 +47,8 @@ public sealed class LyricsPanel : Grid
 
         _scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, Content = _lines };
         // fade the top and bottom so lines melt away instead of cutting off
-        _scroll.OpacityMask = new LinearGradientBrush(new GradientStopCollection
-        {
-            new GradientStop(Color.FromArgb(0, 0, 0, 0), 0),
-            new GradientStop(Color.FromArgb(255, 0, 0, 0), 0.16),
-            new GradientStop(Color.FromArgb(255, 0, 0, 0), 0.84),
-            new GradientStop(Color.FromArgb(0, 0, 0, 0), 1),
-        }, 90);
+        TextOptions.SetTextFormattingMode(this, TextFormattingMode.Ideal);
+        UseLayoutRounding = true;
         _scroll.PreviewMouseWheel += (_, e) =>
         {
             _userScrolledAt = DateTime.Now; // reading ahead: don't yank the view back for a few seconds
@@ -131,8 +126,6 @@ public sealed class LyricsPanel : Grid
                 Margin = new Thickness(0, 4, 0, 4),
                 Opacity = 0.32,
                 Cursor = Cursors.Hand,
-                RenderTransformOrigin = new Point(0, 0.5),
-                RenderTransform = new ScaleTransform(0.92, 0.92),
                 Tag = line.Time,
             };
             block.MouseLeftButtonUp += (_, e) => { e.Handled = true; SeekRequested?.Invoke(line.Time); };
@@ -157,6 +150,7 @@ public sealed class LyricsPanel : Grid
         _current = index;
         if (index < 0 || index >= _blocks.Count) return;
         Style(_blocks[index], true);
+        FadeLines();
 
         if ((DateTime.Now - _userScrolledAt).TotalSeconds < 4) return;
         Dispatcher.BeginInvoke(() =>
@@ -176,12 +170,18 @@ public sealed class LyricsPanel : Grid
 
     private static void Style(TextBlock block, bool current)
     {
+        block.FontWeight = current ? FontWeights.SemiBold : FontWeights.Normal;
+    }
+
+    /// <summary>Lines fade with distance from the one being sung (a mask over the whole list made the text blurry).</summary>
+    private void FadeLines()
+    {
         var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
-        block.BeginAnimation(OpacityProperty, new DoubleAnimation(current ? 1 : 0.32, TimeSpan.FromMilliseconds(260)) { EasingFunction = ease });
-        var scale = (ScaleTransform)block.RenderTransform;
-        var to = current ? 1.0 : 0.92;
-        scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(260)) { EasingFunction = ease });
-        scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(260)) { EasingFunction = ease });
-        block.FontWeight = current ? FontWeights.Bold : FontWeights.Normal;
+        for (var i = 0; i < _blocks.Count; i++)
+        {
+            var distance = _current < 0 ? i + 1 : Math.Abs(i - _current);
+            var to = distance == 0 ? 1.0 : Math.Max(0.16, 0.58 - 0.14 * (distance - 1));
+            _blocks[i].BeginAnimation(OpacityProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(260)) { EasingFunction = ease });
+        }
     }
 }

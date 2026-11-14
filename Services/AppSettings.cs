@@ -223,11 +223,14 @@ public sealed class AppSettings
     public int SnoozeMinutes { get; set; } = 10;
 
     /// <summary>Hovering the collapsed pill shows a quick tray (music controls, recent copies) instead of opening the whole island.</summary>
-    public bool HoverQuickTray { get; set; } = true;
+    public bool HoverQuickTray { get; set; }
     public int TrayLingerMs { get; set; } = 1500;
 
     /// <summary>Collapsed music: the album art becomes a spinning disc and the equalizer a pulse bubble, separate from the title pill.</summary>
     public bool MusicSplit { get; set; } = true;
+    /// <summary>A flowing wave ribbon along the bottom of the collapsed music pill (replaces the pulse bubble).</summary>
+    public bool MusicWave { get; set; } = true;
+    public bool ClockOnMusicPill { get; set; } = true;
     /// <summary>How the audio-reactive bars look.</summary>
     public EqualizerLook EqualizerLook { get; set; } = EqualizerLook.Aura;
     /// <summary>A notification or copy leaves a small bubble beside the pill for this many seconds (0 = off).</summary>

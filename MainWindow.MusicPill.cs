@@ -18,7 +18,8 @@ public partial class MainWindow
     private void ApplyMusicLayout()
     {
         var split = _settings.MusicSplit;
-        MediaView.Width = split ? 238 : 340;
+        MediaView.Width = split ? 268 : 350;
+        MediaWave.Visibility = _settings.MusicWave ? Visibility.Visible : Visibility.Collapsed;
         MediaArtSmall.Visibility = split ? Visibility.Collapsed : Visibility.Visible;
         MediaTitleClip.Margin = split ? new Thickness(16, 0, 6, 0) : new Thickness(11, 0, 6, 0);
         // The equalizer lives in the pulse bubble when split, otherwise back in the pill (right side).
@@ -40,7 +41,7 @@ public partial class MainWindow
         var show = _settings.MusicSplit && _currentView == MediaView && !_state.IsExpanded && !IslandHidden && _state.Transient is null
                    && _media.Current is not null;
         var changed = ShowBubble(MediaDiscBubble, show);
-        changed |= ShowBubble(MediaPulseBubble, show);
+        changed |= ShowBubble(MediaPulseBubble, show && !_settings.MusicWave);
 
         // the disc stays still (it used to spin, which was distracting)
         MediaDiscSpin.BeginAnimation(RotateTransform.AngleProperty, null);

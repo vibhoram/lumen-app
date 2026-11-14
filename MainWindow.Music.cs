@@ -27,6 +27,7 @@ public partial class MainWindow
     private void WireMusic()
     {
         _musicTimer.Tick += (_, _) => MusicTick();
+        MediaTitleClip.SizeChanged += (_, _) => { _marqueeKey = null; UpdateMarquee(); };
     }
 
     /// <summary>Applies the music-related settings (progress look, time, lyrics visibility).</summary>
@@ -99,6 +100,7 @@ public partial class MainWindow
         var art = _shownArt?.Still;
         if (art is not null) _palette = ColorTools.Palette(art, 4);
         ApplyEqualizerLook(_media.Current?.Accent ?? Colors.White);
+        MediaWave.Colors = _palette;
     }
 
     private static void EaseColor(GradientStop stop, Color to)
@@ -226,14 +228,14 @@ public partial class MainWindow
         var position = media.EstimatePosition(DateTimeOffset.Now);
         var fraction = media.Duration.Ticks > 0 ? Math.Clamp(position / media.Duration, 0, 1) : 0;
 
+        var parts = new List<string>();
+        if (_settings.ClockOnMusicPill) parts.Add(DateTime.Now.ToString("h:mm tt"));
         if (_settings.CompactMediaTime != CompactTime.Off && media.Duration.Ticks > 0)
-        {
-            MediaTimeSmall.Text = _settings.CompactMediaTime == CompactTime.Elapsed
-                ? FormatMediaTime(position)
-                : "-" + FormatMediaTime(media.Duration - position);
-            MediaTimeSmall.Visibility = Visibility.Visible;
-        }
-        else MediaTimeSmall.Visibility = Visibility.Collapsed;
+            parts.Add(_settings.CompactMediaTime == CompactTime.Elapsed ? FormatMediaTime(position) : "-" + FormatMediaTime(media.Duration - position));
+        MediaTimeSmall.Text = string.Join("  ·  ", parts);
+        MediaTimeSmall.Visibility = parts.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        MediaWave.Playing = media.IsPlaying;
+        MediaLineSmall.Visibility = _settings.CompactProgressLine && !_settings.MusicWave ? Visibility.Visible : Visibility.Collapsed;
         MediaLineScale.ScaleX = fraction;
         if (_state.IsExpanded) ProgressBar.Fraction = fraction;
         UpdateBubbleRings(); // the disc's ring and the activity rings follow the song
@@ -285,11 +287,13 @@ public partial class MainWindow
         MediaTitleShift.X = 0;
 
         MediaTitleSmall.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        var available = MediaTitleClip.ActualWidth > 0 ? MediaTitleClip.ActualWidth : 190;
+        MediaTitleClip.UpdateLayout();
+        var available = MediaTitleClip.ActualWidth;
+        if (available < 40) { _marqueeKey = null; return; } // not laid out yet: SizeChanged tries again
         var overflow = MediaTitleSmall.DesiredSize.Width - available;
         if (overflow <= 2) return;
 
-        var distance = overflow + 14;
+        var distance = overflow + 26; // far enough that the end of the title clears the edge fade
         var travel = TimeSpan.FromSeconds(distance / 30); // 30 px per second, easy to read
         var hold = TimeSpan.FromSeconds(1.8);
         var back = TimeSpan.FromSeconds(0.7);

@@ -155,6 +155,7 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
+                <local:WaveRibbon x:Name="MediaWave" Grid.ColumnSpan="4" Height="15" VerticalAlignment="Bottom" Visibility="Collapsed" />
                 <!-- thin playback line along the bottom edge -->
                 <Border x:Name="MediaLineSmall" Grid.ColumnSpan="4" Height="2" VerticalAlignment="Bottom"
                         Margin="18,0,18,3" CornerRadius="1" Background="#22FFFFFF" Visibility="Collapsed" ClipToBounds="True">

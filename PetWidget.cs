@@ -424,6 +424,7 @@ public sealed class PetWidget : Canvas
             Mood.Walk => 3 + _rng.NextDouble() * 5,
             Mood.Idle => 2 + _rng.NextDouble() * 4,
             Mood.Sleep => 8 + _rng.NextDouble() * 10,
+            Mood.Dance => 5,
             Mood.Yawn => 1.4,
             Mood.Watch => 3 + _rng.NextDouble() * 4,
             Mood.Follow => 6,
@@ -556,8 +557,9 @@ public sealed class PetWidget : Canvas
                 squash = 1 + Math.Sin(_phase * 14) * 0.05;
                 nod = Math.Sin(_phase * 7) * 10;
                 wag = Math.Sin(_phase * 14) * 20;
-                foreach (var (_, rot, phase) in _legs) rot.Angle = Math.Sin(_phase * 14 + phase) * 16;
+                foreach (var (_, rot, _) in _legs) rot.Angle *= 0.8; // feet planted: it bounces and bobs, it doesn't march
                 if (!_music) SetMood(Mood.Idle);
+                else if (_moodLeft <= 0) SetMood(Mood.Walk); // dance a few seconds, then wander on
                 break;
             case Mood.Excited:
             {

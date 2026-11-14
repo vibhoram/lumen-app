@@ -196,6 +196,8 @@ public partial class SettingsWindow : Window
         Choice(media, "Time on the pill", new[] { (CompactTime.Off, "Off"), (CompactTime.Elapsed, "Elapsed"), (CompactTime.Remaining, "Remaining") },
             () => s.CompactMediaTime, v => s.CompactMediaTime = v);
         Check(media, "Split the collapsed music pill: spinning album disc and pulse bubble beside the title", () => s.MusicSplit, v => s.MusicSplit = v);
+        Check(media, "Wave ribbon along the collapsed music pill (cover colours, moves with the music)", () => s.MusicWave, v => s.MusicWave = v);
+        Check(media, "Show the time of day on the music pill", () => s.ClockOnMusicPill, v => s.ClockOnMusicPill = v);
         Choice(media, "Audio bars", new[] { (EqualizerLook.Aura, "Aura (cover colours)"), (EqualizerLook.Silver, "Silver"), (EqualizerLook.Song, "Song colour"), (EqualizerLook.Mint, "Mint"), (EqualizerLook.Sunset, "Sunset") }, () => s.EqualizerLook, v => s.EqualizerLook = v);
         Check(media, "Artist name under the title on the collapsed pill", () => s.ShowArtistOnPill, v => s.ShowArtistOnPill = v);
         Check(media, "Thin progress line along the collapsed pill", () => s.CompactProgressLine, v => s.CompactProgressLine = v);

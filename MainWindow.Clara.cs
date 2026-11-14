@@ -49,6 +49,10 @@ public partial class MainWindow
             sb.AppendLine($"Media: \"{m.Title}\" by {m.Artist} is {(m.IsPlaying ? "playing" : "paused")} in {m.AppName}.");
         if (_timer.IsActive) sb.AppendLine("A timer is running on the island.");
         sb.AppendLine($"To-do list: {_notes.OpenCount} open, {_notes.DoneCount} done.");
+        if (_focusSession.Phase != FocusPhase.Idle)
+            sb.AppendLine($"Focus session: {_focusSession.Phase} phase, {TimerService.Format(_focusSession.Remaining)} left, {_focusSession.TodaySessions} sessions done today.");
+        else if (_focusSession.TodaySessions > 0)
+            sb.AppendLine($"No focus session running; {_focusSession.TodaySessions} done today ({_focusSession.TodayMinutes} min).");
         if (_weather.Current is { } w)
             sb.AppendLine($"Weather: {w.Temperature:0} degrees {(w.Fahrenheit ? "F" : "C")}, {w.Condition}.");
         return sb.ToString();
@@ -71,6 +75,16 @@ public partial class MainWindow
                     _timer.Start(span);
                     return (true, $"Timer started for {TimerService.Format(span)}.", $"Timer · {TimerService.Format(span)}");
                 }
+                case "start_focus":
+                {
+                    var minutes = doc.RootElement.TryGetProperty("minutes", out var v) && v.TryGetDouble(out var d) ? d : 25;
+                    var m = (int)Math.Clamp(minutes, 5, 180);
+                    _focusSession.StartFocusWithMinutes(m);
+                    return (true, $"Focus session started for {m} minutes.", $"Focus · {m} min");
+                }
+                case "stop_focus":
+                    _focusSession.Stop();
+                    return (true, "Focus session stopped.", "Focus stopped");
                 case "set_reminder":
                 {
                     var minutes = doc.RootElement.TryGetProperty("minutes", out var v) && v.TryGetDouble(out var d) ? d : 0;
