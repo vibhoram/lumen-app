@@ -61,6 +61,21 @@ internal sealed class LensRenderer : IDisposable
     public int FramesReceived { get; private set; }
     public string? LastError { get; private set; }
 
+    private volatile bool _paused;
+
+    /// <summary>
+    /// While parked the renderer keeps its duplication and last frame (so switching the lens back on is instant and
+    /// can't be left waiting for a screen change) but draws nothing.
+    /// </summary>
+    public void SetPaused(bool paused)
+    {
+        lock (_lock)
+        {
+            _paused = paused;
+            if (!paused && _haveFrame && _shapeSet && Stage >= 2) RenderLocked();
+        }
+    }
+
     /// <summary>The swap chain to attach to a DirectComposition visual.</summary>
     public IDXGISwapChain1 SwapChain => _swap;
 
@@ -178,7 +193,7 @@ internal sealed class LensRenderer : IDisposable
                 Blur = blur, Dispersion = dispersion, Shine = shine, Saturation = 1.35f,
             };
             _shapeSet = true;
-            if (_haveFrame && Stage >= 2) RenderLocked();
+            if (_haveFrame && Stage >= 2 && !_paused) RenderLocked();
         }
     }
 
@@ -213,7 +228,7 @@ internal sealed class LensRenderer : IDisposable
                             _context.CopyResource(_frame, texture);
                             _haveFrame = true;
                             FramesReceived++;
-                            if (_shapeSet && Stage >= 2) RenderLocked();
+                            if (_shapeSet && Stage >= 2 && !_paused) RenderLocked();
                         }
                     }
                     finally

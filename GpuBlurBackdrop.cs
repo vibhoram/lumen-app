@@ -154,16 +154,31 @@ internal sealed class GpuBlurBackdrop : IDisposable
         _lensShine = shine;
         if (!enabled)
         {
-            if (_lens is not null)
+            // Park, don't tear down: re-creating the duplication on every toggle left the ring half-drawn
+            // until something on screen changed.
+            if (_lens is not null && _lensVisual is not null)
             {
-                if (_lensVisual is not null) { _root.RemoveVisual(_lensVisual); _lensVisual.Dispose(); _lensVisual = null; }
-                _lens.Dispose();
-                _lens = null;
+                _lens.SetPaused(true);
+                _root.RemoveVisual(_lensVisual);
+                _lensVisual.Dispose();
+                _lensVisual = null;
                 _device.Commit();
             }
             return true;
         }
-        if (_lens is not null) return true;
+        if (_lens is not null)
+        {
+            if (_lensVisual is null)
+            {
+                _lensVisual = _device.CreateVisual();
+                _lensVisual.SetContent(_lens.SwapChain);
+                _root.AddVisual(_lensVisual, false, null);
+                _shape = default; // push the current shape again
+                _lens.SetPaused(false);
+                _device.Commit();
+            }
+            return true;
+        }
         try
         {
             _lens = new LensRenderer(_hwnd, Math.Max(16, _bounds.Right - _bounds.Left), Math.Max(16, _bounds.Bottom - _bounds.Top));
@@ -294,6 +309,8 @@ internal sealed class GpuBlurBackdrop : IDisposable
     public void Dispose()
     {
         SetLens(false, 0, 0);
+        _lens?.Dispose();
+        _lens = null;
         ClearLayers();
         _blur.Dispose();
         _clip.Dispose();
