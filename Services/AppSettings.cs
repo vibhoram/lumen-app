@@ -266,6 +266,9 @@ public sealed class AppSettings
     /// <summary>How the big clock on the Home page is drawn: plain, outlined or glass (like the iOS 26 lock screen).</summary>
     public ClockLook ClockLook { get; set; } = ClockLook.Glass;
 
+    /// <summary>The name Clara uses for you. It is sent to the AI provider as part of her instructions (only the name).</summary>
+    public string UserName { get; set; } = "Vibhor";
+
     /// <summary>Show every slider (otherwise just presets and the essentials).</summary>
     public bool ShowAdvanced { get; set; }
 

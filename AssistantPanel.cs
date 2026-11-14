@@ -420,7 +420,7 @@ public sealed class AssistantPanel : Grid
             for (var round = 0; round < 5; round++)
             {
                 var context = _settings.ClaraContext ? ContextProvider?.Invoke() : null;
-                var system = ClaraBrain.SystemPrompt(useLocal ? $"{engineModel}, running offline on this PC" : engineModel, context, ClaraMemory.Shared.Facts);
+                var system = ClaraBrain.SystemPrompt(useLocal ? $"{engineModel}, running offline on this PC" : engineModel, context, ClaraMemory.Shared.Facts, _settings.UserName);
                 var offerTools = useLocal ? (LocalAi.LooksActionable(userText) || round > 0) : true;
                 var turn = new StringBuilder();
                 List<ToolCall>? calls = null;

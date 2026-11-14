@@ -327,6 +327,8 @@ public partial class SettingsWindow : Window
         BuildPageOrder(order);
 
         var ai = Section("CLARA (AI ASSISTANT)", "Clara");
+        TextRow(ai, "Your name", () => s.UserName, v => s.UserName = v);
+        Note(ai, "Clara calls you this and tailors her replies to you. With the cloud model the name is sent along with her instructions; offline it never leaves this PC.");
         Check(ai, "Chat offline with a model on this PC (Ollama) for plain text; pictures and screenshots go to Groq", () => s.AssistantUseLocalAi, v => s.AssistantUseLocalAi = v);
         TextRow(ai, "Offline model", () => s.LocalModel, v => s.LocalModel = v);
         Note(ai, "Leave the offline model empty to use the fastest one installed (llama3.2:3b if you have it). Ollama unloads it after about 5 minutes idle; the page loads it ahead of your first message.");
