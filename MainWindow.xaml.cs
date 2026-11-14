@@ -3881,11 +3881,9 @@ public partial class MainWindow : Window
         // each icon sits on a little glass plate (the icon itself stays pixel-exact on top)
         var plate = new Border
         {
-            Background = (Brush)FindResource("GlassFill"),
-            BorderBrush = (Brush)FindResource("GlassRim"),
-            BorderThickness = new Thickness(1),
+            Background = Brushes.Transparent,
             CornerRadius = new CornerRadius(Math.Max(10, icon.Width * 0.3)),
-            Padding = new Thickness(6),
+            Padding = new Thickness(0),
             HorizontalAlignment = HorizontalAlignment.Center,
             Child = icon,
         };
@@ -3893,7 +3891,7 @@ public partial class MainWindow : Window
         {
             Style = (Style)FindResource("IconButton"),
             Width = width,
-            Height = height + 12,
+            Height = height,
             ToolTip = name,
             Content = new StackPanel
             {

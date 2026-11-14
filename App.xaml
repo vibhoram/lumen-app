@@ -15,16 +15,8 @@
         </Style>
 
         <!-- Liquid Glass buttons: a soft top-lit fill and a bright-to-faint rim, like iOS 26 controls. -->
-        <LinearGradientBrush x:Key="GlassFill" StartPoint="0,0" EndPoint="0,1">
-            <GradientStop Color="#3CFFFFFF" Offset="0" />
-            <GradientStop Color="#16FFFFFF" Offset="0.5" />
-            <GradientStop Color="#22FFFFFF" Offset="1" />
-        </LinearGradientBrush>
-        <LinearGradientBrush x:Key="GlassRim" StartPoint="0,0" EndPoint="0.35,1">
-            <GradientStop Color="#8CFFFFFF" Offset="0" />
-            <GradientStop Color="#20FFFFFF" Offset="0.45" />
-            <GradientStop Color="#3DFFFFFF" Offset="1" />
-        </LinearGradientBrush>
+        <SolidColorBrush x:Key="GlassFill" Color="#26FFFFFF" />
+        <SolidColorBrush x:Key="GlassRim" Color="Transparent" />
 
         <Style x:Key="IconButton" TargetType="Button">
             <Setter Property="Foreground" Value="White" />
@@ -32,6 +24,8 @@
             <Setter Property="Focusable" Value="False" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Padding" Value="0" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -66,7 +60,7 @@
         <Style x:Key="ChipButton" TargetType="Button" BasedOn="{StaticResource IconButton}">
             <Setter Property="Background" Value="{StaticResource GlassFill}" />
             <Setter Property="BorderBrush" Value="{StaticResource GlassRim}" />
-            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Padding" Value="10,5" />
             <Setter Property="Margin" Value="5,0,0,0" />
             <Setter Property="FontSize" Value="12" />
