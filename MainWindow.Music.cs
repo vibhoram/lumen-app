@@ -228,12 +228,20 @@ public partial class MainWindow
         var position = media.EstimatePosition(DateTimeOffset.Now);
         var fraction = media.Duration.Ticks > 0 ? Math.Clamp(position / media.Duration, 0, 1) : 0;
 
-        var parts = new List<string>();
-        if (_settings.ClockOnMusicPill) parts.Add(DateTime.Now.ToString("h:mm tt"));
+        MediaTimeSmall.Inlines.Clear();
+        var any = false;
+        if (_settings.ClockOnMusicPill)
+        {
+            MediaTimeSmall.Inlines.Add(new System.Windows.Documents.Run(DateTime.Now.ToString("h:mm tt")) { FontSize = 11.5, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White });
+            any = true;
+        }
         if (_settings.CompactMediaTime != CompactTime.Off && media.Duration.Ticks > 0)
-            parts.Add(_settings.CompactMediaTime == CompactTime.Elapsed ? FormatMediaTime(position) : "-" + FormatMediaTime(media.Duration - position));
-        MediaTimeSmall.Text = string.Join("  ·  ", parts);
-        MediaTimeSmall.Visibility = parts.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        {
+            if (any) MediaTimeSmall.Inlines.Add(new System.Windows.Documents.LineBreak());
+            MediaTimeSmall.Inlines.Add(new System.Windows.Documents.Run(_settings.CompactMediaTime == CompactTime.Elapsed ? FormatMediaTime(position) : "-" + FormatMediaTime(media.Duration - position)) { FontSize = 10, Foreground = (Brush)FindResource("Secondary") });
+            any = true;
+        }
+        MediaTimeSmall.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
         MediaWave.Playing = media.IsPlaying;
         MediaLineSmall.Visibility = _settings.CompactProgressLine && !_settings.MusicWave ? Visibility.Visible : Visibility.Collapsed;
         MediaLineScale.ScaleX = fraction;

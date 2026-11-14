@@ -40,31 +40,46 @@ public sealed class WaveRibbon : FrameworkElement
     {
         var w = ActualWidth;
         var h = ActualHeight;
-        if (w < 20 || h < 6) return;
+        if (w < 20 || h < 5) return;
         var t = (DateTime.UtcNow - _start).TotalSeconds;
-        var goal = double.IsNaN(_target) ? 0.5 + 0.28 * Math.Sin(t * 1.3) : _target;
-        _level += ((_playing ? goal : 0.1) - _level) * (goal > _level ? 0.45 : 0.16); // quick attack, slower fall
 
-        for (var k = 0; k < 3; k++)
+        // The loudness is heavily smoothed and squeezed into a narrow range: the ribbon breathes, it never jumps.
+        var goal = double.IsNaN(_target) ? 0.5 : 0.3 + 0.5 * Math.Clamp(_target, 0, 1);
+        _level += ((_playing ? goal : 0.15) - _level) * 0.03;
+
+        var a = _colors[0];
+        var b = _colors.Count > 1 ? _colors[1] : a;
+        // two layers only: a soft main ribbon and a fainter one drifting the other way
+        for (var k = 0; k < 2; k++)
         {
-            var color = _colors[k % _colors.Count];
-            var amplitude = (1.4 + 11 * _level) * (1 - 0.22 * k);
-            var wavelength = 70 + 38 * k;
-            var phase = t * (1.7 + 0.8 * k + 2.2 * _level) * (k % 2 == 0 ? 1 : -1) + k * 1.9;
-            var baseline = h - 2.5 - k * 1.4;
+            var amplitude = (1.6 + 2.6 * _level) * (k == 0 ? 1 : 0.65);
+            var wavelength = k == 0 ? 150 : 210;
+            var phase = t * (k == 0 ? 0.9 : -0.6) + k * 2.1;
+            var baseline = h - 3.2 - k * 1.2;
             var geometry = new StreamGeometry();
             using (var ctx = geometry.Open())
             {
                 ctx.BeginFigure(new Point(0, h + 1), true, true);
-                for (double x = 0; x <= w + 2; x += 2.5)
-                {
-                    var edge = Math.Min(1, Math.Min(x, w - x) / 26); // calm at both ends
-                    ctx.LineTo(new Point(x, baseline - Math.Sin(x / wavelength * 2 * Math.PI + phase) * amplitude * edge), true, false);
-                }
+                for (double x = 0; x <= w + 3; x += 3)
+                    ctx.LineTo(new Point(x, baseline - Math.Sin(x / wavelength * 2 * Math.PI + phase) * amplitude), true, false);
                 ctx.LineTo(new Point(w, h + 1), true, false);
             }
             geometry.Freeze();
-            dc.DrawGeometry(new SolidColorBrush(Color.FromArgb((byte)(0xA0 - 0x28 * k), color.R, color.G, color.B)), null, geometry);
+            var alpha = (byte)(k == 0 ? 0x70 : 0x36);
+            var brush = new LinearGradientBrush
+            {
+                StartPoint = new Point(0, 0),
+                EndPoint = new Point(1, 0),
+                GradientStops =
+                {
+                    new GradientStop(Color.FromArgb(0, a.R, a.G, a.B), 0),
+                    new GradientStop(Color.FromArgb(alpha, a.R, a.G, a.B), 0.18),
+                    new GradientStop(Color.FromArgb(alpha, b.R, b.G, b.B), 0.82),
+                    new GradientStop(Color.FromArgb(0, b.R, b.G, b.B), 1),
+                },
+            };
+            brush.Freeze();
+            dc.DrawGeometry(brush, null, geometry);
         }
     }
 }

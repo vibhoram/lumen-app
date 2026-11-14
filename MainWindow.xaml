@@ -155,7 +155,7 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <local:WaveRibbon x:Name="MediaWave" Grid.ColumnSpan="4" Height="15" VerticalAlignment="Bottom" Visibility="Collapsed" />
+                <local:WaveRibbon x:Name="MediaWave" Grid.ColumnSpan="4" Height="11" VerticalAlignment="Bottom" Visibility="Collapsed" />
                 <!-- thin playback line along the bottom edge -->
                 <Border x:Name="MediaLineSmall" Grid.ColumnSpan="4" Height="2" VerticalAlignment="Bottom"
                         Margin="18,0,18,3" CornerRadius="1" Background="#22FFFFFF" Visibility="Collapsed" ClipToBounds="True">
@@ -188,7 +188,7 @@
                                    Foreground="{StaticResource Secondary}" Visibility="Collapsed" />
                     </StackPanel>
                 </Grid>
-                <TextBlock x:Name="MediaTimeSmall" Grid.Column="2" FontSize="11.5" Margin="0,0,8,0" VerticalAlignment="Center"
+                <TextBlock x:Name="MediaTimeSmall" Grid.Column="2" FontSize="11.5" Margin="6,0,12,2" VerticalAlignment="Center" TextAlignment="Right" LineHeight="13" LineStackingStrategy="BlockLineHeight"
                            Foreground="{StaticResource Secondary}" Typography.NumeralAlignment="Tabular" Visibility="Collapsed" />
             </Grid>
 
