@@ -1,7 +1,10 @@
 // D-Island (personal fork) - the AI assistant page: chat with Groq, with the screen attached in one click.
 
 using System.Net.Http;
+using System.IO;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
@@ -36,7 +39,8 @@ public sealed class AssistantPanel : Grid
     private readonly Border _send;
     private readonly TextBlock _sendGlyph;
     private readonly StackPanel _empty;
-    private readonly Border _orb;
+    private readonly FrameworkElement _orb;
+    private readonly TextBlock _status;
     private readonly Border _liveChip;
     private BitmapSource? _pending;
     private CancellationTokenSource? _cts;
@@ -54,16 +58,19 @@ public sealed class AssistantPanel : Grid
 
         // ---- header
         var header = new Grid { Margin = new Thickness(0, 0, 0, 8) };
-        _orb = MakeOrb();
+        _orb = MakeAvatar(34);
+        _status = new TextBlock { Text = "online", FontSize = 10.5, Opacity = 0.55 };
         var title = new StackPanel { Orientation = Orientation.Horizontal };
         title.Children.Add(_orb);
-        title.Children.Add(new TextBlock
+        title.Children.Add(new StackPanel
         {
-            Text = "Ask",
-            FontSize = 14,
-            FontWeight = FontWeights.SemiBold,
-            Margin = new Thickness(8, 0, 0, 0),
+            Margin = new Thickness(9, 0, 0, 0),
             VerticalAlignment = VerticalAlignment.Center,
+            Children =
+            {
+                new TextBlock { Text = ClaraBrain.Name, FontSize = 14, FontWeight = FontWeights.SemiBold, LineHeight = 16 },
+                _status,
+            },
         });
         header.Children.Add(title);
         var tools = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
@@ -153,7 +160,7 @@ public sealed class AssistantPanel : Grid
         };
         _placeholder = new TextBlock
         {
-            Text = "Ask anything…",
+            Text = "Message Clara…",
             FontSize = 13,
             Foreground = B("#80FFFFFF"),
             IsHitTestVisible = false,
@@ -216,6 +223,12 @@ public sealed class AssistantPanel : Grid
     public Func<Task<BitmapSource?>>? ScreenRequested { get; set; }
 
     public TextBox Input => _input;
+
+    /// <summary>One line of "what's going on right now" (time, music, battery) for Clara; null when switched off.</summary>
+    public Func<string>? ContextProvider { get; set; }
+
+    /// <summary>Runs one of Clara's tools on the PC: (name, arguments JSON) → (worked, result for the model, short label for the user).</summary>
+    public Func<string, string, Task<(bool Ok, string Result, string Summary)>>? ToolRunner { get; set; }
 
 #if DEBUG
     /// <summary>Fills the page with sample content (DISLAND_ASSIST_DEMO=1) to check layout and growth.</summary>
@@ -383,34 +396,70 @@ public sealed class AssistantPanel : Grid
         Appear(bubble.Root, 10);
         ScrollDown();
 
+        var start = _history.Count - 1; // index of the user's message, for cleanup on failure
         _cts = new CancellationTokenSource();
         var reply = new StringBuilder();
+        var tools = ClaraBrain.Tools();
         try
         {
-            await foreach (var chunk in GroqService.StreamAsync(_settings.GroqApiKey, _settings.GroqModel, _history.ToList(), _cts.Token))
+            // A turn can need several rounds: the model asks for tools, we run them, it then answers.
+            for (var round = 0; round < 5; round++)
             {
-                reply.Append(chunk);
-                bubble.SetText(reply.ToString());
+                var context = _settings.ClaraContext ? ContextProvider?.Invoke() : null;
+                var system = ClaraBrain.SystemPrompt(_settings.GroqModel, context, ClaraMemory.Shared.Facts);
+                var turn = new StringBuilder();
+                List<ToolCall>? calls = null;
+                await foreach (var ev in GroqService.StreamAsync(_settings.GroqApiKey, _settings.GroqModel, system, _history.ToList(), tools, _cts.Token))
+                {
+                    if (ev.Text is { } text)
+                    {
+                        turn.Append(text);
+                        reply.Append(text);
+                        bubble.SetText(reply.ToString());
+                    }
+                    if (ev.Calls is { } c) calls = c.ToList();
+                }
+
+                if (calls is null)
+                {
+                    if (turn.Length > 0) _history.Add(new ChatMessage("assistant", turn.ToString()));
+                    break;
+                }
+
+                var callsJson = new JsonArray(calls.Select(c => (JsonNode?)new JsonObject
+                {
+                    ["id"] = c.Id,
+                    ["type"] = "function",
+                    ["function"] = new JsonObject { ["name"] = c.Name, ["arguments"] = c.Arguments },
+                }).ToArray()).ToJsonString();
+                _history.Add(new ChatMessage("assistant", turn.ToString(), ToolCallsJson: callsJson));
+                if (turn.Length > 0) reply.Append("\n\n");
+                foreach (var call in calls)
+                {
+                    (bool Ok, string Result, string Summary) outcome = ToolRunner is null
+                        ? (false, "Tools aren't available.", "")
+                        : await ToolRunner(call.Name, call.Arguments);
+                    if (outcome.Summary.Length > 0) bubble.AddAction(outcome.Ok, outcome.Summary);
+                    _history.Add(new ChatMessage("tool", outcome.Result, ToolCallId: call.Id));
+                }
             }
-            if (reply.Length == 0) throw new GroqException(0, "The model returned an empty answer.");
-            _history.Add(new ChatMessage("assistant", reply.ToString()));
+            if (reply.Length == 0 && !bubble.HasActions) throw new GroqException(0, "The model returned an empty answer.");
             bubble.Finish();
         }
         catch (OperationCanceledException)
         {
-            if (reply.Length > 0) _history.Add(new ChatMessage("assistant", reply.ToString()));
-            else _history.RemoveAt(_history.Count - 1);
+            if (reply.Length == 0 && !bubble.HasActions) _history.RemoveRange(start, _history.Count - start);
             bubble.Finish(stopped: true);
         }
         catch (Exception ex)
         {
-            _history.RemoveAt(_history.Count - 1); // so a retry doesn't duplicate the question
+            _history.RemoveRange(start, _history.Count - start); // so a retry doesn't duplicate the question
             var message = ex switch
             {
-                GroqException { Status: 401 } => "Groq rejected the API key. Check it in Settings > AI Assistant.",
-                GroqException { Status: 429 } => "Rate limit reached. Give it a few seconds, then retry.",
+                GroqException { Status: 401 } => "Groq rejected the API key. Check it in Settings > Clara.",
+                GroqException { Status: 429 } => "I've hit Groq's rate limit. Give it a few seconds, then retry.",
                 GroqException g => g.Message,
-                HttpRequestException => "Can't reach Groq. Check your connection.",
+                HttpRequestException => "I can't reach Groq. Check your connection.",
                 _ => ex.Message,
             };
             bubble.Fail(message, () =>
@@ -432,7 +481,7 @@ public sealed class AssistantPanel : Grid
     {
         if (_busy)
         {
-            // A soft light sweeps along the edge while the model is working.
+            // A soft light sweeps along the edge while Clara is working.
             var shimmer = new LinearGradientBrush
             {
                 StartPoint = new Point(0, 0),
@@ -458,7 +507,8 @@ public sealed class AssistantPanel : Grid
         _busy = busy;
         UpdateBorder();
         _sendGlyph.Text = busy ? "" : "";
-        _placeholder.Text = busy ? "Thinking…" : "Ask anything…";
+        _placeholder.Text = busy ? "Clara's thinking…" : "Message Clara…";
+        _status.Text = busy ? "thinking…" : "online";
         var pulse = busy
             ? new DoubleAnimation(1, 1.18, TimeSpan.FromMilliseconds(700)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() }
             : null;
@@ -552,19 +602,16 @@ public sealed class AssistantPanel : Grid
 
     private StackPanel BuildEmpty()
     {
-        var spark = new TextBlock
+        var hour = DateTime.Now.Hour;
+        var greeting = hour switch
         {
-            Text = "✦",
-            FontSize = 26,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Foreground = AccentGradient(),
-            FontFamily = new FontFamily("Segoe UI Symbol"),
-            RenderTransformOrigin = new Point(0.5, 0.5),
+            < 5 => "Still up? I'm here.",
+            < 12 => "Good morning. What are we doing?",
+            < 18 => "Hey. What's on your mind?",
+            _ => "Good evening. What are we doing?",
         };
-        var rotate = new RotateTransform();
-        spark.RenderTransform = rotate;
-        rotate.BeginAnimation(RotateTransform.AngleProperty,
-            new DoubleAnimation(-8, 8, TimeSpan.FromSeconds(3)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() });
+        var avatar = MakeAvatar(60);
+        avatar.HorizontalAlignment = HorizontalAlignment.Center;
 
         var chips = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 10, 0, 0) };
         foreach (var (label, prompt) in new[]
@@ -584,9 +631,9 @@ public sealed class AssistantPanel : Grid
             VerticalAlignment = VerticalAlignment.Center,
             Children =
             {
-                spark,
-                new TextBlock { Text = "Ask about anything on your screen", FontSize = 13, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 4, 0, 0) },
-                new TextBlock { Text = "One tap grabs your screen and asks", FontSize = 11.5, Opacity = 0.6, HorizontalAlignment = HorizontalAlignment.Center },
+                avatar,
+                new TextBlock { Text = "Hey, I'm Clara.", FontSize = 15, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 8, 0, 0) },
+                new TextBlock { Text = greeting, FontSize = 12, Opacity = 0.65, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 1, 0, 0) },
                 chips,
             },
         };
@@ -605,13 +652,17 @@ public sealed class AssistantPanel : Grid
     {
         private readonly AssistantPanel _owner;
         private readonly StackPanel _host = new();
+        private readonly WrapPanel _actions = new() { Margin = new Thickness(0, 0, 0, 2) };
+        private readonly StackPanel _body = new();
+        private readonly Border _bubble;
         private readonly StackPanel _dots = new() { Orientation = Orientation.Horizontal, Margin = new Thickness(2, 4, 2, 4) };
         private readonly DispatcherTimer _render = new() { Interval = TimeSpan.FromMilliseconds(60) };
         private string _text = "";
         private bool _dirty;
         private bool _dotsShown = true;
 
-        public Border Root { get; }
+        public FrameworkElement Root { get; }
+        public bool HasActions => _actions.Children.Count > 0;
 
         public AssistantBubble(AssistantPanel owner)
         {
@@ -626,8 +677,10 @@ public sealed class AssistantPanel : Grid
                     new DoubleAnimation(0, -3, TimeSpan.FromMilliseconds(420)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, BeginTime = begin, EasingFunction = new SineEase() });
                 _dots.Children.Add(dot);
             }
-            _host.Children.Add(_dots);
-            Root = new Border
+            _body.Children.Add(_dots);
+            _host.Children.Add(_actions);
+            _host.Children.Add(_body);
+            _bubble = new Border
             {
                 Background = B("#1FFFFFFF"),
                 BorderBrush = B("#12FFFFFF"),
@@ -635,10 +688,16 @@ public sealed class AssistantPanel : Grid
                 CornerRadius = new CornerRadius(16, 16, 16, 4),
                 Padding = new Thickness(12, 8, 12, 8),
                 HorizontalAlignment = HorizontalAlignment.Left,
-                MaxWidth = 360,
-                Margin = new Thickness(0, 0, 40, 8),
+                MaxWidth = 330,
                 Child = _host,
             };
+            var avatar = MakeAvatar(22);
+            avatar.VerticalAlignment = VerticalAlignment.Top;
+            avatar.Margin = new Thickness(0, 2, 8, 0);
+            var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 24, 8) };
+            row.Children.Add(avatar);
+            row.Children.Add(_bubble);
+            Root = row;
             _render.Tick += (_, _) =>
             {
                 if (!_dirty) return;
@@ -655,7 +714,7 @@ public sealed class AssistantPanel : Grid
             {
                 _dotsShown = false;
                 foreach (UIElement d in _dots.Children) d.BeginAnimation(OpacityProperty, null);
-                _host.Children.Remove(_dots);
+                _body.Children.Remove(_dots);
                 Render(text);
                 _dirty = false;
                 _render.Start();
@@ -667,39 +726,64 @@ public sealed class AssistantPanel : Grid
             _render.Stop();
             if (_dotsShown)
             {
-                _host.Children.Remove(_dots);
+                _body.Children.Remove(_dots);
                 _dotsShown = false;
             }
             Render(_text);
             if (stopped)
-                _host.Children.Add(new TextBlock { Text = "Stopped", FontSize = 11, Opacity = 0.5, Margin = new Thickness(0, 4, 0, 0) });
+                _body.Children.Add(new TextBlock { Text = "Stopped", FontSize = 11, Opacity = 0.5, Margin = new Thickness(0, 4, 0, 0) });
             if (_text.Length > 0)
             {
                 var copy = new TextBlock { Text = "", FontFamily = IconFont, FontSize = 11, Opacity = 0.45, HorizontalAlignment = HorizontalAlignment.Right, Cursor = Cursors.Hand, Margin = new Thickness(0, 4, 0, 0), ToolTip = "Copy" };
                 copy.MouseEnter += (_, _) => copy.Opacity = 1;
                 copy.MouseLeave += (_, _) => copy.Opacity = 0.45;
                 copy.MouseLeftButtonUp += (_, e) => { e.Handled = true; try { Clipboard.SetText(_text); } catch (Exception) { } };
-                _host.Children.Add(copy);
+                _body.Children.Add(copy);
             }
             _owner.ScrollDown();
+        }
+
+        /// <summary>A small badge for something Clara just did on the PC.</summary>
+        public void AddAction(bool ok, string summary)
+        {
+            var badge = new Border
+            {
+                CornerRadius = new CornerRadius(9),
+                Padding = new Thickness(8, 3, 9, 3),
+                Margin = new Thickness(0, 0, 5, 4),
+                Background = B(ok ? "#2630D158" : "#33FF453A"),
+                Child = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Children =
+                    {
+                        new TextBlock { Text = ok ? "\uE73E" : "\uE711", FontFamily = IconFont, FontSize = 10, Foreground = B(ok ? "#FF30D158" : "#FFFF6A60"), VerticalAlignment = VerticalAlignment.Center },
+                        new TextBlock { Text = summary, FontSize = 11.5, Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center },
+                    },
+                },
+            };
+            _actions.Children.Add(badge);
+            Appear(badge, 4);
         }
 
         public void Fail(string message, Action retry)
         {
             _render.Stop();
-            _host.Children.Clear();
-            Root.Background = B("#33FF453A");
-            _host.Children.Add(new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, FontSize = 12.5 });
+            _actions.Children.Clear();
+            _body.Children.Clear();
+            _bubble.Background = B("#33FF453A");
+            _body.Children.Add(new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, FontSize = 12.5 });
             var again = Chip("", "Retry", retry);
             again.HorizontalAlignment = HorizontalAlignment.Left;
             again.Margin = new Thickness(0, 7, 0, 0);
-            _host.Children.Add(again);
+            _body.Children.Add(again);
         }
 
         private void Render(string text)
         {
             var atEnd = _owner._scroll.VerticalOffset >= _owner._scroll.ScrollableHeight - 8;
-            _host.Children.Clear();
+            _body.Children.Clear();
+            text = Regex.Replace(text, "<think>.*?(</think>|$)", "", RegexOptions.Singleline).TrimStart(); // some models leak their reasoning
             var parts = text.Split("```");
             for (var i = 0; i < parts.Length; i++)
             {
@@ -725,7 +809,7 @@ public sealed class AssistantPanel : Grid
                 Child = new TextBlock { Text = code, FontFamily = new FontFamily("Cascadia Mono, Consolas"), FontSize = 12, TextWrapping = TextWrapping.Wrap, Foreground = B("#E6FFFFFF") },
             };
             block.MouseLeftButtonUp += (_, e) => { e.Handled = true; try { Clipboard.SetText(code); } catch (Exception) { } };
-            _host.Children.Add(block);
+            _body.Children.Add(block);
         }
 
         private void AddProse(string prose)
@@ -734,7 +818,7 @@ public sealed class AssistantPanel : Grid
             void Flush()
             {
                 if (paragraph.Count == 0) return;
-                _host.Children.Add(Inline(string.Join("\n", paragraph), 0));
+                _body.Children.Add(Inline(string.Join("\n", paragraph), 0));
                 paragraph.Clear();
             }
             foreach (var raw in prose.Split('\n'))
@@ -745,7 +829,7 @@ public sealed class AssistantPanel : Grid
                 if (trimmed.StartsWith("- ") || trimmed.StartsWith("* "))
                 {
                     Flush();
-                    _host.Children.Add(Inline("•  " + trimmed[2..], 8));
+                    _body.Children.Add(Inline("•  " + trimmed[2..], 8));
                 }
                 else if (trimmed.StartsWith('#'))
                 {
@@ -753,7 +837,7 @@ public sealed class AssistantPanel : Grid
                     var tb = Inline(trimmed.TrimStart('#').Trim(), 0);
                     tb.FontWeight = FontWeights.SemiBold;
                     tb.FontSize = 14;
-                    _host.Children.Add(tb);
+                    _body.Children.Add(tb);
                 }
                 else paragraph.Add(line);
             }
@@ -789,34 +873,101 @@ public sealed class AssistantPanel : Grid
 
     private static Brush AccentGradient() => new LinearGradientBrush(AccentA, AccentB, 35);
 
-    private static Border MakeOrb()
+    /// <summary>Clara's avatar: her portrait if one is on disk, otherwise a luminous glass presence.</summary>
+    private static FrameworkElement MakeAvatar(double size)
     {
-        var orb = MakeOrbCore();
-        if (orb.Effect is System.Windows.Media.Effects.DropShadowEffect glow)
-            glow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.OpacityProperty,
-                new DoubleAnimation(0.4, 0.95, TimeSpan.FromSeconds(2.2)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() });
-        return orb;
+        var portrait = LoadPortrait();
+        var grid = new Grid
+        {
+            Width = size,
+            Height = size,
+            RenderTransformOrigin = new Point(0.5, 0.5),
+            RenderTransform = new ScaleTransform(1, 1),
+            Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = AccentA, BlurRadius = size * 0.45, ShadowDepth = 0, Opacity = 0.55 },
+        };
+        if (portrait is not null)
+        {
+            grid.Children.Add(new Ellipse { Fill = new ImageBrush(portrait) { Stretch = Stretch.UniformToFill } });
+        }
+        else
+        {
+            grid.Children.Add(new Ellipse
+            {
+                Fill = new RadialGradientBrush
+                {
+                    GradientOrigin = new Point(0.3, 0.25),
+                    Center = new Point(0.5, 0.5),
+                    GradientStops =
+                    {
+                        new GradientStop(Color.FromRgb(0x5B, 0x4B, 0xE0), 0),
+                        new GradientStop(Color.FromRgb(0x24, 0x1B, 0x6B), 0.6),
+                        new GradientStop(Color.FromRgb(0x0E, 0x0B, 0x2B), 1),
+                    },
+                },
+            });
+            var swirl = new Ellipse
+            {
+                Margin = new Thickness(size * 0.08),
+                Opacity = 0.9,
+                RenderTransformOrigin = new Point(0.5, 0.5),
+                Fill = new LinearGradientBrush(new GradientStopCollection
+                {
+                    new GradientStop(Color.FromArgb(0, 0x2D, 0xD4, 0xFF), 0),
+                    new GradientStop(Color.FromArgb(170, 0x2D, 0xD4, 0xFF), 0.5),
+                    new GradientStop(Color.FromArgb(0, 0xB0, 0x8B, 0xFF), 1),
+                }, 40),
+            };
+            var spin = new RotateTransform();
+            swirl.RenderTransform = spin;
+            spin.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(0, 360, TimeSpan.FromSeconds(10)) { RepeatBehavior = RepeatBehavior.Forever });
+            grid.Children.Add(swirl);
+            grid.Children.Add(new TextBlock
+            {
+                Text = "C",
+                FontSize = size * 0.46,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(Color.FromArgb(0xF0, 255, 255, 255)),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+        }
+        // Glass rim: bright where the light hits (top-left), faint elsewhere.
+        grid.Children.Add(new Ellipse
+        {
+            StrokeThickness = Math.Max(1, size / 30),
+            Stroke = new LinearGradientBrush(Color.FromArgb(0xC0, 255, 255, 255), Color.FromArgb(0x25, 255, 255, 255), 45),
+        });
+        return grid;
     }
 
-    private static Border MakeOrbCore() => new()
+    /// <summary>Looks for a portrait the user dropped in as clara.png/.jpg (AppData first, then the app's Assets folder).</summary>
+    private static BitmapImage? LoadPortrait()
     {
-        Width = 22,
-        Height = 22,
-        CornerRadius = new CornerRadius(11),
-        Background = AccentGradient(),
-        RenderTransformOrigin = new Point(0.5, 0.5),
-        RenderTransform = new ScaleTransform(1, 1),
-        Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = AccentA, BlurRadius = 12, ShadowDepth = 0, Opacity = 0.7 },
-        Child = new Ellipse
+        var folders = new[]
         {
-            Width = 8,
-            Height = 8,
-            Fill = new SolidColorBrush(Color.FromArgb(0x70, 255, 255, 255)),
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top,
-            Margin = new Thickness(4, 3, 0, 0),
-        },
-    };
+            System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DIsland"),
+            System.IO.Path.Combine(AppContext.BaseDirectory, "Assets"),
+        };
+        foreach (var folder in folders)
+            foreach (var ext in new[] { ".png", ".jpg", ".jpeg", ".webp" })
+            {
+                var path = System.IO.Path.Combine(folder, "clara" + ext);
+                if (!File.Exists(path)) continue;
+                try
+                {
+                    var image = new BitmapImage();
+                    image.BeginInit();
+                    image.CacheOption = BitmapCacheOption.OnLoad;
+                    image.UriSource = new Uri(path);
+                    image.DecodePixelWidth = 256;
+                    image.EndInit();
+                    image.Freeze();
+                    return image;
+                }
+                catch (Exception) { /* unreadable: fall back to the built-in look */ }
+            }
+        return null;
+    }
 
     private static Border Chip(string glyph, string text, Action click)
     {

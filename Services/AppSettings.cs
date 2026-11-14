@@ -80,10 +80,10 @@ public sealed class AppSettings
     public double BackgroundOpacity { get; set; } = 0.7;
 
     /// <summary>Tint strength in Liquid Glass mode, 0..0.9.</summary>
-    public double GlassTint { get; set; } = 0.12;
+    public double GlassTint { get; set; } = 0.5;
 
     /// <summary>How much of the frosted blur is mixed over the sharp background: 0 = clear glass, 1 = fully frosted.</summary>
-    public double GlassBlur { get; set; } = 0.35;
+    public double GlassBlur { get; set; } = 0.45;
 
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public GlassEngine GlassEngine { get; set; } = GlassEngine.Auto;
@@ -92,7 +92,7 @@ public sealed class AppSettings
     public string? GpuBlurProbe { get; set; }
 
     /// <summary>Liquid Glass edge highlight and top sheen, 0 = matte, 1 = very glossy.</summary>
-    public double GlassShine { get; set; } = 0.3;
+    public double GlassShine { get; set; } = 0.9;
 
     /// <summary>How strongly the Refraction engine bends the background at the island's rim.</summary>
     public double GlassRefraction { get; set; } = 0.6;
@@ -190,6 +190,8 @@ public sealed class AppSettings
     public string GroqModel { get; set; } = "qwen/qwen3.8-27b";
     /// <summary>Attach a fresh screenshot to every message automatically.</summary>
     public bool AssistantLiveScreen { get; set; }
+    /// <summary>Tell Clara the time, what's playing, battery and weather with each message.</summary>
+    public bool ClaraContext { get; set; } = true;
     /// <summary>System-wide shortcut: grabs the screen, opens the assistant and focuses the input.</summary>
     public string AssistantHotkey { get; set; } = "Ctrl+Alt+J";
 

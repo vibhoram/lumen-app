@@ -188,11 +188,15 @@ public partial class SettingsWindow : Window
         Choice(calendar, "Remind me", new[] { (0, "Off"), (1, "1 min"), (5, "5 min"), (10, "10 min"), (15, "15 min") },
             () => s.CalendarReminderMinutes, v => s.CalendarReminderMinutes = v);
 
-        var ai = Section("AI ASSISTANT", "AI Assistant");
-        Check(ai, "Show the AI Assistant page", () => s.AssistantEnabled, v => s.AssistantEnabled = v);
+        var ai = Section("CLARA (AI ASSISTANT)", "Clara");
+        Check(ai, "Show the Clara page", () => s.AssistantEnabled, v => s.AssistantEnabled = v);
         Check(ai, "Live screen: attach a fresh screenshot to every message", () => s.AssistantLiveScreen, v => s.AssistantLiveScreen = v);
+        Check(ai, "Let Clara know the time, what's playing, battery and weather", () => s.ClaraContext, v => s.ClaraContext = v);
         TextRow(ai, "Groq API key", () => s.GroqApiKey, v => s.GroqApiKey = v.Trim());
         TextRow(ai, "Model", () => s.GroqModel, v => s.GroqModel = v.Trim());
+        var forget = new Button { Style = (Style)FindResource("ChipButton"), Content = "Clear Clara's memory", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 6, 0, 2) };
+        forget.Click += (_, _) => { DIsland.Services.ClaraMemory.Shared.Clear(); forget.Content = "Memory cleared"; };
+        ai.Children.Add(forget);
         Note(ai, $"Press {s.AssistantHotkey} anywhere to grab your screen and ask about it. Your key is stored only in your settings file on this PC. Messages and screenshots go to Groq (api.groq.com) only when you send them.");
 
         var notes = Section("TO-DO & NOTES", navLabel: "To-Do & Notes");

@@ -128,6 +128,7 @@ public partial class MainWindow : Window
         _assistant.EndTypingRequested += () => EndTyping(restoreFocus: true);
         _assistant.OpenSettingsRequested += () => SettingsRequested?.Invoke();
         _assistant.ScreenRequested = CaptureScreenAsync;
+        WireClara();
         // The chat grows and shrinks (attachment, long answers, multi-line input): re-fit the island.
         AssistantPage.SizeChanged += (_, _) =>
         {
@@ -972,7 +973,7 @@ public partial class MainWindow : Window
         ExpandedPage.Calendar => "Calendar",
         ExpandedPage.Todo => "To-Do",
         ExpandedPage.Notes => "Notes",
-        ExpandedPage.Assistant => "Ask",
+        ExpandedPage.Assistant => "Clara",
         ExpandedPage.Shelf => "Shelf",
         ExpandedPage.Weather => "Weather",
         ExpandedPage.Apps => "Apps",
@@ -1830,12 +1831,13 @@ public partial class MainWindow : Window
     /// <summary>Specular rim: bright top-left edge fading around to a faint bottom-right glint.</summary>
     private static Brush CreateGlassRim(double shine)
     {
+        // Specular bevel: light catches the top-left edge hardest, sides less, the far corner least.
         byte A(double a) => (byte)Math.Round(255 * Math.Clamp(a * shine, 0, 1));
         var rim = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(1, 1) };
         rim.GradientStops.Add(new GradientStop(Color.FromArgb(A(0.75), 0xFF, 0xFF, 0xFF), 0));
-        rim.GradientStops.Add(new GradientStop(Color.FromArgb(A(0.12), 0xFF, 0xFF, 0xFF), 0.35));
-        rim.GradientStops.Add(new GradientStop(Color.FromArgb(A(0.05), 0xFF, 0xFF, 0xFF), 0.65));
-        rim.GradientStops.Add(new GradientStop(Color.FromArgb(A(0.4), 0xFF, 0xFF, 0xFF), 1));
+        rim.GradientStops.Add(new GradientStop(Color.FromArgb(A(0.28), 0xFF, 0xFF, 0xFF), 0.45));
+        rim.GradientStops.Add(new GradientStop(Color.FromArgb(A(0.16), 0xFF, 0xFF, 0xFF), 0.75));
+        rim.GradientStops.Add(new GradientStop(Color.FromArgb(A(0.30), 0xFF, 0xFF, 0xFF), 1));
         rim.Freeze();
         return rim;
     }
@@ -1932,7 +1934,9 @@ public partial class MainWindow : Window
 
         // Background fill
         var tint = Math.Clamp(_settings.BackgroundTint, 0, 0.6);
-        var baseColor = accent is { } a ? ColorTools.Mix(Colors.Black, a, tint) : Colors.Black;
+        // Glass uses a deep graphite core (not pure black) so the material reads as glass, not a hole.
+        var core = _settings.Material == IslandMaterial.LiquidGlass ? Color.FromRgb(0x16, 0x16, 0x1A) : Colors.Black;
+        var baseColor = accent is { } a ? ColorTools.Mix(core, a, tint) : core;
         var materialAlpha = _settings.Material switch
         {
             IslandMaterial.Translucent => Math.Clamp(_settings.BackgroundOpacity, 0.15, 1),
@@ -1961,7 +1965,7 @@ public partial class MainWindow : Window
         if (glass && (shine > 0 || outline > 0))
         {
             PillShape.Stroke = CreateGlassRim(Math.Max(shine, outline > 0 ? 0.3 : 0) * Math.Max(strength, 0.35));
-            PillShape.StrokeThickness = Math.Max(1, outline);
+            PillShape.StrokeThickness = Math.Max(1.25, outline);
         }
         else if (outline > 0)
         {
