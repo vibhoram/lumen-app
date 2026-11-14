@@ -253,7 +253,7 @@ public partial class SettingsWindow : Window
 
         var pet = Section("COMPANION", "Companion");
         Check(pet, "A little pet walks beneath the island", () => s.PetEnabled, v => s.PetEnabled = v);
-        Choice(pet, "Pet", new[] { (PetKind.Cat, "Cat"), (PetKind.Dog, "Dog"), (PetKind.Bunny, "Bunny"), (PetKind.Robot, "Robot"), (PetKind.Fox, "Fox"), (PetKind.Panda, "Panda") }, () => s.PetKind, v => s.PetKind = v);
+        Choice(pet, "Pet", new[] { (PetKind.Cat, "Cat"), (PetKind.Dog, "Dog"), (PetKind.Bunny, "Bunny"), (PetKind.Robot, "Robot"), (PetKind.Fox, "Fox"), (PetKind.Panda, "Panda"), (PetKind.Dragon, "Dragon"), (PetKind.Ghost, "Ghost"), (PetKind.Axolotl, "Axolotl"), (PetKind.Wolf, "Wolf") }, () => s.PetKind, v => s.PetKind = v);
         Choice(pet, "Outfit", new[] { (PetOutfit.None, "None"), (PetOutfit.Hat, "Party hat"), (PetOutfit.Bow, "Bow"), (PetOutfit.Glasses, "Glasses"), (PetOutfit.Scarf, "Scarf") }, () => s.PetOutfit, v => s.PetOutfit = v);
         Check(pet, "The pet talks (speech bubbles)", () => s.PetTalks, v => s.PetTalks = v);
         Note(pet, "Right-click the pet to feed it, pet it or send it to nap. Quiet mode (right-click the island) makes it sleep. It walks, naps, yawns, watches your cursor and follows it, dances to music, studies during a focus session, reacts to notifications, timers, copies and low battery, and hops when you click it. It only appears while the island is collapsed.");

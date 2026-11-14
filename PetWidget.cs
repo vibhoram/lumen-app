@@ -10,7 +10,7 @@ using System.Windows.Threading;
 
 namespace DIsland;
 
-public enum PetKind { Cat, Dog, Bunny, Robot, Fox, Panda }
+public enum PetKind { Cat, Dog, Bunny, Robot, Fox, Panda, Dragon, Ghost, Axolotl, Wolf }
 
 public enum PetOutfit { None, Hat, Bow, Glasses, Scarf }
 
@@ -221,10 +221,34 @@ public sealed class PetWidget : Canvas
                 break;
             case PetEvent.Click:
                 if (_mood == Mood.Sleep) { Say(Pick("mrrp?", "hm? five more minutes", "I was dreaming")); SetMood(Mood.Idle); }
-                else { Hop(); Say(Pick("hehe", "purr", "again!", "that tickles")); }
+                else { Hop(); Say(Pick(ClickLines)); }
                 break;
         }
     }
+
+    private string[] ClickLines => _kind switch
+    {
+        PetKind.Dragon => new[] { "*tiny puff of smoke*", "behold, a dragon", "I could burn your to-do list", "hoard acquired" },
+        PetKind.Ghost => new[] { "boo! ...sorry", "you can't hurt me, I checked", "ooOOoo", "that tickled my ectoplasm" },
+        PetKind.Axolotl => new[] { "blub", "I regenerate, you know", "smiling is my default", "wiggle wiggle" },
+        PetKind.Wolf => new[] { "...fine. one pat.", "I'm not a dog.", "awoo?", "pack mentality" },
+        PetKind.Robot => new[] { "beep boop, affection logged", "bzzt. that was nice", "emotion.exe running" },
+        PetKind.Fox => new[] { "heh, sly one", "what does the fox say?", "tickles!" },
+        PetKind.Bunny => new[] { "hop hop!", "nose wiggles", "again!" },
+        PetKind.Panda => new[] { "bamboo break?", "rolling over...", "hehe" },
+        _ => new[] { "hehe", "purr", "again!", "that tickles" },
+    };
+
+    private string[] IdleLines => _kind switch
+    {
+        PetKind.Dragon => new[] { "I guard this pill.", "any treasure around?", "knights are so last century", "hm. snack?" },
+        PetKind.Ghost => new[] { "I live here rent-free", "spooky, huh?", "did you feel a draft?", "...boo." },
+        PetKind.Axolotl => new[] { "just vibing, underwater", "I can regrow a leg", "tiny fish thoughts", "blub." },
+        PetKind.Wolf => new[] { "the pack is quiet tonight", "I'm watching.", "I don't do cute.", "..." },
+        PetKind.Robot => new[] { "systems nominal", "defragmenting feelings", "running idle.exe", "..." },
+        PetKind.Fox => new[] { "what are we scheming?", "I smell a plan", "cunning mode: on" },
+        _ => new[] { "hm.", "what are we up to?", "nice day for it", "...", "I'm hungry", "don't mind me" },
+    };
 
     private string Pick(params string[] options) => options[_rng.Next(options.Length)];
 
@@ -273,9 +297,14 @@ public sealed class PetWidget : Canvas
             PetKind.Robot => (Solid("#9FB3C8"), Solid("#6B7F94"), Solid("#C9D6E3"), Solid("#2DD4FF")),
             PetKind.Fox => (Solid("#E8803A"), Solid("#2B2B33"), Solid("#FFF2E2"), Solid("#2B2B33")),
             PetKind.Panda => (Solid("#F6F6F9"), Solid("#2A2A32"), Solid("#FFFFFF"), Solid("#2A2A32")),
+            PetKind.Dragon => (Solid("#4FD18B"), Solid("#2C8C5E"), Solid("#F4F0A8"), Solid("#FFB347")),
+            PetKind.Ghost => (Solid("#EDF0FF"), Solid("#AEB6E8"), Solid("#FFFFFF"), Solid("#AEB6E8")),
+            PetKind.Axolotl => (Solid("#FFB8CC"), Solid("#E8789C"), Solid("#FFE6EE"), Solid("#FF5C93")),
+            PetKind.Wolf => (Solid("#8C95A8"), Solid("#4B5266"), Solid("#DCE0EA"), Solid("#4B5266")),
             _ => (Solid("#E9B27A"), Solid("#C98A52"), Solid("#F7DDBE"), Solid("#FFB3C7")),
         };
 
+        _sprite.Opacity = _kind == PetKind.Ghost ? 0.82 : 1;
         Add(new Ellipse { Width = 26, Height = 4, Fill = new SolidColorBrush(Color.FromArgb(0x40, 0, 0, 0)) }, 9, SpriteHeight - 4);
 
         // tail (behind the body)
@@ -298,6 +327,20 @@ public sealed class PetWidget : Canvas
             case PetKind.Bunny:
                 tail.Children.Add(new Ellipse { Width = 7, Height = 7, Fill = belly, Margin = new Thickness(1, 17, 0, 0) });
                 break;
+            case PetKind.Dragon:
+                tail.Children.Add(new Path { Data = Geometry.Parse("M 8,22 C 1,23 -1,16 3,12"), Stroke = body, StrokeThickness = 4.2, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round });
+                tail.Children.Add(new Polygon { Points = Points("0,0 6,2 1,6"), Fill = earInner, Margin = new Thickness(-2, 8, 0, 0) });
+                break;
+            case PetKind.Ghost:
+                tail.Children.Add(new Path { Data = Geometry.Parse("M 9,24 C 5,20 3,27 -1,22"), Stroke = body, StrokeThickness = 3.6, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round });
+                break;
+            case PetKind.Axolotl:
+                tail.Children.Add(new Ellipse { Width = 12, Height = 6, Fill = dark, Opacity = 0.9, Margin = new Thickness(-4, 17, 0, 0) });
+                break;
+            case PetKind.Wolf:
+                tail.Children.Add(new Path { Data = Geometry.Parse("M 8,22 C 0,23 -2,15 3,11"), Stroke = body, StrokeThickness = 5.6, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round });
+                tail.Children.Add(new Ellipse { Width = 4, Height = 4, Fill = dark, Margin = new Thickness(0.5, 8.5, 0, 0) });
+                break;
             default:
                 tail.Children.Add(new Path { Data = Geometry.Parse("M 8,23 L 3,23"), Stroke = dark, StrokeThickness = 2.4, StrokeStartLineCap = PenLineCap.Round });
                 break;
@@ -307,10 +350,14 @@ public sealed class PetWidget : Canvas
         // legs: far pair slightly darker, then the body over them
         AddLeg(dark, 10, 0);
         AddLeg(dark, 24, Math.PI);
+        if (_kind == PetKind.Dragon)
+            _sprite.Children.Add(Place(new Polygon { Points = Points("0,7 4,0 7,5 10,0 13,8 6,9"), Fill = dark, Opacity = 0.95 }, 11, 8));
         _sprite.Children.Add(MakeBody(body, belly));
         var near = _kind == PetKind.Panda ? dark : body;
         AddLeg(near, 14, Math.PI);
         AddLeg(near, 29, 0);
+        if (_kind == PetKind.Ghost)
+            foreach (var (leg, _, _) in _legs) leg.Fill = Brushes.Transparent; // a ghost floats
 
         // head group nods independently
         var head = new Canvas { RenderTransform = _headNod };
@@ -340,6 +387,27 @@ public sealed class PetWidget : Canvas
                 case PetKind.Dog:
                     head.Children.Add(Place(new Ellipse { Width = 5.5, Height = 10, Fill = earInner, RenderTransform = new RotateTransform(14, 2.7, 1) }, 20.6, 10));
                     head.Children.Add(Place(new Ellipse { Width = 5.5, Height = 10, Fill = earInner, RenderTransform = new RotateTransform(-14, 2.7, 1) }, 33.6, 10.5));
+                    break;
+                case PetKind.Dragon:
+                    head.Children.Add(Place(new Polygon { Points = Points("0,7 1.6,0 4.6,5"), Fill = earInner }, 23.4, 6));
+                    head.Children.Add(Place(new Polygon { Points = Points("0,5 3,0 4.6,7"), Fill = earInner }, 31.6, 6));
+                    head.Children.Add(Place(new Ellipse { Width = 5, Height = 3.4, Fill = dark, Opacity = 0.5 }, 33, 19.2)); // snout shade
+                    break;
+                case PetKind.Wolf:
+                    head.Children.Add(Place(new Polygon { Points = Points("0,9 1,0 6,5.4"), Fill = dark }, 22.6, 5.5));
+                    head.Children.Add(Place(new Polygon { Points = Points("0,5.4 5,0 6,9"), Fill = dark }, 30.4, 5.5));
+                    head.Children.Add(Place(new Polygon { Points = Points("0,6 1,2 3.2,4.6"), Fill = body }, 24, 8));
+                    head.Children.Add(Place(new Polygon { Points = Points("0,4.6 2.2,2 3.2,6"), Fill = body }, 32, 8));
+                    head.Children.Add(Place(new Ellipse { Width = 7, Height = 5, Fill = belly, Opacity = 0.9 }, 31.6, 18)); // pale muzzle
+                    break;
+                case PetKind.Axolotl:
+                    foreach (var (gx, gy, gr) in new[] { (22.0, 12.0, -50.0), (21.0, 15.5, -80.0), (22.5, 18.5, -115.0) })
+                        head.Children.Add(Place(new Ellipse { Width = 6.2, Height = 2.2, Fill = earInner, RenderTransform = new RotateTransform(gr, 3.1, 1.1) }, gx - 4, gy));
+                    foreach (var (gx, gy, gr) in new[] { (35.5, 10.5, 40.0), (36.5, 14.0, 70.0) })
+                        head.Children.Add(Place(new Ellipse { Width = 6.2, Height = 2.2, Fill = earInner, RenderTransform = new RotateTransform(gr, 3.1, 1.1) }, gx, gy));
+                    break;
+                case PetKind.Ghost:
+                    head.Children.Add(Place(new Ellipse { Width = 3.2, Height = 2, Fill = Solid("#FFB8D0"), Opacity = 0.7 }, 28, 18.4)); // blush
                     break;
                 case PetKind.Bunny:
                     head.Children.Add(Place(new Ellipse { Width = 4.6, Height = 15, Fill = body, Stroke = dark, StrokeThickness = 0.6, RenderTransform = new RotateTransform(-8, 2.3, 14) }, 24.5, -4));
@@ -465,7 +533,7 @@ public sealed class PetWidget : Canvas
         {
             _quipIn = 40 + _rng.NextDouble() * 50;
             if (_speechLeft <= 0 && _mood is Mood.Idle or Mood.Walk or Mood.Watch)
-                Say(Pick("hm.", "what are we up to?", "nice day for it", "...", "I'm hungry", "don't mind me"), 2.4);
+                Say(Pick(IdleLines), 2.4);
         }
 
         // blink now and then (not while asleep)
