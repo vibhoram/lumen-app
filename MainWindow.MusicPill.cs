@@ -18,7 +18,7 @@ public partial class MainWindow
     private void ApplyMusicLayout()
     {
         var split = _settings.MusicSplit;
-        MediaView.Width = split ? 268 : 350;
+        MediaView.Width = split ? 250 : 350;
         MediaWave.Visibility = _settings.MusicWave ? Visibility.Visible : Visibility.Collapsed;
         MediaArtSmall.Visibility = split ? Visibility.Collapsed : Visibility.Visible;
         MediaTitleClip.Margin = split ? new Thickness(16, 0, 6, 0) : new Thickness(11, 0, 6, 0);

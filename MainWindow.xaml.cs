@@ -260,7 +260,7 @@ public partial class MainWindow : Window
         _hoverTimer.Tick += (_, _) =>
         {
             _hoverTimer.Stop();
-            if (_peeking) return;
+            if (_peeking || !IsCursorOverPill()) return; // bubbles and the pet don't open the island
             // Hovering shows the quick tray when there is something in it; clicking opens the whole island.
             SetExpanded(true);
         };
@@ -2217,7 +2217,7 @@ public partial class MainWindow : Window
         var inside = false;
         if (_settings.CtrlPeek && !IslandHidden && GetIslandScreenRect() is { } r && NativeMethods.GetCursorPos(out var c))
         {
-            inside = c.X >= r.Left && c.X <= r.Right && c.Y >= r.Top && c.Y <= r.Bottom;
+            inside = c.X >= r.Left && c.X <= r.Right && c.Y >= r.Top && c.Y <= r.Bottom || (_peeking || true) && OverIslandParts(c.X, c.Y);
             var vk = _settings.PeekKey switch { PeekKey.Ctrl => 0x11, PeekKey.Shift => 0x10, _ => 0x12 /* Alt */ };
             want = inside && (NativeMethods.GetAsyncKeyState(vk) & 0x8000) != 0;
         }
@@ -4215,7 +4215,7 @@ public partial class MainWindow : Window
         }
         // the soft aura behind the bars breathes with the overall level
         var average = _barLevels.Take(Math.Max(1, i)).Average();
-        MediaWave.Level = average;
+        MediaWave.Level = Math.Clamp(Math.Pow(average, 0.75) * 1.25, 0, 1);
         AuraGlow.Opacity = 0.22 + 0.7 * average;
         AuraScale.ScaleX = AuraScale.ScaleY = 0.82 + 0.4 * average;
     }
@@ -4239,7 +4239,7 @@ public partial class MainWindow : Window
     private void SetEqualizerRunning(bool running)
     {
         // Real waveform: a meter-driven loop instead of the looping animation.
-        var real = running && _settings.RealWaveform;
+        var real = running && (_settings.RealWaveform || _settings.MusicWave);
         var meterWasRunning = _meterRunning;
         SetMeterRunning(real);
         if (meterWasRunning && !real)

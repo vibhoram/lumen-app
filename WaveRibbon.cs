@@ -43,14 +43,14 @@ public sealed class WaveRibbon : FrameworkElement
         if (w < 20 || h < 6) return;
         var t = (DateTime.UtcNow - _start).TotalSeconds;
         var goal = double.IsNaN(_target) ? 0.5 + 0.28 * Math.Sin(t * 1.3) : _target;
-        _level += ((_playing ? goal : 0.12) - _level) * 0.12;
+        _level += ((_playing ? goal : 0.1) - _level) * (goal > _level ? 0.45 : 0.16); // quick attack, slower fall
 
         for (var k = 0; k < 3; k++)
         {
             var color = _colors[k % _colors.Count];
-            var amplitude = (1.6 + 6.5 * _level) * (1 - 0.22 * k);
+            var amplitude = (1.4 + 11 * _level) * (1 - 0.22 * k);
             var wavelength = 70 + 38 * k;
-            var phase = t * (1.7 + 0.8 * k) * (k % 2 == 0 ? 1 : -1) + k * 1.9;
+            var phase = t * (1.7 + 0.8 * k + 2.2 * _level) * (k % 2 == 0 ? 1 : -1) + k * 1.9;
             var baseline = h - 2.5 - k * 1.4;
             var geometry = new StreamGeometry();
             using (var ctx = geometry.Open())
