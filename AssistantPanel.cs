@@ -85,11 +85,35 @@ public sealed class AssistantPanel : Grid
         string? local = _settings.AssistantUseLocalAi ? await LocalAi.PickModelAsync(_settings) : null;
         if (_busy) return;
         if (local is not null) SetEngine(true, local.Split(':')[0]);
-        else SetEngine(false, PreferGemini() ? "gemini" : "groq");
+        else SetEngine(false, FirstCloud() is { } b ? BrainName(b) : "cloud");
     }
 
-    /// <summary>Gemini is the cloud main; Groq only when there's no Gemini key (or as a mid-reply failsafe).</summary>
-    private bool PreferGemini() => !string.IsNullOrWhiteSpace(_settings.GeminiApiKey);
+    /// <summary>Cloud pick order: Gemini (main) → OpenRouter → Groq (last-resort failsafe).</summary>
+    private enum CloudBrain { Gemini, OpenRouter, Groq }
+
+    private bool HasKey(CloudBrain b) => b switch
+    {
+        CloudBrain.Gemini => !string.IsNullOrWhiteSpace(_settings.GeminiApiKey),
+        CloudBrain.OpenRouter => !string.IsNullOrWhiteSpace(_settings.OpenRouterApiKey),
+        _ => !string.IsNullOrWhiteSpace(_settings.GroqApiKey),
+    };
+
+    private bool PreferGemini() => HasKey(CloudBrain.Gemini);
+
+    private CloudBrain? FirstCloud()
+    {
+        if (HasKey(CloudBrain.Gemini)) return CloudBrain.Gemini;
+        if (HasKey(CloudBrain.OpenRouter)) return CloudBrain.OpenRouter;
+        if (HasKey(CloudBrain.Groq)) return CloudBrain.Groq;
+        return null;
+    }
+
+    private static string BrainName(CloudBrain b) => b switch
+    {
+        CloudBrain.Gemini => "gemini",
+        CloudBrain.OpenRouter => "openrouter",
+        _ => "groq",
+    };
     private bool _focused;
     private string? _pendingText;
 
@@ -435,9 +459,8 @@ public sealed class AssistantPanel : Grid
             var text = (preset ?? _input.Text).Trim();
             var quote = _pendingText;
             if (text.Length == 0 && _pending is null && quote is null && !grabScreen) return;
-            // No cloud key is fine for plain text if an offline model is available; pictures need Gemini/Groq.
-            var hasCloud = PreferGemini() || !string.IsNullOrWhiteSpace(_settings.GroqApiKey);
-            if (!hasCloud
+            // No cloud key is fine for plain text if an offline model is available; pictures need a cloud key.
+            if (FirstCloud() is null
                 && (_pending is not null || grabScreen || _settings.AssistantLiveScreen || !_settings.AssistantUseLocalAi || await LocalAi.PickModelAsync(_settings) is null))
             {
                 ShowNoKey();
@@ -481,49 +504,54 @@ public sealed class AssistantPanel : Grid
         var reply = new StringBuilder();
         var tools = ClaraBrain.Tools();
 
-        // Text-only can stay offline (Ollama). Pictures need the cloud. Cloud main = Gemini; Groq is failsafe only.
+        // Text-only can stay offline (Ollama). Pictures need the cloud. Order: Gemini → OpenRouter → Groq.
         var cloudNeeded = image is not null;
         var localModel = !cloudNeeded && _settings.AssistantUseLocalAi ? await LocalAi.PickModelAsync(_settings) : null;
-        var hasCloud = PreferGemini() || !string.IsNullOrWhiteSpace(_settings.GroqApiKey);
-        if (localModel is null && !hasCloud) { ShowNoKey(); SetBusy(false); return; }
+        if (localModel is null && FirstCloud() is null) { ShowNoKey(); SetBusy(false); return; }
         var useLocal = localModel is not null;
-        var useGemini = PreferGemini();
+        var brain = FirstCloud() ?? CloudBrain.Gemini;
         string? cKey = null;
         string? cUrl = useLocal ? LocalAi.ChatEndpoint : null;
         var engineModel = useLocal ? localModel! : "";
-        void ApplyCloud(bool gemini)
+        var tried = new HashSet<CloudBrain>();
+        void ApplyCloud(CloudBrain b)
         {
-            useGemini = gemini;
-            cKey = gemini ? _settings.GeminiApiKey : _settings.GroqApiKey;
-            engineModel = gemini
-                ? (string.IsNullOrWhiteSpace(_settings.GeminiModel) ? "gemini-2.5-flash" : _settings.GeminiModel)
-                : _settings.GroqModel;
-            cUrl = gemini ? AppSettings.GeminiEndpoint : null;
-            SetEngine(false, gemini ? "gemini" : "groq");
+            brain = b;
+            tried.Add(b);
+            (cKey, engineModel, cUrl) = b switch
+            {
+                CloudBrain.Gemini => (_settings.GeminiApiKey,
+                    string.IsNullOrWhiteSpace(_settings.GeminiModel) ? "gemini-2.5-flash" : _settings.GeminiModel,
+                    AppSettings.GeminiEndpoint),
+                CloudBrain.OpenRouter => (_settings.OpenRouterApiKey,
+                    string.IsNullOrWhiteSpace(_settings.OpenRouterModel) ? "google/gemini-2.5-flash" : _settings.OpenRouterModel,
+                    AppSettings.OpenRouterEndpoint),
+                _ => (_settings.GroqApiKey, _settings.GroqModel, (string?)null),
+            };
+            SetEngine(false, BrainName(b));
         }
         if (useLocal) SetEngine(true, localModel!.Split(':')[0]);
-        else ApplyCloud(useGemini);
-        var backupUsed = false;
+        else ApplyCloud(brain);
 
-        // offline → Gemini → Groq. Groq is the last resort, never the first pick when Gemini has a key.
+        // offline → next unused cloud brain with a key (Gemini first, Groq last).
         bool SwitchToBackup()
         {
             if (useLocal)
             {
-                if (!hasCloud) return false;
+                if (FirstCloud() is not { } first) return false;
                 useLocal = false;
                 cUrl = null;
-                ApplyCloud(PreferGemini());
+                tried.Clear();
+                ApplyCloud(first);
                 return true;
             }
-            if (backupUsed) return false;
-            // Failsafe: if we were on Gemini, try Groq; if we somehow started on Groq (no Gemini key), try Gemini.
-            var toGemini = !useGemini;
-            var key = toGemini ? _settings.GeminiApiKey : _settings.GroqApiKey;
-            if (string.IsNullOrWhiteSpace(key)) return false;
-            backupUsed = true;
-            ApplyCloud(toGemini);
-            return true;
+            foreach (var next in new[] { CloudBrain.Gemini, CloudBrain.OpenRouter, CloudBrain.Groq })
+            {
+                if (tried.Contains(next) || !HasKey(next)) continue;
+                ApplyCloud(next);
+                return true;
+            }
+            return false;
         }
         try
         {
@@ -615,13 +643,13 @@ public sealed class AssistantPanel : Grid
         catch (Exception ex)
         {
             _history.RemoveRange(start, _history.Count - start); // so a retry doesn't duplicate the question
-            var brain = _engineName.Length > 0 ? _engineName : (PreferGemini() ? "gemini" : "groq");
+            var label = _engineName.Length > 0 ? _engineName : BrainName(FirstCloud() ?? CloudBrain.Gemini);
             var message = ex switch
             {
-                GroqException { Status: 401 } => $"{brain} rejected the API key. Check it in Settings > Clara.",
-                GroqException { Status: 429 } => $"I've hit {brain}'s rate limit. Give it a few seconds, then retry.",
+                GroqException { Status: 401 } => $"{label} rejected the API key. Check it in Settings > Clara.",
+                GroqException { Status: 429 } => $"I've hit {label}'s rate limit. Give it a few seconds, then retry.",
                 GroqException g => g.Message,
-                HttpRequestException => $"I can't reach {brain}. Check your connection.",
+                HttpRequestException => $"I can't reach {label}. Check your connection.",
                 _ => ex.Message,
             };
             bubble.Fail(message, () =>
@@ -814,9 +842,18 @@ public sealed class AssistantPanel : Grid
     private void ShowNoKey()
     {
         ShowEmpty(false);
-        var open = Chip("", "Open Settings", () => OpenSettingsRequested?.Invoke());
+        var open = Chip("", "Open Settings → Clara", () => OpenSettingsRequested?.Invoke());
         open.HorizontalAlignment = HorizontalAlignment.Left;
-        open.Margin = new Thickness(0, 8, 0, 0);
+        open.Margin = new Thickness(0, 10, 0, 0);
+        var steps = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
+        void Step(string n, string title, string body)
+        {
+            steps.Children.Add(new TextBlock { Text = $"{n}. {title}", FontWeight = FontWeights.SemiBold, FontSize = 12, Margin = new Thickness(0, 6, 0, 0) });
+            steps.Children.Add(new TextBlock { Text = body, FontSize = 11.5, Opacity = 0.7, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(14, 2, 0, 0) });
+        }
+        Step("1", "Gemini (preferred, free)", "Go to aistudio.google.com/apikey → sign in with Google → Create API key → paste it under Settings → Clara → Gemini.");
+        Step("2", "Groq (failsafe)", "Optional backup when Gemini is rate-limited: console.groq.com/keys → Create API key → paste under Groq.");
+        Step("3", "OpenRouter (optional)", "One key for many models: openrouter.ai/keys → create a key → paste under OpenRouter. Good if you want Claude/GPT through one door.");
         var card = new Border
         {
             Background = B("#1FFFFFFF"),
@@ -827,8 +864,9 @@ public sealed class AssistantPanel : Grid
             {
                 Children =
                 {
-                    new TextBlock { Text = "Add a free cloud key", FontWeight = FontWeights.SemiBold, FontSize = 13 },
-                    new TextBlock { Text = "Gemini is free with a Google sign-in (aistudio.google.com/apikey), or use Groq. Paste a key in Settings > Clara.", FontSize = 12, Opacity = 0.7, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0) },
+                    new TextBlock { Text = "Clara needs your own API key", FontWeight = FontWeights.SemiBold, FontSize = 13 },
+                    new TextBlock { Text = "Lumen never ships with a cloud key. Pick one below, paste it in Settings, then come back — Gemini first if you can.", FontSize = 12, Opacity = 0.75, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0) },
+                    steps,
                     open,
                 },
             },

@@ -23,15 +23,15 @@ AppId={{8C8B6A43-7E0B-4C55-9A0E-2B5D0E4F7A11}
 AppName=Lumen
 AppVersion={#AppVersion}
 AppVerName=Lumen {#AppVersion}
-AppPublisher=vibhoram
+AppPublisher=Vibhor Maheshwari
 AppPublisherURL=https://github.com/vibhoram/Lumen
 AppSupportURL=https://github.com/vibhoram/Lumen/issues
 AppUpdatesURL=https://github.com/vibhoram/Lumen/releases
-AppCopyright=Copyright (c) 2026 vibhoram. Modified under the D-Island License 1.0.
-AppComments=Lumen — a personal island for Windows. Made by vibhoram.
+AppCopyright=Copyright (c) 2026 Vibhor Maheshwari. Modified under the D-Island License 1.0.
+AppComments=Lumen — a personal island for Windows. Made by Vibhor Maheshwari.
 AppContact=https://github.com/vibhoram/Lumen
-VersionInfoCompany=vibhoram
-VersionInfoCopyright=Copyright (c) 2026 vibhoram. Modified under the D-Island License 1.0.
+VersionInfoCompany=Vibhor Maheshwari
+VersionInfoCopyright=Copyright (c) 2026 Vibhor Maheshwari. Modified under the D-Island License 1.0.
 VersionInfoDescription=Lumen setup
 ; The D-Island License, which the user must accept; NOTICE.txt (required credit) is
 ; installed next to it and linked from Settings > About.
@@ -75,8 +75,8 @@ WizardInfoBefore=How to use Lumen
 InfoBeforeLabel=A quick tour of what Lumen does and how to use it. You can read it again later from the Start menu (How to use Lumen).
 InfoBeforeClickLabel=When you're ready, click Next.
 FinishedHeadingLabel=Lumen is ready
-FinishedLabelNoIcons=Lumen has been installed. Look for it at the top of your screen.%n%nMade by vibhoram
-FinishedLabel=Lumen has been installed. Look for it at the top of your screen, or start it from the Start menu.%n%nMade by vibhoram
+FinishedLabelNoIcons=Lumen has been installed. Look for it at the top of your screen.%n%nMade by Vibhor Maheshwari
+FinishedLabel=Lumen has been installed. Look for it at the top of your screen, or start it from the Start menu.%n%nMade by Vibhor Maheshwari
 
 [Tasks]
 Name: "startup"; Description: "Start Lumen when I sign in to Windows"; GroupDescription: "Options:"
@@ -130,7 +130,7 @@ begin
 
   Credit := TNewStaticText.Create(WizardForm);
   Credit.Parent := WizardForm;
-  Credit.Caption := 'Made by vibhoram';
+  Credit.Caption := 'Made by Vibhor Maheshwari';
   Credit.Font.Color := clGrayText;
   Credit.Left := ScaleX(16);
   Credit.Top := WizardForm.CancelButton.Top + (WizardForm.CancelButton.Height - Credit.Height) div 2;

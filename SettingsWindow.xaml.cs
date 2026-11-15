@@ -390,22 +390,26 @@ public partial class SettingsWindow : Window
         ai.Children.Add(bioBox);
         TextRow(ai, "Your name", () => s.UserName, v => s.UserName = v);
         Note(ai, "Clara calls you this and tailors her replies to you. With the cloud model the name is sent along with her instructions; offline it never leaves this PC.");
-        Check(ai, "Chat offline with a model on this PC (Ollama) for plain text; pictures go to Gemini (Groq as backup)", () => s.AssistantUseLocalAi, v => s.AssistantUseLocalAi = v);
+        Check(ai, "Chat offline with a model on this PC (Ollama) for plain text; pictures go to the cloud", () => s.AssistantUseLocalAi, v => s.AssistantUseLocalAi = v);
         TextRow(ai, "Offline model", () => s.LocalModel, v => s.LocalModel = v);
         Note(ai, "Leave the offline model empty to use the fastest one installed (llama3.2:3b if you have it). Ollama unloads it after about 5 minutes idle; the page loads it ahead of your first message.");
         Check(ai, "Show the Clara page", () => s.AssistantEnabled, v => s.AssistantEnabled = v);
         Check(ai, "Live screen: attach a fresh screenshot to every message", () => s.AssistantLiveScreen, v => s.AssistantLiveScreen = v);
         Check(ai, "Let Clara know the time, what's playing, battery and weather", () => s.ClaraContext, v => s.ClaraContext = v);
-        TextRow(ai, "Gemini API key (main)", () => s.GeminiApiKey, v => { s.GeminiApiKey = v.Trim(); if (s.GeminiApiKey.Length > 0) s.CloudProvider = CloudProvider.Gemini; });
-        Note(ai, "Gemini is Clara's main cloud brain (free Google sign-in): aistudio.google.com/apikey. Screenshots go here first.");
+        Note(ai, "Clara never ships with a cloud key. You bring your own. Pick order when several are set: Gemini → OpenRouter → Groq.");
+        TextRow(ai, "1. Gemini API key (preferred)", () => s.GeminiApiKey, v => { s.GeminiApiKey = v.Trim(); if (s.GeminiApiKey.Length > 0) s.CloudProvider = CloudProvider.Gemini; });
+        Note(ai, "Free with a Google sign-in: aistudio.google.com/apikey → Create API key → paste here. Best default for Clara + screenshots.");
         TextRow(ai, "Gemini model", () => s.GeminiModel, v => s.GeminiModel = string.IsNullOrWhiteSpace(v) ? "gemini-2.5-flash" : v.Trim());
-        TextRow(ai, "Groq API key (failsafe)", () => s.GroqApiKey, v => { if (v.Trim().Length > 0 || s.GroqApiKey.Length == 0) s.GroqApiKey = v.Trim(); });
+        TextRow(ai, "2. OpenRouter API key (optional)", () => s.OpenRouterApiKey, v => { s.OpenRouterApiKey = v.Trim(); if (s.OpenRouterApiKey.Length > 0 && s.GeminiApiKey.Length == 0) s.CloudProvider = CloudProvider.OpenRouter; });
+        Note(ai, "One key, many models: openrouter.ai/keys. Used if Gemini isn't set (or as a failsafe after Gemini).");
+        TextRow(ai, "OpenRouter model", () => s.OpenRouterModel, v => s.OpenRouterModel = string.IsNullOrWhiteSpace(v) ? "google/gemini-2.5-flash" : v.Trim());
+        TextRow(ai, "3. Groq API key (failsafe)", () => s.GroqApiKey, v => { if (v.Trim().Length > 0 || s.GroqApiKey.Length == 0) s.GroqApiKey = v.Trim(); });
         TextRow(ai, "Groq model", () => s.GroqModel, v => s.GroqModel = v.Trim());
-        Note(ai, "Groq only kicks in if Gemini fails (rate limit, bad key, outage). Leave it blank if you don't want a backup.");
+        Note(ai, "Groq is last resort (rate limits hit fast). console.groq.com/keys. Leave blank if you don't want it.");
         var forget = new Button { Style = (Style)FindResource("ChipButton"), Content = "Clear Clara's memory", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 6, 0, 2) };
         forget.Click += (_, _) => { DIsland.Services.ClaraMemory.Shared.Clear(); forget.Content = "Memory cleared"; };
         ai.Children.Add(forget);
-        Note(ai, $"Press {s.AssistantHotkey} anywhere to grab your screen and ask about it. Keys stay in your settings file on this PC.");
+        Note(ai, $"Press {s.AssistantHotkey} anywhere to grab your screen and ask about it. Keys stay only in %AppData%\\DIsland\\settings.json on this PC — never in the installer.");
 
         var notes = Section("TO-DO & NOTES", navLabel: "To-Do & Notes");
         Check(notes, "Show the To-Do page", () => s.TodoEnabled, v => s.TodoEnabled = v);
@@ -479,18 +483,18 @@ public partial class SettingsWindow : Window
         var about = Section("ABOUT");
         about.Children.Add(new TextBlock { Text = "Lumen", FontSize = 15, FontWeight = FontWeights.SemiBold });
         about.Children.Add(new TextBlock { Text = "A personal island for Windows: music, focus, Clara, clipboard and a little pet.", Foreground = Secondary, Margin = new Thickness(0, 2, 0, 0), TextWrapping = TextWrapping.Wrap });
-        about.Children.Add(new TextBlock { Text = "Made by Vibhor · https://github.com/vibhoram/Lumen", FontSize = 13, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 0), TextWrapping = TextWrapping.Wrap });
+        about.Children.Add(new TextBlock { Text = "Made by Vibhor Maheshwari · https://github.com/vibhoram/Lumen", FontSize = 13, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 0), TextWrapping = TextWrapping.Wrap });
         // D-Island License 1.0 §3(a) requires this exact credit line to stay visible.
         about.Children.Add(new TextBlock { Text = "Based on D-Island by h7 (ibuildrigs) - https://github.com/H7gamer/d-island", FontSize = 11, Foreground = Secondary, Margin = new Thickness(0, 8, 0, 0), TextWrapping = TextWrapping.Wrap, Opacity = 0.55 });
         var terms = new TextBlock
         {
             Text =
                 "TERMS OF USE (LUMEN)\n\n" +
-                "1. Lumen is Vibhor's personal project (with Claude). It is not an official D-Island release and is not published or sold.\n" +
+                "1. Lumen is Vibhor Maheshwari's project. It is not an official D-Island release.\n" +
                 "2. Lumen is a modified version under the D-Island License 1.0 (LICENSE.txt, NOTICE.txt). The credit line above is required by that license. Anyone who shares Lumen must keep the license files, that credit, an accurate privacy statement, and must not use it to harm or deceive anyone.\n" +
-                "3. Your data stays on this PC. Clara sends only what you type (and a screenshot when you attach one) to the AI service you configured, using your own API key. Clipboard history, notes, memory and settings are stored locally in your user folders. See PRIVACY.txt.\n" +
+                "3. Your data stays on this PC. Clara sends only what you type (and a screenshot when you attach one) to the AI service you configured, using your own API key (Gemini preferred; Groq/OpenRouter optional). Clipboard history, notes, memory and settings are stored locally. See PRIVACY.txt.\n" +
                 "4. The app is provided as is, without warranty. The RAM tools only trim memory and never close apps; the glass effects use undocumented Windows features that may change with updates. Use at your own risk.\n" +
-                "5. Third-party names (Windows, Spotify, Groq, LRCLIB, iTunes and others) belong to their owners and are mentioned only to describe features.",
+                "5. Third-party names (Windows, Spotify, Groq, Gemini, OpenRouter, LRCLIB, iTunes and others) belong to their owners and are mentioned only to describe features.",
             FontSize = 11.5,
             Foreground = Secondary,
             TextWrapping = TextWrapping.Wrap,

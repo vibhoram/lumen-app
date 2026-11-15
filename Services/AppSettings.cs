@@ -7,7 +7,7 @@ using System.Text.Json.Serialization;
 
 namespace DIsland.Services;
 
-public enum CloudProvider { Groq, Gemini }
+public enum CloudProvider { Groq, Gemini, OpenRouter }
 
 public enum IslandMode
 {
@@ -333,7 +333,7 @@ public sealed class AppSettings
     /// <summary>Clipboard items older than this many hours are removed (0 = keep until the 100-item limit). Pinned items stay.</summary>
     public int ClipboardKeepHours { get; set; }
 
-    /// <summary>Which cloud brain handles pictures (and text when offline isn't available). Gemini has a free tier with no card.</summary>
+    /// <summary>Preferred cloud brain label in Settings. Runtime still picks Gemini first when its key is set.</summary>
     public CloudProvider CloudProvider { get; set; } = CloudProvider.Gemini;
 
     /// <summary>Google AI Studio key (free, no card): aistudio.google.com/apikey.</summary>
@@ -343,10 +343,31 @@ public sealed class AppSettings
     public string GeminiModel { get; set; } = "gemini-2.5-flash";
 
     public const string GeminiEndpoint = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+    public const string OpenRouterEndpoint = "https://openrouter.ai/api/v1/chat/completions";
 
-    public string CloudKey => CloudProvider == CloudProvider.Gemini ? GeminiApiKey : GroqApiKey;
-    public string CloudModel => CloudProvider == CloudProvider.Gemini ? (string.IsNullOrWhiteSpace(GeminiModel) ? "gemini-2.5-flash" : GeminiModel) : GroqModel;
-    public string CloudEndpoint => CloudProvider == CloudProvider.Gemini ? GeminiEndpoint : "";
+    /// <summary>OpenRouter key (openrouter.ai/keys) — one key, many models.</summary>
+    public string OpenRouterApiKey { get; set; } = "";
+    /// <summary>OpenRouter model id, e.g. google/gemini-2.5-flash.</summary>
+    public string OpenRouterModel { get; set; } = "google/gemini-2.5-flash";
+
+    public string CloudKey => CloudProvider switch
+    {
+        CloudProvider.Gemini => GeminiApiKey,
+        CloudProvider.OpenRouter => OpenRouterApiKey,
+        _ => GroqApiKey,
+    };
+    public string CloudModel => CloudProvider switch
+    {
+        CloudProvider.Gemini => string.IsNullOrWhiteSpace(GeminiModel) ? "gemini-2.5-flash" : GeminiModel,
+        CloudProvider.OpenRouter => string.IsNullOrWhiteSpace(OpenRouterModel) ? "google/gemini-2.5-flash" : OpenRouterModel,
+        _ => GroqModel,
+    };
+    public string CloudEndpoint => CloudProvider switch
+    {
+        CloudProvider.Gemini => GeminiEndpoint,
+        CloudProvider.OpenRouter => OpenRouterEndpoint,
+        _ => "",
+    };
 
     /// <summary>Show every slider (otherwise just presets and the essentials).</summary>
     public bool ShowAdvanced { get; set; }

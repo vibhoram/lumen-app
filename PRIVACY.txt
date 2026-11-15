@@ -1,7 +1,7 @@
 LUMEN PRIVACY STATEMENT
 What Lumen reads, where it goes, and what is stored
 
-Lumen by vibhoram - https://github.com/vibhoram/Lumen
+Lumen by Vibhor Maheshwari (vibhoram) - https://github.com/vibhoram/Lumen
 Applies to Lumen version 1.2.1.
 
 
@@ -39,7 +39,7 @@ Read to show it in the island, kept in memory, and not sent anywhere.
 - Apple Music motion artwork (Apple), OFF by default: if you switch it on, the artist and album of what you are playing are sent to Apple's iTunes Search and Apple Music web services to find and download the album's animated artwork.
 - Updates (GitHub, https://github.com/vibhoram/Lumen): off by default. If you turn checking on, Lumen asks GitHub for the latest release of this repo. The request contains only Lumen's version number. If there is a newer version, Lumen downloads it from GitHub, checks it against its published checksum, and installs it.
 - Notifications setup (Microsoft NuGet, https://www.nuget.org), only if you run the setup: a one-time download of Microsoft's packaging tools.
-- Clara (AI assistant): only when you send a message — your message, any screenshot or text you attached, a few facts about the moment (switchable in Settings), and short remembered facts — go to Gemini first (main cloud brain) with your own API key; Groq is used only as a failsafe if Gemini fails, when you have a Groq key.
+- Clara (AI assistant): only when you send a message — your message, any screenshot or text you attached, a few facts about the moment (switchable in Settings), and short remembered facts — go to the cloud with YOUR OWN API key. Order: Gemini first, then OpenRouter, then Groq as last-resort failsafe. Lumen never ships with a shared key.
 - Music lookups: when a song plays, title and artist may go to lrclib.net (synced lyrics) and the iTunes Search API (album art). Both can be switched off in Settings > Media.
 
 These services receive your IP address as part of any internet request, and handle data under their own privacy policies. Lumen sends nothing else to any third party for analytics or tracking.

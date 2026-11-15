@@ -1,5 +1,5 @@
 LUMEN
-Copyright 2026 vibhoram. A personal modified version — not an official D-Island release.
+Copyright 2026 Vibhor Maheshwari (vibhoram). A personal modified version — not an official D-Island release.
 https://github.com/vibhoram/Lumen
 
 ----------------------------------------------------------------------
@@ -25,7 +25,7 @@ Official D-Island releases are published only at:
 - https://github.com/H7gamer/d-island (GitHub Releases of that repository)
 - https://ibuildrigs.com
 
-Lumen is a separate private project by vibhoram and is not an official D-Island release.
+Lumen is a separate project by Vibhor Maheshwari and is not an official D-Island release.
 
 
 NAMES AND TRADEMARKS
