@@ -26,6 +26,13 @@ public static class WhatsNew
 
     public static readonly IReadOnlyList<Release> Releases = new[]
     {
+        new Release(new Version(1, 3, 1), new[]
+        {
+            new Item("", "#FFFFFFFF", "Webser",
+                "Studio mark and webser.app in About — drawn as the real W, not a pasted icon tile."),
+            new Item("", "#FF64D2FF", "Public updates",
+                "Installers and in-app updates come from the public Lumen releases repo."),
+        }),
         new Release(new Version(1, 3, 0), new[]
         {
             new Item("", "#FF64D2FF", "Matching glass bubbles",

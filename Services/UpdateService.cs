@@ -28,12 +28,12 @@ public enum UpdateState
 public sealed record UpdateInfo(Version Version, string Tag, string PageUrl, string InstallerUrl, string InstallerName, string ChecksumUrl);
 
 /// <summary>
-/// Updates from this Lumen repo's GitHub releases (https://github.com/vibhoram/Lumen).
-/// Off by default for private builds; when on, only Lumen installer assets are accepted.
+/// Updates from the public Lumen releases repo (https://github.com/vibhoram/lumen-app).
+/// The private vibhoram/Lumen repo stays for collaborators; strangers get installers from here.
 /// </summary>
 public sealed class UpdateService
 {
-    public const string Repository = "vibhoram/Lumen";
+    public const string Repository = "vibhoram/lumen-app";
 
     // Must stay above Http: static fields initialise in declaration order, and the client's user agent
     // needs the version (in the other order it was null, the user agent invalid, and the type unusable).

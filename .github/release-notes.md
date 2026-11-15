@@ -1,6 +1,10 @@
-**Lumen {VERSION}**, a personal Dynamic Island for Windows 10 and 11. Made by vibhoram.
+**Lumen {VERSION}**, a Webser studio Dynamic Island for Windows 10 and 11. Made by Vibhor Maheshwari · [webser.app](https://webser.app)
 
 Based on D-Island by h7 (ibuildrigs) — https://github.com/H7gamer/d-island
+
+### What's new in 1.3.1
+- **Webser:** studio mark and webser.app in About (vector W, not a pasted tile).
+- **Public releases:** installers and in-app updates ship from this public repo. Clara needs your own API key (Gemini preferred).
 
 ### What's new in 1.3.0
 - **Matching glass bubbles:** weather and carry bubbles share the same live Liquid Glass as the pill.
@@ -29,4 +33,4 @@ Check it in PowerShell: `Get-FileHash .\Lumen-Setup-{VERSION}.exe`
 ### Privacy
 No accounts, analytics or tracking. See PRIVACY.txt. Clara only talks to Gemini/Groq when you send a message, with your own key.
 
-Made by vibhoram · [github.com/vibhoram/Lumen](https://github.com/vibhoram/Lumen) · D-Island License 1.0
+Webser · [webser.app](https://webser.app) · [github.com/vibhoram/lumen-app](https://github.com/vibhoram/lumen-app) · D-Island License 1.0

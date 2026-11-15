@@ -8,7 +8,6 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
-using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using DIsland.Services;
@@ -81,7 +80,10 @@ public partial class SettingsWindow : Window
     [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
     private struct Margins { public int Left, Right, Top, Bottom; }
 
-    /// <summary>Windows 11: dark title bar and an Acrylic backdrop behind the whole window (native, near-zero GPU).</summary>
+    /// <summary>
+    /// Windows 11: dark title bar + Acrylic. Top margin stays 0 so content never draws under the
+    /// min/max/close buttons (full -1 margins let toggles/swatches peek through the caption).
+    /// </summary>
     private void ApplyBackdrop()
     {
         if (!_backdropOn) return;
@@ -92,7 +94,7 @@ public partial class SettingsWindow : Window
             DIsland.Interop.NativeMethods.DwmSetWindowAttribute(hwnd, 20 /* USE_IMMERSIVE_DARK_MODE */, ref dark, sizeof(int));
             var acrylic = 3; // DWMSBT_TRANSIENTWINDOW
             if (DIsland.Interop.NativeMethods.DwmSetWindowAttribute(hwnd, 38 /* SYSTEMBACKDROP_TYPE */, ref acrylic, sizeof(int)) != 0) { _backdropOn = false; return; }
-            var margins = new Margins { Left = -1, Right = -1, Top = -1, Bottom = -1 };
+            var margins = new Margins { Left = -1, Right = -1, Top = 0, Bottom = -1 };
             DwmExtendFrameIntoClientArea(hwnd, ref margins);
             System.Windows.Interop.HwndSource.FromHwnd(hwnd)!.CompositionTarget.BackgroundColor = Colors.Transparent;
             Background = Brushes.Transparent;
@@ -486,13 +488,11 @@ public partial class SettingsWindow : Window
 
         var about = Section("ABOUT");
         var aboutHead = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
-        if (LoadAssetImage("webser-icon.png", 44) is { } webserAbout)
-        {
-            webserAbout.Margin = new Thickness(0, 0, 12, 0);
-            webserAbout.Cursor = Cursors.Hand;
-            webserAbout.MouseLeftButtonUp += (_, _) => OpenUrl("https://webser.app");
-            aboutHead.Children.Add(webserAbout);
-        }
+        var webserAbout = WebserMark.Create(36);
+        webserAbout.Margin = new Thickness(0, 0, 12, 0);
+        webserAbout.Cursor = Cursors.Hand;
+        webserAbout.MouseLeftButtonUp += (_, _) => OpenUrl("https://webser.app");
+        aboutHead.Children.Add(webserAbout);
         var aboutTitles = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         aboutTitles.Children.Add(new TextBlock { Text = "Lumen", FontSize = 15, FontWeight = FontWeights.SemiBold });
         aboutTitles.Children.Add(new TextBlock { Text = "A Webser studio app", FontSize = 12, Foreground = Secondary, Margin = new Thickness(0, 2, 0, 0) });
@@ -501,7 +501,7 @@ public partial class SettingsWindow : Window
         about.Children.Add(new TextBlock { Text = "A personal island for Windows: music, focus, Clara, clipboard and a little pet.", Foreground = Secondary, Margin = new Thickness(0, 8, 0, 0), TextWrapping = TextWrapping.Wrap });
         about.Children.Add(new TextBlock { Text = "Made by Vibhor Maheshwari", FontSize = 13, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 0), TextWrapping = TextWrapping.Wrap });
         about.Children.Add(LinkRow("Webser", "https://webser.app", "Studio · webser.app"));
-        about.Children.Add(LinkRow("GitHub", "https://github.com/vibhoram/Lumen", "github.com/vibhoram/Lumen"));
+        about.Children.Add(LinkRow("GitHub", $"https://github.com/{UpdateService.Repository}", UpdateService.Repository));
         // D-Island License 1.0 §3(a) requires this exact credit line to stay visible.
         about.Children.Add(new TextBlock { Text = "Based on D-Island by h7 (ibuildrigs) - https://github.com/H7gamer/d-island", FontSize = 11, Foreground = Secondary, Margin = new Thickness(0, 8, 0, 0), TextWrapping = TextWrapping.Wrap, Opacity = 0.55 });
         var terms = new TextBlock
@@ -525,13 +525,7 @@ public partial class SettingsWindow : Window
         about.Children.Add(terms);
 
         CreditText.Text = "Lumen  ·  Webser  ·  webser.app";
-        try
-        {
-            var mark = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "webser-icon-48.png");
-            if (File.Exists(mark))
-                WebserMark.Source = new BitmapImage(new Uri(mark));
-        }
-        catch (Exception) { /* mark is optional */ }
+        WebserMarkHost.Child = WebserMark.Create(16);
 
         _loading = false;
         Dispatcher.InvokeAsync(() =>
@@ -1738,24 +1732,6 @@ public partial class SettingsWindow : Window
         var b = new SolidColorBrush(c);
         b.Freeze();
         return b;
-    }
-
-    private static Image? LoadAssetImage(string fileName, double size)
-    {
-        try
-        {
-            var path = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", fileName);
-            if (!File.Exists(path)) path = System.IO.Path.Combine(AppContext.BaseDirectory, fileName);
-            if (!File.Exists(path)) return null;
-            return new Image
-            {
-                Width = size,
-                Height = size,
-                Stretch = Stretch.Uniform,
-                Source = new BitmapImage(new Uri(path)),
-            };
-        }
-        catch (Exception) { return null; }
     }
 
     private static UIElement LinkRow(string label, string url, string display)

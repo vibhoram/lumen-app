@@ -2,7 +2,10 @@
 
 A personal Dynamic Island–style overlay for Windows 10/11 (WPF, .NET 8): music, focus, Clara, clipboard, weather, a pet, and more — heavily extended from the original engine.
 
-**Made by Vibhor Maheshwari ([@vibhoram](https://github.com/vibhoram))** · Studio: [Webser](https://webser.app) · Private repo: [vibhoram/Lumen](https://github.com/vibhoram/Lumen)
+**Made by Vibhor Maheshwari ([@vibhoram](https://github.com/vibhoram))** · Studio: [Webser](https://webser.app)
+
+- **Public (download / updates):** [vibhoram/lumen-app](https://github.com/vibhoram/lumen-app)
+- **Private (collaborators):** [vibhoram/Lumen](https://github.com/vibhoram/Lumen)
 
 > Lumen is **not** an official D-Island release. It uses a different name and icon.
 

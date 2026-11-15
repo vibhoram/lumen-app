@@ -501,11 +501,11 @@ public sealed class AppSettings
     public List<QuickLink> QuickLinks { get; set; } = new();
 
     // ---- updates
-    /// <summary>Check the official GitHub releases once a day.</summary>
-    public bool CheckForUpdates { get; set; }
+    /// <summary>Check the public GitHub releases once a day.</summary>
+    public bool CheckForUpdates { get; set; } = true;
 
     /// <summary>Download, verify and install updates by themselves (installed copies only).</summary>
-    public bool AutoInstallUpdates { get; set; }
+    public bool AutoInstallUpdates { get; set; } = true;
 
     public DateTime? LastUpdateCheck { get; set; }
 
