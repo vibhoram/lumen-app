@@ -15,7 +15,7 @@
   #define PublishDir "..\artifacts\publish"
 #endif
 #ifndef IconFile
-  #define IconFile "..\DIsland.ico"
+  #define IconFile "..\Lumen.ico"
 #endif
 
 [Setup]

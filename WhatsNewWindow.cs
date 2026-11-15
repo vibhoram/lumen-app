@@ -1,12 +1,14 @@
 ﻿// D-Island - Copyright 2026 h7 (ibuildrigs) and contributors.
 // Licensed under the D-Island License 1.0; see LICENSE.txt and NOTICE.txt.
 
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
+using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using DIsland.Services;
 
@@ -67,15 +69,18 @@ public static class WhatsNew
             .ToList();
 }
 
-/// <summary>A small dark card in the island's style; built in code like Settings.</summary>
+/// <summary>A Lumen-branded card (purple mark, violet glass) — not the old black D-Island pill.</summary>
 public sealed class WhatsNewWindow : Window
 {
     private static readonly Brush Secondary = Frozen(Color.FromArgb(0x99, 0xFF, 0xFF, 0xFF));
+    private static readonly Color Violet = Color.FromRgb(0xBF, 0x5A, 0xF2);
+    private static readonly Color VioletDeep = Color.FromRgb(0x5B, 0x2A, 0x9E);
+    private static readonly Color CyanKnob = Color.FromRgb(0x4A, 0xC1, 0xF7);
 
     public WhatsNewWindow(IReadOnlyList<WhatsNew.Release> releases, Version? updatedFrom)
     {
         Title = "What's new in Lumen";
-        Width = 440;
+        Width = 460;
         SizeToContent = SizeToContent.Height;
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
@@ -86,25 +91,22 @@ public sealed class WhatsNewWindow : Window
         Foreground = Brushes.White;
         FontFamily = new FontFamily("Segoe UI Variable Text, Segoe UI");
         FontSize = 13;
-        Icon = null;
+        try { Icon = BitmapFrame.Create(new Uri(System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "Lumen.ico"))); }
+        catch (Exception) { Icon = null; }
 
-        var content = new StackPanel { Margin = new Thickness(26, 24, 26, 22) };
+        var content = new StackPanel { Margin = new Thickness(28, 26, 28, 24) };
 
-        // Header: the island itself, then the title.
-        var pill = new Grid { Width = 92, Height = 30, HorizontalAlignment = HorizontalAlignment.Left };
-        pill.Children.Add(new Border { CornerRadius = new CornerRadius(15), Background = Brushes.Black, BorderBrush = Frozen(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF)), BorderThickness = new Thickness(1) });
-        pill.Children.Add(new Ellipse
-        {
-            Width = 9, Height = 9, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 0, 12, 0),
-            Fill = Frozen(Color.FromRgb(0x30, 0xD1, 0x58)),
-        });
-        content.Children.Add(pill);
+        // Lumen mark: purple rounded tile + glass toggle (or the real PNG when present).
+        var mark = BuildLumenMark();
+        mark.HorizontalAlignment = HorizontalAlignment.Left;
+        mark.Margin = new Thickness(0, 0, 0, 2);
+        content.Children.Add(mark);
 
         var current = UpdateService.CurrentVersion;
         content.Children.Add(new TextBlock
         {
             Text = updatedFrom is null ? "What's new in Lumen" : "Lumen is up to date",
-            FontSize = 22,
+            FontSize = 24,
             FontWeight = FontWeights.SemiBold,
             Margin = new Thickness(0, 16, 0, 0),
         });
@@ -112,7 +114,7 @@ public sealed class WhatsNewWindow : Window
         {
             Text = updatedFrom is null ? $"Version {current}" : $"Updated from {updatedFrom} to {current}. Here's what's new:",
             Foreground = Secondary,
-            Margin = new Thickness(0, 4, 0, 8),
+            Margin = new Thickness(0, 4, 0, 10),
         });
 
         var list = new StackPanel();
@@ -147,30 +149,55 @@ public sealed class WhatsNewWindow : Window
             }
             catch (Exception) { /* no browser */ }
         };
+        var okFill = new LinearGradientBrush
+        {
+            StartPoint = new Point(0, 0.5), EndPoint = new Point(1, 0.5),
+            GradientStops =
+            {
+                new GradientStop(Color.FromRgb(0x9B, 0x4D, 0xFF), 0),
+                new GradientStop(Color.FromRgb(0x5E, 0x5C, 0xE6), 0.55),
+                new GradientStop(CyanKnob, 1),
+            },
+        };
+        okFill.Freeze();
         var ok = new Button
         {
             Style = (Style)Application.Current.FindResource("ChipButton"),
             Content = "Got it",
-            Padding = new Thickness(22, 7, 22, 7),
-            Background = Frozen(Color.FromRgb(0x0A, 0x84, 0xFF)),
+            Padding = new Thickness(24, 8, 24, 8),
+            Background = okFill,
             IsDefault = true,
             IsCancel = true,
             HorizontalAlignment = HorizontalAlignment.Right,
         };
         ok.Click += (_, _) => Close();
-        var buttons = new Grid { Margin = new Thickness(0, 18, 0, 0) };
+        var buttons = new Grid { Margin = new Thickness(0, 20, 0, 0) };
         buttons.Children.Add(notes);
         buttons.Children.Add(ok);
         content.Children.Add(buttons);
 
+        var cardBg = new LinearGradientBrush
+        {
+            StartPoint = new Point(0.15, 0), EndPoint = new Point(0.9, 1),
+            GradientStops =
+            {
+                new GradientStop(Color.FromRgb(0x22, 0x18, 0x30), 0),
+                new GradientStop(Color.FromRgb(0x16, 0x14, 0x1E), 0.45),
+                new GradientStop(Color.FromRgb(0x12, 0x12, 0x18), 1),
+            },
+        };
+        cardBg.Freeze();
         var card = new Border
         {
-            CornerRadius = new CornerRadius(22),
-            Background = Frozen(Color.FromRgb(0x1C, 0x1C, 0x1E)),
-            BorderBrush = Frozen(Color.FromArgb(0x30, 0xFF, 0xFF, 0xFF)),
+            CornerRadius = new CornerRadius(24),
+            Background = cardBg,
+            BorderBrush = Frozen(Color.FromArgb(0x55, 0xBF, 0x5A, 0xF2)),
             BorderThickness = new Thickness(1),
-            Margin = new Thickness(16), // room for the shadow
-            Effect = new DropShadowEffect { BlurRadius = 24, ShadowDepth = 4, Direction = 270, Opacity = 0.5 },
+            Margin = new Thickness(18),
+            Effect = new DropShadowEffect
+            {
+                Color = Violet, BlurRadius = 36, ShadowDepth = 0, Opacity = 0.55,
+            },
             Child = content,
         };
         card.MouseLeftButtonDown += (_, e) =>
@@ -183,19 +210,91 @@ public sealed class WhatsNewWindow : Window
             if (e.Key == Key.Escape) Close();
         };
 
-        // Arrive like the island: a quick scale and fade.
+        // Arrive with a soft float + scale (Lumen, not a hard pop).
         card.RenderTransformOrigin = new Point(0.5, 0.5);
-        var scale = new ScaleTransform(0.94, 0.94);
-        card.RenderTransform = scale;
+        var group = new TransformGroup();
+        var scale = new ScaleTransform(0.92, 0.92);
+        var slide = new TranslateTransform(0, 14);
+        group.Children.Add(scale);
+        group.Children.Add(slide);
+        card.RenderTransform = group;
         card.Opacity = 0;
         Loaded += (_, _) =>
         {
             var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
-            var time = TimeSpan.FromMilliseconds(260);
+            var time = TimeSpan.FromMilliseconds(340);
             card.BeginAnimation(OpacityProperty, new DoubleAnimation(1, time) { EasingFunction = ease });
             scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1, time) { EasingFunction = ease });
             scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(1, time) { EasingFunction = ease });
+            slide.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(0, time) { EasingFunction = ease });
+            PulseMark(mark);
         };
+    }
+
+    /// <summary>Real Lumen.png when shipped; otherwise a drawn purple toggle mark.</summary>
+    private static FrameworkElement BuildLumenMark()
+    {
+        var png = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "lumen-mark.png");
+        if (File.Exists(png))
+        {
+            var img = new Image
+            {
+                Width = 52, Height = 52, Stretch = Stretch.Uniform,
+                Source = new BitmapImage(new Uri(png)),
+                Effect = new DropShadowEffect { Color = Violet, BlurRadius = 18, ShadowDepth = 0, Opacity = 0.7 },
+            };
+            return img;
+        }
+
+        // Fallback: purple tile + glass track + cyan knob (matches Lumen.ico).
+        var tile = new Grid { Width = 52, Height = 52 };
+        var fill = new LinearGradientBrush
+        {
+            StartPoint = new Point(0.2, 0), EndPoint = new Point(0.9, 1),
+            GradientStops =
+            {
+                new GradientStop(VioletDeep, 0),
+                new GradientStop(Violet, 0.55),
+                new GradientStop(Color.FromRgb(0xD4, 0x7A, 0xFF), 1),
+            },
+        };
+        fill.Freeze();
+        tile.Children.Add(new Border
+        {
+            CornerRadius = new CornerRadius(14),
+            Background = fill,
+            Effect = new DropShadowEffect { Color = Violet, BlurRadius = 18, ShadowDepth = 0, Opacity = 0.65 },
+        });
+        var track = new Border
+        {
+            Width = 30, Height = 16, CornerRadius = new CornerRadius(8),
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+            Background = Frozen(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)),
+            BorderBrush = Frozen(Color.FromArgb(0x66, 0xFF, 0xFF, 0xFF)),
+            BorderThickness = new Thickness(1),
+        };
+        var knob = new Ellipse
+        {
+            Width = 12, Height = 12, Fill = Frozen(CyanKnob),
+            HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 0, 2, 0),
+            Effect = new DropShadowEffect { Color = CyanKnob, BlurRadius = 8, ShadowDepth = 0, Opacity = 0.8 },
+        };
+        var trackHost = new Grid { Width = 30, Height = 16, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        trackHost.Children.Add(track);
+        trackHost.Children.Add(knob);
+        tile.Children.Add(trackHost);
+        return tile;
+    }
+
+    private static void PulseMark(FrameworkElement mark)
+    {
+        mark.RenderTransformOrigin = new Point(0.5, 0.5);
+        var s = new ScaleTransform(1, 1);
+        mark.RenderTransform = s;
+        var ease = new SineEase { EasingMode = EasingMode.EaseInOut };
+        var up = new DoubleAnimation(1, 1.06, TimeSpan.FromMilliseconds(900)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = ease };
+        s.BeginAnimation(ScaleTransform.ScaleXProperty, up);
+        s.BeginAnimation(ScaleTransform.ScaleYProperty, up);
     }
 
     private static UIElement ItemRow(WhatsNew.Item item)

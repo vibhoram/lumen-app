@@ -19,9 +19,11 @@ $root = Split-Path $PSScriptRoot -Parent
 $env:PATH = "$env:ProgramFiles\dotnet;$env:PATH"
 
 # ---- 1. icon (multi-size, PNG-compressed entries; Windows Vista and later read these)
-$ico = Join-Path $root 'DIsland.ico'
+$ico = Join-Path $root 'Lumen.ico'
+if (-not (Test-Path $ico)) { $ico = Join-Path $root 'DIsland.ico' }
 if (-not (Test-Path $ico)) {
-    Write-Host 'Generating DIsland.ico...'
+    Write-Host 'Generating Lumen.ico fallback...'
+    $ico = Join-Path $root 'DIsland.ico'
     Add-Type -AssemblyName System.Drawing
     $sizes = 16, 24, 32, 48, 64, 128, 256
     $frames = foreach ($size in $sizes) {
