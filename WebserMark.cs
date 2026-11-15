@@ -10,7 +10,7 @@ using System.Windows.Media.Imaging;
 namespace DIsland;
 
 /// <summary>
-/// Webser studio mark from the real brand PNG — black tile stripped, just the W glyph.
+/// Webser studio mark — the real W sticker with the black plate knocked out so only the glyph shows.
 /// </summary>
 public static class WebserMark
 {
@@ -18,40 +18,42 @@ public static class WebserMark
 
     private static ImageSource? _glyph;
 
-    /// <summary>Just the cream W — no rounded-square tile, no pasted box.</summary>
+    /// <summary>Just the cream W — no black rectangle behind it.</summary>
     public static FrameworkElement Create(double size, Brush? fill = null)
     {
-        _ = fill; // kept for call-site compatibility; glyph colour comes from the asset
-        var src = Glyph() ?? FallbackWhite();
+        _ = fill;
         return new Image
         {
             Width = size,
             Height = size,
             Stretch = Stretch.Uniform,
-            Source = src,
+            Source = Glyph(),
             SnapsToDevicePixels = true,
         };
     }
 
-    private static ImageSource? Glyph()
+    private static ImageSource Glyph()
     {
         if (_glyph is not null) return _glyph;
-        try
+        foreach (var name in new[] { "webser-w.png", "webser-icon.png", "webser-mark-dark.png" })
         {
-            foreach (var name in new[] { "webser-icon.png", "webser-mark-dark.png", "webser-icon-48.png" })
+            var path = Path.Combine(AppContext.BaseDirectory, "Assets", name);
+            if (!File.Exists(path)) continue;
+            try
             {
-                var path = Path.Combine(AppContext.BaseDirectory, "Assets", name);
-                if (!File.Exists(path)) continue;
-                _glyph = ExtractW(path);
+                _glyph = KnockOutBlack(path);
                 if (_glyph is not null) return _glyph;
             }
+            catch (Exception) { /* try next */ }
         }
-        catch (Exception) { /* fall through */ }
-        return null;
+        // Last resort: empty transparent pixel
+        var empty = BitmapSource.Create(1, 1, 96, 96, PixelFormats.Bgra32, null, new byte[4], 4);
+        empty.Freeze();
+        return _glyph = empty;
     }
 
-    /// <summary>Keep only bright glyph pixels; crop to their bounds so no black square shows.</summary>
-    private static ImageSource? ExtractW(string path)
+    /// <summary>Make near-black pixels fully transparent and crop to the bright W.</summary>
+    private static ImageSource? KnockOutBlack(string path)
     {
         var raw = new BitmapImage();
         raw.BeginInit();
@@ -75,21 +77,21 @@ public static class WebserMark
             var i = y * stride + x * 4;
             var b = pixels[i]; var g = pixels[i + 1]; var r = pixels[i + 2];
             var lum = 0.299 * r + 0.587 * g + 0.114 * b;
-            if (lum > 140)
+            if (lum > 90) // cream W (keep)
             {
                 has = true;
                 if (x < minX) minX = x; if (y < minY) minY = y;
                 if (x > maxX) maxX = x; if (y > maxY) maxY = y;
+                pixels[i + 3] = 255;
             }
             else
             {
-                pixels[i] = pixels[i + 1] = pixels[i + 2] = 0;
-                pixels[i + 3] = 0; // transparent — kill the black tile
+                pixels[i] = pixels[i + 1] = pixels[i + 2] = pixels[i + 3] = 0;
             }
         }
         if (!has) return null;
 
-        const int pad = 2;
+        const int pad = 1;
         minX = Math.Max(0, minX - pad); minY = Math.Max(0, minY - pad);
         maxX = Math.Min(w - 1, maxX + pad); maxY = Math.Min(h - 1, maxY + pad);
         var cw = maxX - minX + 1;
@@ -100,15 +102,6 @@ public static class WebserMark
             Buffer.BlockCopy(pixels, (minY + y) * stride + minX * 4, crop, y * cropStride, cropStride);
 
         var bmp = BitmapSource.Create(cw, ch, 96, 96, PixelFormats.Bgra32, null, crop, cropStride);
-        bmp.Freeze();
-        return bmp;
-    }
-
-    private static ImageSource FallbackWhite()
-    {
-        // Tiny white square only if the asset is missing — still no black tile.
-        var pixels = new byte[] { 255, 255, 255, 255 };
-        var bmp = BitmapSource.Create(1, 1, 96, 96, PixelFormats.Bgra32, null, pixels, 4);
         bmp.Freeze();
         return bmp;
     }
