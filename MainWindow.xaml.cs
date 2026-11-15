@@ -4588,7 +4588,7 @@ public partial class MainWindow : Window
         var apps = _settings.QuickApps.Take(AppSettings.MaxQuickApps).ToList();
         var dipSize = Math.Clamp(_settings.QuickAppIconSize, 16, 48);
         var f = Scale * VisualTreeHelper.GetDpi(this).DpiScaleX; // design units → screen pixels
-        var key = $"{dipSize}|{f}\n{string.Join('\n', apps)}\n{string.Join('\n', _settings.QuickLinks.Select(l => l.Name + l.Url))}"; // icons are rendered for the size
+        var key = $"{dipSize}|{f}\n{string.Join('\n', apps)}\n{string.Join('\n', _settings.QuickLinks.Select(l => l.Name + l.Url + l.Browser))}"; // icons are rendered for the size
         if (key == _quickAppsKey) return;
         _quickAppsKey = key;
 
@@ -4626,12 +4626,14 @@ public partial class MainWindow : Window
                 Children = { new Border { CornerRadius = new CornerRadius(shown * 0.28), Background = new SolidColorBrush(Color.FromArgb(0x33, 255, 255, 255)) }, letter, favicon },
             };
             var tile = AppTile(disc, link.Name, tileWidth, tileHeight);
-            tile.ToolTip = link.Url;
+            tile.ToolTip = string.Equals(link.Browser, BrowserLaunch.Comet, StringComparison.OrdinalIgnoreCase)
+                ? $"{link.Url}\nOpens in Comet"
+                : link.Url;
             tile.Click += (_, _) =>
             {
                 _hoverSuppressed = true;
                 SetExpanded(false);
-                try { Process.Start(new ProcessStartInfo(link.Url) { UseShellExecute = true })?.Dispose(); } catch (Exception) { }
+                BrowserLaunch.Open(link.Url, link.Browser);
             };
             // right-click removes it
             tile.MouseRightButtonUp += (_, e) =>

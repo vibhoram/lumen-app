@@ -31,6 +31,8 @@ public sealed class QuickLink
 {
     public string Name { get; set; } = "";
     public string Url { get; set; } = "";
+    /// <summary>Optional browser id (e.g. "comet") so this link skips the Windows default browser.</summary>
+    public string? Browser { get; set; }
 }
 
 public enum PeekKey { Alt, Ctrl, Shift }
@@ -498,7 +500,11 @@ public sealed class AppSettings
     public const int MaxQuickApps = 16;
 
     /// <summary>Web links shown on the Apps page after the apps (YouTube, Gmail accounts...).</summary>
-    public List<QuickLink> QuickLinks { get; set; } = new();
+    public List<QuickLink> QuickLinks { get; set; } = new()
+    {
+        // ChatGPT opens in Perplexity Comet when installed (not the Windows default browser).
+        new QuickLink { Name = "ChatGPT", Url = "https://chatgpt.com", Browser = BrowserLaunch.Comet },
+    };
 
     // ---- updates
     /// <summary>Check the public GitHub releases once a day.</summary>
@@ -682,6 +688,35 @@ public sealed class AppSettings
                 // Clara: Gemini is the cloud main; keep Groq only as failsafe when a Gemini key is present.
                 if (!string.IsNullOrWhiteSpace(settings.GeminiApiKey))
                     settings.CloudProvider = CloudProvider.Gemini;
+
+                // Seed ChatGPT → Comet once if the user never added it.
+                settings.QuickLinks ??= new List<QuickLink>();
+                var seeded = false;
+                if (!settings.QuickLinks.Any(l =>
+                        l.Url.Contains("chatgpt.com", StringComparison.OrdinalIgnoreCase)
+                        || l.Name.Equals("ChatGPT", StringComparison.OrdinalIgnoreCase)))
+                {
+                    settings.QuickLinks.Insert(0, new QuickLink
+                    {
+                        Name = "ChatGPT",
+                        Url = "https://chatgpt.com",
+                        Browser = BrowserLaunch.Comet,
+                    });
+                    seeded = true;
+                }
+                else
+                {
+                    foreach (var l in settings.QuickLinks)
+                    {
+                        if (l.Url.Contains("chatgpt.com", StringComparison.OrdinalIgnoreCase)
+                            && string.IsNullOrWhiteSpace(l.Browser))
+                        {
+                            l.Browser = BrowserLaunch.Comet;
+                            seeded = true;
+                        }
+                    }
+                }
+                if (seeded) settings.Save();
 
                 return settings;
             }
