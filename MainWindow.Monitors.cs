@@ -49,7 +49,10 @@ public partial class MainWindow
 
     private void MoveToScreen(System.Windows.Forms.Screen screen)
     {
-        var dpi = VisualTreeHelper.GetDpi(this).DpiScaleX;
+        // Prefer the destination monitor's DPI — using the old screen's scale mis-sizes the glass clip
+        // and leaves a hard seam until the next expand/collapse.
+        var dpi = NativeMethods.DpiScaleForScreen(screen);
+        if (dpi < 0.5) dpi = VisualTreeHelper.GetDpi(this).DpiScaleX;
         var b = screen.Bounds;
         Left = (b.Left + (b.Width - Width * dpi) / 2) / dpi;
         Top = b.Top / dpi + _settings.TopOffset;
@@ -57,10 +60,11 @@ public partial class MainWindow
         // the lens reads one monitor through Desktop Duplication: rebuild it for the new one
         Dispatcher.InvokeAsync(async () =>
         {
-            await Task.Delay(250);
+            await Task.Delay(280);
             _gpuBlur?.DisposeLens();
             _lensFailed = false;
             UpdateGlass();
+            RefreshGlassHost();
             KeepOnTop(force: true);
         });
     }

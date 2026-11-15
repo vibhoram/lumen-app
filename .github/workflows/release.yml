@@ -2,7 +2,7 @@
 # Licensed under the D-Island License 1.0; see LICENSE.txt and NOTICE.txt.
 
 # Builds the installer on a Windows runner and publishes the GitHub release with BOTH assets the
-# in-app updater needs: D-Island-Setup-<v>.exe and D-Island-Setup-<v>.exe.sha256.
+# in-app updater needs: Lumen-Setup-<v>.exe and Lumen-Setup-<v>.exe.sha256.
 #
 #   - Push a tag v<x.y.z> (matching <Version> in DIsland.csproj) to release it, or
 #   - run it by hand from the Actions tab with an existing tag (e.g. to rebuild v1.1.0).
@@ -75,7 +75,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $setup = "artifacts\D-Island-Setup-$env:VERSION.exe"
+          $setup = "artifacts\Lumen-Setup-$env:VERSION.exe"
           $hash = (Get-FileHash $setup -Algorithm SHA256).Hash
           $notes = (Get-Content "$env:RUNNER_TEMP\release-notes.md" -Raw -Encoding utf8).Replace('{VERSION}', $env:VERSION).Replace('{SHA256}', $hash)
           [System.IO.File]::WriteAllText("$env:RUNNER_TEMP\notes.md", $notes)
@@ -87,6 +87,6 @@ jobs:
             gh release upload $env:TAG $setup "$setup.sha256" --clobber
             gh release edit $env:TAG --notes-file "$env:RUNNER_TEMP\notes.md" --draft=false --latest
           } else {
-            gh release create $env:TAG $setup "$setup.sha256" --title "D-Island $env:VERSION" --notes-file "$env:RUNNER_TEMP\notes.md" --latest
+            gh release create $env:TAG $setup "$setup.sha256" --title "Lumen $env:VERSION" --notes-file "$env:RUNNER_TEMP\notes.md" --latest
           }
           if ($LASTEXITCODE -ne 0) { throw "gh failed ($LASTEXITCODE)" }

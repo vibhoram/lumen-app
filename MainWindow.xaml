@@ -840,11 +840,14 @@
                   IsHitTestVisible="False" />
         </Grid>
 
-        <!-- Idle weather: its own round bubble beside the clock pill (UpdateIdleWeatherBubble). -->
+        <!-- Idle weather: its own round bubble beside the clock pill (UpdateIdleWeatherBubble).
+             Back/sheen/glow match the pill under Liquid Glass (ApplySideBubbleGlass). -->
         <Grid x:Name="IdleWeatherBubble" HorizontalAlignment="Left" VerticalAlignment="Top" Width="34" Height="34"
               Visibility="Collapsed" RenderTransformOrigin="0,0.5" Cursor="Hand">
             <Grid.RenderTransform><ScaleTransform /></Grid.RenderTransform>
-            <Ellipse Fill="{StaticResource BubbleFill}" Stroke="{StaticResource BubbleRim}" StrokeThickness="1" />
+            <Ellipse x:Name="IdleWeatherBack" Fill="{StaticResource BubbleFill}" Stroke="{StaticResource BubbleRim}" StrokeThickness="1" />
+            <Ellipse x:Name="IdleWeatherGlow" IsHitTestVisible="False" Visibility="Collapsed" StrokeThickness="7" />
+            <Ellipse x:Name="IdleWeatherSheen" IsHitTestVisible="False" Visibility="Collapsed" />
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                 <Border x:Name="IdleWeatherIcon" Width="16" Height="16" HorizontalAlignment="Center" />
                 <TextBlock x:Name="IdleWeatherTemp" FontSize="10" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,-1,0,0" />
@@ -892,11 +895,14 @@
                 </StackPanel>
         </Grid>
 
-        <!-- Carry: a notification or a copy waits as a small bubble for a few seconds. -->
+        <!-- Carry: a notification or a copy waits as a small bubble for a few seconds.
+             Back/sheen/glow match the pill under Liquid Glass (ApplySideBubbleGlass). -->
         <Grid x:Name="CarryBubble" HorizontalAlignment="Left" VerticalAlignment="Top" Width="36" Height="36"
               Visibility="Collapsed" RenderTransformOrigin="0,0.5" Cursor="Hand" MouseLeftButtonUp="OnCarryClick">
             <Grid.RenderTransform><ScaleTransform /></Grid.RenderTransform>
-            <Ellipse Fill="{StaticResource BubbleFill}" Stroke="{StaticResource BubbleRim}" StrokeThickness="1" />
+            <Ellipse x:Name="CarryBack" Fill="{StaticResource BubbleFill}" Stroke="{StaticResource BubbleRim}" StrokeThickness="1" />
+            <Ellipse x:Name="CarryGlow" IsHitTestVisible="False" Visibility="Collapsed" StrokeThickness="7" />
+            <Ellipse x:Name="CarrySheen" IsHitTestVisible="False" Visibility="Collapsed" />
             <Ellipse x:Name="CarryIcon" Margin="5" Visibility="Collapsed" />
             <TextBlock x:Name="CarryGlyph" Style="{StaticResource Glyph}" FontSize="15" Text="&#xE77F;" />
             <Border x:Name="CarryBadge" Width="15" Height="15" CornerRadius="8" Background="#FFFF453A" HorizontalAlignment="Right"

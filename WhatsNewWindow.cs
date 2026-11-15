@@ -24,6 +24,18 @@ public static class WhatsNew
 
     public static readonly IReadOnlyList<Release> Releases = new[]
     {
+        new Release(new Version(1, 3, 0), new[]
+        {
+            new Item("", "#FF64D2FF", "Matching glass bubbles",
+                "Weather and carry bubbles now share the same live Liquid Glass as the pill."),
+            new Item("", "#FFC77DFF", "Clara · Gemini first",
+                "Gemini is the main cloud brain; Groq only steps in as a failsafe. Chat has more room, and " +
+                "Clara's portrait sits beside each reply."),
+            new Item("", "#FF30D158", "Snappier Settings",
+                "Settings stays warm in memory so opening it from the island doesn't hitch the collapse."),
+            new Item("", "#FFFF9F0A", "Cleaner tool replies",
+                "Gemini's fake tool XML spam is stripped; real tools still run."),
+        }),
         new Release(new Version(1, 2, 1), new[]
         {
             new Item("", "#FF30D158", "Updates install by themselves",

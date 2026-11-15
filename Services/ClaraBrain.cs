@@ -175,6 +175,7 @@ public static class ClaraBrain
         sb.AppendLine("# Your tools");
         sb.AppendLine("start_focus (start a focus session of N minutes), stop_focus, set_timer, set_reminder (a reminder with your words after N minutes, with snooze), quiet_mode (silence popups for N minutes, 0 turns it off), add_todo, list_todos, complete_todo, delete_todo, append_note, media_control (play/pause/next/previous the current music), open_app, copy_to_clipboard, add_todos (many at once, with urgency), set_todo_priority, change_setting, describe_app, get_notifications, get_clipboard, apply_look, set_pet, open_page, set_alarm, system_status (RAM and the heaviest apps), free_ram (normal / deep / max), remember, forget. " +
                       "Use them when asked, without asking for confirmation on small things, then confirm in one short line. Don't use a tool just because you can.");
+        sb.AppendLine("CRITICAL: call tools only through the API function-calling interface. Never write tool XML or fake code in your reply — no <execute_tool>, </execute_tool>, <tool_code>, </tool_code>, print(system_status()), or similar. If you need a tool, emit a real function call; if you don't, just answer in plain words.");
         sb.AppendLine();
         sb.AppendLine("# How you think and act");
         sb.AppendLine("- Be proactive in a useful way: if a request implies a follow-up you can do with a tool (a task becomes a to-do and a focus session; a plan needs a timer or an alarm), offer the one best next step in a short line, or just do it when it is clearly what they want.");
@@ -224,29 +225,70 @@ public static class ClaraBrain
     };
 
     /// <summary>
-    /// Small local models sometimes write a tool call as plain text ("start_focus(25)" or {"name": "...", "parameters": {...}})
-    /// instead of making a real one. Find those, turn them into real calls, and return the text without them.
+    /// Models sometimes write a tool call as plain text instead of a real API call:
+    /// start_focus(25), {"name":...}, or Gemini's &lt;execute_tool&gt; / print(system_status()) spam.
+    /// Find those, turn them into real calls, and return the text without them.
     /// </summary>
     public static (List<ToolCall> Calls, string Clean) ExtractTextCalls(string text)
     {
         var calls = new List<ToolCall>();
-        var clean = text;
+        var clean = text ?? "";
         var names = string.Join("|", ToolParams.Keys);
-        var json = System.Text.RegularExpressions.Regex.Matches(clean, @"\{\s*""name""\s*:\s*""(?<n>\w+)""\s*,\s*""(?:parameters|arguments)""\s*:\s*(?<a>\{[^{}]*\})\s*\}");
-        foreach (System.Text.RegularExpressions.Match m in json)
-            if (ToolParams.ContainsKey(m.Groups["n"].Value)) calls.Add(new ToolCall($"text_{calls.Count}", m.Groups["n"].Value, m.Groups["a"].Value));
-        clean = System.Text.RegularExpressions.Regex.Replace(clean, @"\{\s*""name""\s*:\s*""\w+""\s*,\s*""(?:parameters|arguments)""\s*:\s*\{[^{}]*\}\s*\}", "");
-        foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(clean, $@"\(?(?<n>{names})\s*\((?<a>[^()]*)\)\)?"))
+
+        void AddCall(string name, string argsJson)
+        {
+            if (!ToolParams.ContainsKey(name)) return;
+            if (calls.Any(c => c.Name == name && c.Arguments == argsJson)) return;
+            calls.Add(new ToolCall($"text_{calls.Count}", name, argsJson));
+        }
+
+        // Gemini / Antigravity-style wrappers: <execute_tool>…</execute_tool>, <tool_code>…</tool_code>
+        clean = System.Text.RegularExpressions.Regex.Replace(clean,
+            @"</?(?:execute_tool|tool_code|tool_call|function_call)\b[^>]*>", "\n",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        // print(system_status()) / print(default_api.system_status()) / default_api.system_status()
+        foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(clean,
+                     $@"(?:print\s*\(\s*)?(?:default_api\.)?(?<n>{names})\s*\((?<a>[^()]*)\)\s*\)?",
+                     System.Text.RegularExpressions.RegexOptions.IgnoreCase))
         {
             var name = m.Groups["n"].Value;
-            var parts = System.Text.RegularExpressions.Regex.Split(m.Groups["a"].Value, @",(?=(?:[^""]*""[^""]*"")*[^""]*$)").Select(p => p.Trim().Trim('"', (char)39)).Where(p => p.Length > 0).ToList();
+            var parts = System.Text.RegularExpressions.Regex.Split(m.Groups["a"].Value, @",(?=(?:[^""]*""[^""]*"")*[^""]*$)")
+                .Select(p => p.Trim().Trim('"', '\'')).Where(p => p.Length > 0).ToList();
             var obj = new JsonObject();
             var keys = ToolParams[name];
             for (var i = 0; i < keys.Length && i < parts.Count; i++)
-                obj[keys[i]] = double.TryParse(parts[i], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var num) && keys[i] is "minutes" ? JsonValue.Create(num) : JsonValue.Create(parts[i]);
-            calls.Add(new ToolCall($"text_{calls.Count}", name, obj.ToJsonString()));
+                obj[keys[i]] = double.TryParse(parts[i], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var num) && keys[i] is "minutes"
+                    ? JsonValue.Create(num) : JsonValue.Create(parts[i]);
+            AddCall(name, obj.ToJsonString());
         }
-        clean = System.Text.RegularExpressions.Regex.Replace(clean, $@"\(?(?:{names})\s*\([^()]*\)\)?", "").Trim();
+        clean = System.Text.RegularExpressions.Regex.Replace(clean,
+            $@"(?:print\s*\(\s*)?(?:default_api\.)?(?:{names})\s*\([^()]*\)\s*\)?", "",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        var json = System.Text.RegularExpressions.Regex.Matches(clean, @"\{\s*""name""\s*:\s*""(?<n>\w+)""\s*,\s*""(?:parameters|arguments)""\s*:\s*(?<a>\{[^{}]*\})\s*\}");
+        foreach (System.Text.RegularExpressions.Match m in json)
+            AddCall(m.Groups["n"].Value, m.Groups["a"].Value);
+        clean = System.Text.RegularExpressions.Regex.Replace(clean, @"\{\s*""name""\s*:\s*""\w+""\s*,\s*""(?:parameters|arguments)""\s*:\s*\{[^{}]*\}\s*\}", "");
+
+        // Bare name(args) left over
+        foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(clean, $@"\b(?<n>{names})\s*\((?<a>[^()]*)\)"))
+        {
+            var name = m.Groups["n"].Value;
+            var parts = System.Text.RegularExpressions.Regex.Split(m.Groups["a"].Value, @",(?=(?:[^""]*""[^""]*"")*[^""]*$)")
+                .Select(p => p.Trim().Trim('"', '\'')).Where(p => p.Length > 0).ToList();
+            var obj = new JsonObject();
+            var keys = ToolParams[name];
+            for (var i = 0; i < keys.Length && i < parts.Count; i++)
+                obj[keys[i]] = double.TryParse(parts[i], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var num) && keys[i] is "minutes"
+                    ? JsonValue.Create(num) : JsonValue.Create(parts[i]);
+            AddCall(name, obj.ToJsonString());
+        }
+        clean = System.Text.RegularExpressions.Regex.Replace(clean, $@"\b(?:{names})\s*\([^()]*\)", "");
+
+        // Collapse the junk Gemini leaves behind
+        clean = System.Text.RegularExpressions.Regex.Replace(clean, @"[ \t]+\n", "\n");
+        clean = System.Text.RegularExpressions.Regex.Replace(clean, @"\n{3,}", "\n\n").Trim();
         return (calls, clean);
     }
 

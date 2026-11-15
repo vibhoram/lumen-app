@@ -335,7 +335,8 @@ public partial class MainWindow : Window
         InitMotionArtwork();
         LocationChanged += (_, _) => SyncGpuBounds();
         SizeChanged += (_, _) => SyncGpuBounds();
-        DpiChanged += (_, _) => SyncGpuBounds();
+        // DPI change: glass clip was built with the old scale — looks like a hard seam until expand/collapse rebuilds it.
+        DpiChanged += (_, _) => Dispatcher.InvokeAsync(RefreshGlassHost, DispatcherPriority.Loaded);
 
         SourceInitialized += OnSourceInitialized;
         Loaded += OnLoaded;
@@ -1745,7 +1746,6 @@ public partial class MainWindow : Window
         GlassGlow.Clip = shape;
         GlassLayer.Clip = shape;
         ContentLayer.Clip = shape;
-        UpdateGpuShape();
 
         // The second-activity bubble sits just right of the pill, as tall as it; the privacy dot after it.
         var right = (BaseWidth + w) / 2;
@@ -1779,6 +1779,9 @@ public partial class MainWindow : Window
         }
         if (PrivacyDot.Visibility == Visibility.Visible)
             PrivacyDot.Margin = new Thickness(right + 7, PillTop + h / 2 - PrivacyDot.Height / 2, 0, 0);
+
+        // After bubble margins: glass HWND is pill ∪ weather/carry so they get the same live blur.
+        UpdateGpuShape();
 
         // One padded axis-aligned region around the real chrome. Tight per-shape GDI regions clipped the
         // pet (it walks via RenderTransform outside its 44px box) and jagged the WPF-AA pill corners.
@@ -1825,11 +1828,12 @@ public partial class MainWindow : Window
                    CarryBubble, PinnedTimerBubble, QuickTray, PrivacyDot })
             IncludePart(part);
 
-        // Pet walks with a translate across SetRange(0, pillW+44), not inside its 44px layout box.
+        // Pet walks with a translate across SetRange(0, pillW+44); speech bubbles stick out further.
         if (_pet.Visibility == Visibility.Visible)
         {
-            const double pad = 8; // speech bubble / bob room
-            Include(_pet.Margin.Left, _pet.Margin.Top - pad, pw + 44, PetWidget.SpriteHeight + pad + 18);
+            const double pad = 8;
+            const double speech = 110; // "good stretch" / longer quips beside the sprite
+            Include(_pet.Margin.Left - speech, _pet.Margin.Top - pad, pw + 44 + speech * 2, PetWidget.SpriteHeight + pad + 22);
         }
 
         const double aa = 10; // keep WPF anti-aliased edges inside the region
@@ -2207,13 +2211,34 @@ public partial class MainWindow : Window
         return false;
     }
 
+    private double _glassDpi = -1;
+
     private void SyncGpuBounds()
     {
         if (_gpuBlur is null) return;
         var hwnd = new WindowInteropHelper(this).Handle;
         if (hwnd == IntPtr.Zero || !NativeMethods.GetWindowRect(hwnd, out var rect)) return;
+        var dpi = VisualTreeHelper.GetDpi(this).DpiScaleX;
+        // Same window rect after a DPI switch still needs a new shape (design×dpi → pixels).
+        if (Math.Abs(dpi - _glassDpi) > 0.001)
+        {
+            _glassDpi = dpi;
+            _gpuBlur.InvalidateShape();
+        }
         _gpuBlur.SetBounds(rect);
         UpdateGpuShape();
+    }
+
+    /// <summary>
+    /// Rebuild glass after the host DPI/monitor settles. Expand→collapse was accidentally fixing a
+    /// stale clip on the other screen; do that refresh without needing the user to open the island.
+    /// </summary>
+    private void RefreshGlassHost()
+    {
+        if (_gpuBlur is null) return;
+        _gpuBlur.InvalidateShape();
+        SyncGpuBounds();
+        if (IsLoaded) ApplyGeometry();
     }
 
     /// <summary>Clip/blur/opacity of the GPU backdrop, in its window pixels. Called every animation frame.</summary>
@@ -2233,7 +2258,30 @@ public partial class MainWindow : Window
             (float)((BaseWidth - w) / 2 * f), (float)((PillTop - extra) * f),
             (float)(w * f), (float)((h + extra) * f), (float)(r * f),
             (float)(Math.Clamp(_settings.GlassBlur, 0, 1) * MaxGlassBlur * f),
-            (float)_glassStrength);
+            (float)_glassStrength,
+            CollectGlassBubblesPx(f));
+    }
+
+    /// <summary>Weather + carry bubbles in glass-window pixels so they share the pill's live blur.</summary>
+    private (float X, float Y, float Size)[]? CollectGlassBubblesPx(double f)
+    {
+        if (!IsGlass) return null;
+        (float X, float Y, float Size) One(FrameworkElement bubble)
+        {
+            if (bubble.Visibility != Visibility.Visible) return default;
+            var size = bubble.Width > 0 ? bubble.Width : bubble.ActualWidth;
+            if (size < 2) return default;
+            return ((float)(bubble.Margin.Left * f), (float)(bubble.Margin.Top * f), (float)(size * f));
+        }
+        var weather = One(IdleWeatherBubble);
+        var carry = One(CarryBubble);
+        var n = (weather.Size >= 2 ? 1 : 0) + (carry.Size >= 2 ? 1 : 0);
+        if (n == 0) return null;
+        var list = new (float X, float Y, float Size)[n];
+        var i = 0;
+        if (weather.Size >= 2) list[i++] = weather;
+        if (carry.Size >= 2) list[i] = carry;
+        return list;
     }
 
     /// <summary>Copies the screen behind the pill (plus room for the blur to spread) into the glass image.</summary>
@@ -2373,6 +2421,51 @@ public partial class MainWindow : Window
         return sheen;
     }
 
+    /// <summary>Paints only the weather and carry bubbles to match the pill's Liquid Glass chrome.</summary>
+    private void ApplySideBubbleGlass(Color core, bool glass, double shine, double edge, double strength)
+    {
+        Brush fillBrush;
+        if (glass)
+        {
+            var fill = core;
+            fill.A = core.A; // identical tint to the pill so the shared GPU blur reads the same
+            var solid = new SolidColorBrush(fill);
+            solid.Freeze();
+            fillBrush = solid;
+        }
+        else fillBrush = (Brush)FindResource("BubbleFill");
+        var rim = glass
+            ? CreateGlassRim(Math.Max(edge, 0.55) * Math.Max(strength, 0.65))
+            : (Brush)FindResource("BubbleRim");
+        var sheen = glass ? CreateGlassSheen(Math.Max(shine, 0.55)) : null;
+        var glow = glass ? CreateGlassGlow(Math.Max(edge, 0.35) * Math.Max(strength, 0.5)) : null;
+
+        void Paint(Ellipse back, Ellipse glowEl, Ellipse sheenEl)
+        {
+            back.Fill = fillBrush;
+            back.Stroke = rim;
+            back.StrokeThickness = glass ? 1.35 : 1.0;
+            if (glass && glow is not null)
+            {
+                glowEl.Stroke = glow;
+                glowEl.StrokeThickness = 7;
+                glowEl.Opacity = Math.Clamp(0.28 + edge * 0.35, 0.28, 0.65);
+                glowEl.Visibility = Visibility.Visible;
+            }
+            else glowEl.Visibility = Visibility.Collapsed;
+            if (glass && sheen is not null)
+            {
+                sheenEl.Fill = sheen;
+                sheenEl.Opacity = Math.Clamp(0.4 + shine * 0.35, 0.4, 0.9);
+                sheenEl.Visibility = Visibility.Visible;
+            }
+            else sheenEl.Visibility = Visibility.Collapsed;
+        }
+
+        Paint(IdleWeatherBack, IdleWeatherGlow, IdleWeatherSheen);
+        Paint(CarryBack, CarryGlow, CarrySheen);
+    }
+
     private readonly DropShadowEffect _textShadow = new()
     {
         BlurRadius = 6,
@@ -2476,6 +2569,9 @@ public partial class MainWindow : Window
         GlassGlow.BeginAnimation(OpacityProperty, new DoubleAnimation(Math.Max(strength, 0.35), TimeSpan.FromMilliseconds(450)));
         GlassSheen.Fill = CreateGlassSheen(shine);
         GlassSheen.BeginAnimation(OpacityProperty, new DoubleAnimation(strength, TimeSpan.FromMilliseconds(450)));
+
+        // Weather + carry: same tint / rim / sheen as the pill (GPU blur is under them via UpdateGpuShape).
+        ApplySideBubbleGlass(baseColor, glass, shine, edge, strength);
 
         // Text shadow wherever the background can be see-through.
         var seeThrough = glass || _settings.Material == IslandMaterial.Translucent || strength < 1;
@@ -2754,6 +2850,8 @@ public partial class MainWindow : Window
     private void OpenSettings(string? section = null)
     {
         _hoverTimer.Stop();
+        // Settings is about to take focus — don't bounce it to the previous app first (visible jitter).
+        if (_typing) EndTyping(restoreFocus: false);
         SetExpanded(false);
         SettingsRequested?.Invoke(section);
     }

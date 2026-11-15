@@ -67,7 +67,7 @@ internal sealed class GpuBlurBackdrop : IDisposable
     private readonly HashSet<IntPtr> _excluded = new();
     private NativeMethods.RECT _bounds;
     private bool _visible = true;
-    private (float X, float Y, float W, float H, float R, float Blur, float Opacity) _shape;
+    private (float X, float Y, float W, float H, float R, float Blur, float Opacity, int Circles) _shape;
     private LensRenderer? _lens;
     private IDCompositionVisual2? _lensVisual;
     private float _lensStrength = 14, _lensShine = 0.9f;
@@ -125,10 +125,14 @@ internal sealed class GpuBlurBackdrop : IDisposable
     public void Exclude(IntPtr hwnd) => _excluded.Add(hwnd);
 
     /// <summary>Matches the island window's screen rectangle.</summary>
+    /// <summary>Force the next SetShape to rebuild clip/region (DPI / monitor moves with the same design size).</summary>
+    public void InvalidateShape() => _shape = default;
+
     public void SetBounds(NativeMethods.RECT r)
     {
         if (r.Equals(_bounds)) return;
         _bounds = r;
+        _shape = default; // same design size on another monitor still needs a fresh SetShape
         try { _lens?.Resize(r.Right - r.Left, r.Bottom - r.Top); } catch (Exception ex) { App.LogError(ex); }
         NativeMethods.SetWindowPos(_hwnd, IntPtr.Zero, r.Left, r.Top, r.Right - r.Left, r.Bottom - r.Top,
             NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOOWNERZORDER);
@@ -302,33 +306,79 @@ internal sealed class GpuBlurBackdrop : IDisposable
         _layers[index] = new Layer(old.Hwnd, thumbnail, visual) { Rect = rect };
     }
 
-    /// <summary>Shape, blur radius and opacity, in backdrop-window pixels. Called every animation frame.</summary>
-    public void SetShape(float x, float y, float width, float height, float radius, float blurRadius, float opacity)
+    /// <summary>
+    /// Shape, blur radius and opacity, in backdrop-window pixels. Optional <paramref name="circles"/>
+    /// (x, y, size) get the same live blur as the pill — HWND region is pill ∪ circles so the gap
+    /// between them stays click-through.
+    /// </summary>
+    public void SetShape(float x, float y, float width, float height, float radius, float blurRadius, float opacity,
+        (float X, float Y, float Size)[]? circles = null)
     {
-        var shape = (x, y, width, height, radius, blurRadius, opacity);
+        var circleKey = 0;
+        if (circles is { Length: > 0 })
+        {
+            foreach (var c in circles)
+                circleKey = HashCode.Combine(circleKey, c.X.GetHashCode(), c.Y.GetHashCode(), c.Size.GetHashCode());
+        }
+        var shape = (x, y, width, height, radius, blurRadius, opacity, circleKey);
         if (shape == _shape) return; // skip redundant commits while idle
         _shape = shape;
 
-        _clip.SetLeft(x);
-        _clip.SetTop(y);
-        _clip.SetRight(x + width);
-        _clip.SetBottom(y + height);
-        _clip.SetTopLeftRadiusX(radius);
-        _clip.SetTopLeftRadiusY(radius);
-        _clip.SetTopRightRadiusX(radius);
-        _clip.SetTopRightRadiusY(radius);
-        _clip.SetBottomLeftRadiusX(radius);
-        _clip.SetBottomLeftRadiusY(radius);
-        _clip.SetBottomRightRadiusX(radius);
-        _clip.SetBottomRightRadiusY(radius);
-        // Standard deviation â‰ˆ radius / 3 matches WPF's BlurEffect radius.
+        // DComp clip covers the pill and any side bubbles; the HWND region carves the real silhouette.
+        var clipL = x;
+        var clipT = y;
+        var clipR = x + width;
+        var clipB = y + height;
+        if (circles is { Length: > 0 })
+        {
+            foreach (var c in circles)
+            {
+                if (c.Size < 2) continue;
+                clipL = Math.Min(clipL, c.X);
+                clipT = Math.Min(clipT, c.Y);
+                clipR = Math.Max(clipR, c.X + c.Size);
+                clipB = Math.Max(clipB, c.Y + c.Size);
+            }
+        }
+        _clip.SetLeft(clipL);
+        _clip.SetTop(clipT);
+        _clip.SetRight(clipR);
+        _clip.SetBottom(clipB);
+        // Pill alone: rounded clip. With side bubbles the HWND region is the silhouette — a rounded
+        // bbox clip would shave the outer bubbles at the corners.
+        var clipR_ = circles is { Length: > 0 } ? 0f : radius;
+        _clip.SetTopLeftRadiusX(clipR_);
+        _clip.SetTopLeftRadiusY(clipR_);
+        _clip.SetTopRightRadiusX(clipR_);
+        _clip.SetTopRightRadiusY(clipR_);
+        _clip.SetBottomLeftRadiusX(clipR_);
+        _clip.SetBottomLeftRadiusY(clipR_);
+        _clip.SetBottomRightRadiusX(clipR_);
+        _clip.SetBottomRightRadiusY(clipR_);
+        // Standard deviation ≈ radius / 3 matches WPF's BlurEffect radius.
         _blur.SetStandardDeviation(Math.Max(0.01f, blurRadius / 3f));
         _root3?.SetOpacity(Math.Clamp(opacity, 0, 1));
-        // Clip the HWND itself to the pill: HTTRANSPARENT only passes clicks to windows of this process, so without a region this
-        // window ate every click in its whole rectangle (the dead space around the island).
-        var region = NativeMethods.CreateRoundRectRgn((int)Math.Floor(x) - 1, (int)Math.Floor(y) - 1, (int)Math.Ceiling(x + width) + 1, (int)Math.Ceiling(y + height) + 1, Math.Max(2, (int)(radius * 2)), Math.Max(2, (int)(radius * 2)));
+
+        // Pill ∪ side-bubble circles. HTTRANSPARENT alone does not pass clicks to other processes.
+        var region = NativeMethods.CreateRoundRectRgn(
+            (int)Math.Floor(x) - 1, (int)Math.Floor(y) - 1,
+            (int)Math.Ceiling(x + width) + 1, (int)Math.Ceiling(y + height) + 1,
+            Math.Max(2, (int)(radius * 2)), Math.Max(2, (int)(radius * 2)));
+        if (circles is { Length: > 0 })
+        {
+            foreach (var c in circles)
+            {
+                if (c.Size < 2) continue;
+                var ellipse = NativeMethods.CreateEllipticRgn(
+                    (int)Math.Floor(c.X) - 1, (int)Math.Floor(c.Y) - 1,
+                    (int)Math.Ceiling(c.X + c.Size) + 1, (int)Math.Ceiling(c.Y + c.Size) + 1);
+                NativeMethods.CombineRgn(region, region, ellipse, NativeMethods.RGN_OR);
+                NativeMethods.DeleteObject(ellipse);
+            }
+        }
         NativeMethods.SetWindowRgn(_hwnd, region, false); // the system owns the region after this
         _device.Commit();
+        // Lens stays on the pill only — short side bubbles cannot host a bevel ring.
         _lens?.SetShape(x, y, width, height, radius, _bounds.Left, _bounds.Top, Math.Min(4f, blurRadius * 0.25f), _lensStrength, 0.02f, _lensShine);
     }
 

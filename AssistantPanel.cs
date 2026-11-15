@@ -22,8 +22,9 @@ namespace DIsland;
 public sealed class AssistantPanel : Grid
 {
     internal static readonly FontFamily IconFont = new("Segoe Fluent Icons, Segoe MDL2 Assets");
-    private static readonly Color AccentA = Color.FromRgb(0x3B, 0x9D, 0xFF);
-    private static readonly Color AccentB = Color.FromRgb(0x0A, 0x7A, 0xFF);
+    // Neon cyberpunk: cool cyan into electric violet (matches Clara's portrait glow).
+    private static readonly Color AccentA = Color.FromRgb(0x5E, 0xE7, 0xFF);
+    private static readonly Color AccentB = Color.FromRgb(0xB0, 0x5C, 0xFF);
 
     private readonly AppSettings _settings;
     private readonly List<ChatMessage> _history = new();
@@ -55,9 +56,9 @@ public sealed class AssistantPanel : Grid
     /// <summary>Bumps activity (hotkey / send). Does not pin the island open anymore.</summary>
     public void KeepAlive() => _lastActivity = DateTime.UtcNow;
 
-    /// <summary>Compact Clara chat well — grows for a long latest reply, shrinks back for short ones; older messages stay scrollable.</summary>
-    private const double ChatMinHeight = 112;
-    private const double ChatMaxHeight = 300;
+    /// <summary>Clara chat well — roomy enough for a turn + reply; grows for long answers, shrinks back for short ones.</summary>
+    private const double ChatMinHeight = 220;
+    private const double ChatMaxHeight = 360;
 
     /// <summary>Island should remeasure when a reply grows the chat.</summary>
     public event Action? LayoutChanged;
@@ -74,7 +75,7 @@ public sealed class AssistantPanel : Grid
     {
         _status.Inlines.Clear();
         if (_engineName.Length == 0) { _status.Text = "online"; return; }
-        _status.Inlines.Add(new System.Windows.Documents.Run("● ") { Foreground = _engineLocal ? B("#30D158") : B("#4DA3FF"), FontSize = 9 });
+        _status.Inlines.Add(new System.Windows.Documents.Run("● ") { Foreground = _engineLocal ? B("#39FF9A") : B("#C77DFF"), FontSize = 9 });
         _status.Inlines.Add(new System.Windows.Documents.Run(_engineLocal ? $"local · {_engineName}" : $"cloud · {_engineName}"));
     }
 
@@ -84,8 +85,11 @@ public sealed class AssistantPanel : Grid
         string? local = _settings.AssistantUseLocalAi ? await LocalAi.PickModelAsync(_settings) : null;
         if (_busy) return;
         if (local is not null) SetEngine(true, local.Split(':')[0]);
-        else SetEngine(false, _settings.CloudProvider == CloudProvider.Gemini ? "gemini" : "groq");
+        else SetEngine(false, PreferGemini() ? "gemini" : "groq");
     }
+
+    /// <summary>Gemini is the cloud main; Groq only when there's no Gemini key (or as a mid-reply failsafe).</summary>
+    private bool PreferGemini() => !string.IsNullOrWhiteSpace(_settings.GeminiApiKey);
     private bool _focused;
     private string? _pendingText;
 
@@ -431,8 +435,9 @@ public sealed class AssistantPanel : Grid
             var text = (preset ?? _input.Text).Trim();
             var quote = _pendingText;
             if (text.Length == 0 && _pending is null && quote is null && !grabScreen) return;
-            // No Groq key is fine for plain text if an offline model is available; pictures need the key.
-            if (string.IsNullOrWhiteSpace(_settings.CloudKey)
+            // No cloud key is fine for plain text if an offline model is available; pictures need Gemini/Groq.
+            var hasCloud = PreferGemini() || !string.IsNullOrWhiteSpace(_settings.GroqApiKey);
+            if (!hasCloud
                 && (_pending is not null || grabScreen || _settings.AssistantLiveScreen || !_settings.AssistantUseLocalAi || await LocalAi.PickModelAsync(_settings) is null))
             {
                 ShowNoKey();
@@ -476,40 +481,48 @@ public sealed class AssistantPanel : Grid
         var reply = new StringBuilder();
         var tools = ClaraBrain.Tools();
 
-        // Which brain answers: text-only chats run offline on this PC (Ollama); anything with a picture, or right after one, goes to Groq.
-        var cloudNeeded = image is not null; // only the picture you are sending right now needs the cloud; text follow-ups stay offline
+        // Text-only can stay offline (Ollama). Pictures need the cloud. Cloud main = Gemini; Groq is failsafe only.
+        var cloudNeeded = image is not null;
         var localModel = !cloudNeeded && _settings.AssistantUseLocalAi ? await LocalAi.PickModelAsync(_settings) : null;
-        if (localModel is null && string.IsNullOrWhiteSpace(_settings.CloudKey)) { ShowNoKey(); SetBusy(false); return; }
+        var hasCloud = PreferGemini() || !string.IsNullOrWhiteSpace(_settings.GroqApiKey);
+        if (localModel is null && !hasCloud) { ShowNoKey(); SetBusy(false); return; }
         var useLocal = localModel is not null;
-        SetEngine(useLocal, useLocal ? localModel!.Split(':')[0] : _settings.CloudProvider == CloudProvider.Gemini ? "gemini" : "groq");
-        var engineModel = useLocal ? localModel! : _settings.CloudModel;
-        string? cKey = useLocal ? null : _settings.CloudKey;
-        string? cUrl = useLocal ? LocalAi.ChatEndpoint : _settings.CloudEndpoint is { Length: > 0 } primaryUrl ? primaryUrl : null;
+        var useGemini = PreferGemini();
+        string? cKey = null;
+        string? cUrl = useLocal ? LocalAi.ChatEndpoint : null;
+        var engineModel = useLocal ? localModel! : "";
+        void ApplyCloud(bool gemini)
+        {
+            useGemini = gemini;
+            cKey = gemini ? _settings.GeminiApiKey : _settings.GroqApiKey;
+            engineModel = gemini
+                ? (string.IsNullOrWhiteSpace(_settings.GeminiModel) ? "gemini-2.5-flash" : _settings.GeminiModel)
+                : _settings.GroqModel;
+            cUrl = gemini ? AppSettings.GeminiEndpoint : null;
+            SetEngine(false, gemini ? "gemini" : "groq");
+        }
+        if (useLocal) SetEngine(true, localModel!.Split(':')[0]);
+        else ApplyCloud(useGemini);
         var backupUsed = false;
 
-        // If the brain in use fails before saying anything (offline model down, rate limit, bad key), quietly move to the next one:
-        // offline -> your chosen cloud brain -> the other cloud brain (Groq is the safety net for Gemini and the other way round).
+        // offline → Gemini → Groq. Groq is the last resort, never the first pick when Gemini has a key.
         bool SwitchToBackup()
         {
             if (useLocal)
             {
-                if (string.IsNullOrWhiteSpace(_settings.CloudKey)) return false;
+                if (!hasCloud) return false;
                 useLocal = false;
-                cKey = _settings.CloudKey;
-                engineModel = _settings.CloudModel;
-                cUrl = _settings.CloudEndpoint is { Length: > 0 } u ? u : null;
-                SetEngine(false, _settings.CloudProvider == CloudProvider.Gemini ? "gemini" : "groq");
+                cUrl = null;
+                ApplyCloud(PreferGemini());
                 return true;
             }
             if (backupUsed) return false;
-            var toGemini = _settings.CloudProvider != CloudProvider.Gemini;
+            // Failsafe: if we were on Gemini, try Groq; if we somehow started on Groq (no Gemini key), try Gemini.
+            var toGemini = !useGemini;
             var key = toGemini ? _settings.GeminiApiKey : _settings.GroqApiKey;
             if (string.IsNullOrWhiteSpace(key)) return false;
             backupUsed = true;
-            cKey = key;
-            engineModel = toGemini ? (string.IsNullOrWhiteSpace(_settings.GeminiModel) ? "gemini-2.5-flash" : _settings.GeminiModel) : _settings.GroqModel;
-            cUrl = toGemini ? AppSettings.GeminiEndpoint : null;
-            SetEngine(false, toGemini ? "gemini" : "groq");
+            ApplyCloud(toGemini);
             return true;
         }
         try
@@ -544,9 +557,10 @@ public sealed class AssistantPanel : Grid
                     continue;
                 }
 
-                if (calls is null && useLocal)
+                // Local models and Gemini often dump fake tool XML / print(system_status()) as text.
+                // Turn those into real calls and scrub the garbage out of the bubble.
+                if (calls is null)
                 {
-                    // the local model wrote a command as text instead of calling the tool: run it, and hide the text
                     var (found, cleaned) = ClaraBrain.ExtractTextCalls(turn.ToString());
                     if (found.Count > 0)
                     {
@@ -556,6 +570,15 @@ public sealed class AssistantPanel : Grid
                         reply.Append(cleaned);
                         bubble.SetText(NoDashes(reply.ToString()));
                         calls = found;
+                    }
+                    else if (System.Text.RegularExpressions.Regex.IsMatch(turn.ToString(),
+                                 @"</?(?:execute_tool|tool_code|tool_call|function_call)\b",
+                                 System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                    {
+                        // Pure junk loop with no recoverable tool — wipe it so the user doesn't see the spam.
+                        reply.Length = Math.Max(0, reply.Length - turn.Length);
+                        turn.Clear();
+                        bubble.SetText(NoDashes(reply.ToString()));
                     }
                 }
                 if (calls is null)
@@ -592,12 +615,13 @@ public sealed class AssistantPanel : Grid
         catch (Exception ex)
         {
             _history.RemoveRange(start, _history.Count - start); // so a retry doesn't duplicate the question
+            var brain = _engineName.Length > 0 ? _engineName : (PreferGemini() ? "gemini" : "groq");
             var message = ex switch
             {
-                GroqException { Status: 401 } => "Groq rejected the API key. Check it in Settings > Clara.",
-                GroqException { Status: 429 } => "I've hit Groq's rate limit. Give it a few seconds, then retry.",
+                GroqException { Status: 401 } => $"{brain} rejected the API key. Check it in Settings > Clara.",
+                GroqException { Status: 429 } => $"I've hit {brain}'s rate limit. Give it a few seconds, then retry.",
                 GroqException g => g.Message,
-                HttpRequestException => "I can't reach Groq. Check your connection.",
+                HttpRequestException => $"I can't reach {brain}. Check your connection.",
                 _ => ex.Message,
             };
             bubble.Fail(message, () =>
@@ -857,8 +881,8 @@ public sealed class AssistantPanel : Grid
             Children =
             {
                 avatar,
-                new TextBlock { Text = "Hey, I'm Clara.", FontSize = 15, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 8, 0, 0) },
-                new TextBlock { Text = greeting, FontSize = 12, Opacity = 0.65, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 1, 0, 0) },
+                new TextBlock { Text = "Hey, I'm Clara.", FontSize = 15, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 10, 0, 0) },
+                new TextBlock { Text = greeting, FontSize = 12, Opacity = 0.7, Foreground = B("#B8F0FF"), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 2, 0, 0) },
                 chips,
             },
         };
@@ -917,11 +941,11 @@ public sealed class AssistantPanel : Grid
                 Child = _host,
             };
             _bubble.SetValue(TextElement.FontFamilyProperty, new FontFamily("Segoe UI Variable Text, Segoe UI, Segoe UI Emoji, Segoe UI Symbol")); // emoji fall back to a font that has them
-            var avatar = MakeAvatar(22);
+            // Discord-style: circular pfp left of the bubble (big enough to read her face).
+            var avatar = MakeAvatar(32);
             avatar.VerticalAlignment = VerticalAlignment.Top;
-            avatar.Margin = new Thickness(0, 2, 8, 0);
-            // a grid, so the bubble is limited to the room that is actually there (a stack panel let it run off the right edge)
-            var row = new Grid { HorizontalAlignment = HorizontalAlignment.Stretch, Margin = new Thickness(0, 0, 14, 8) };
+            avatar.Margin = new Thickness(0, 0, 10, 0);
+            var row = new Grid { HorizontalAlignment = HorizontalAlignment.Stretch, Margin = new Thickness(0, 0, 10, 10) };
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             row.Children.Add(avatar);
@@ -1237,7 +1261,7 @@ public sealed class AssistantPanel : Grid
     /// <summary>The one accent: a calm iOS blue, lit slightly from above (no rainbow gradients).</summary>
     internal static Brush AccentGradient() => new LinearGradientBrush(AccentA, AccentB, 90);
 
-    /// <summary>Clara's avatar: her portrait if one is on disk, otherwise a luminous glass presence.</summary>
+    /// <summary>Clara's avatar: her cyberpunk portrait if on disk, otherwise a neon android face.</summary>
     private static FrameworkElement MakeAvatar(double size)
     {
         var portrait = LoadPortrait();
@@ -1245,77 +1269,132 @@ public sealed class AssistantPanel : Grid
         {
             Width = size,
             Height = size,
+            ClipToBounds = false,
             RenderTransformOrigin = new Point(0.5, 0.5),
             RenderTransform = new ScaleTransform(1, 1),
-            Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Colors.White, BlurRadius = size * 0.4, ShadowDepth = 0, Opacity = 0.22 },
+            // Soft magenta bloom — lighter on tiny chat pfps so the face stays sharp.
+            Effect = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                Color = Color.FromRgb(0xC0, 0x6B, 0xFF),
+                BlurRadius = size < 40 ? size * 0.35 : size * 0.55,
+                ShadowDepth = 0,
+                Opacity = size < 40 ? 0.35 : 0.45,
+            },
         };
         if (portrait is not null)
         {
-            grid.Children.Add(new Ellipse { Fill = new ImageBrush(portrait) { Stretch = Stretch.UniformToFill } });
+            // Face-forward crop: UniformToFill + top align keeps eyes in the circle.
+            var face = new ImageBrush(portrait)
+            {
+                Stretch = Stretch.UniformToFill,
+                AlignmentX = AlignmentX.Center,
+                AlignmentY = AlignmentY.Top,
+            };
+            face.Freeze();
+            grid.Children.Add(new Ellipse { Fill = face });
         }
         else
         {
             grid.Children.Add(BuildAndroidFace(size));
         }
-        // Glass rim: bright where the light hits (top-left), faint elsewhere.
+        // Neon glass rim: cyan highlight → violet shadow (reads clearly at chat-pfp size).
         grid.Children.Add(new Ellipse
         {
-            StrokeThickness = Math.Max(1, size / 30),
-            Stroke = new LinearGradientBrush(Color.FromArgb(0xC0, 255, 255, 255), Color.FromArgb(0x25, 255, 255, 255), 45),
+            IsHitTestVisible = false,
+            StrokeThickness = Math.Max(1.4, size / 18),
+            Stroke = new LinearGradientBrush(
+                Color.FromArgb(0xF0, 0x7A, 0xF0, 0xFF),
+                Color.FromArgb(0xA0, 0xB0, 0x5C, 0xFF), 45),
         });
         return grid;
     }
 
     /// <summary>
-    /// Clara's face when no portrait file is present: a sleek white android in soft daylight (white helmet, dark visor with a
-    /// blue glow, an ear lens, a mechanical neck with an orange wire), drawn from vector shapes in a 100x100 box.
+    /// Fallback when no clara.png is present: dark-chrome android, green neck rings, purple temple LED, cyan eyes.
     /// </summary>
     private static FrameworkElement BuildAndroidFace(double size)
     {
-        // adult proportions: a long oval face with a defined jaw, narrow almond eyes, a slim neck, moody dusk light
         Brush Grad(Color a, Color b, double angle = 90) => new LinearGradientBrush(a, b, angle);
         Color Hex(string h) => (Color)ColorConverter.ConvertFromString(h);
         var c = new Canvas { Width = 100, Height = 100, ClipToBounds = true };
-        c.Children.Add(new Ellipse { Width = 100, Height = 100, Fill = new RadialGradientBrush(Hex("#EDE6DA"), Hex("#4E5A6A")) { GradientOrigin = new Point(0.3, 0.25), RadiusX = 0.85, RadiusY = 0.85 } });
-        foreach (var (bx, by, br, ba) in new[] { (8.0, 16.0, 7.0, 0x30), (80.0, 10.0, 9.0, 0x22), (84.0, 58.0, 6.0, 0x28), (14.0, 62.0, 5.0, 0x22) })
-            c.Children.Add(new Ellipse { Width = br * 2, Height = br * 2, Fill = new SolidColorBrush(Color.FromArgb((byte)ba, 0xFF, 0xC8, 0x90)), Margin = new Thickness(bx, by, 0, 0) });
-        // shoulders and collar plates
-        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M 0,100 C 4,84 22,78 50,78 C 78,78 96,84 100,100 Z"), Fill = Grad(Hex("#E9EDF2"), Hex("#8E99A8")) });
-        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M 30,100 C 33,90 40,85 50,85 C 60,85 67,90 70,100"), Stroke = new SolidColorBrush(Color.FromArgb(0x70, 0x25, 0x2B, 0x35)), StrokeThickness = 1.1 });
-        // slim neck: dark mechanics, ribs, one orange wire
-        c.Children.Add(new Rectangle { Width = 11, Height = 26, RadiusX = 3, RadiusY = 3, Fill = Grad(Hex("#3B4250"), Hex("#10131A")), Margin = new Thickness(44.5, 58, 0, 0) });
-        foreach (var ry in new[] { 64.0, 68.0, 72.0, 76.0 })
-            c.Children.Add(new Rectangle { Width = 11, Height = 1, Fill = new SolidColorBrush(Color.FromArgb(0x6A, 0x9A, 0xA4, 0xB4)), Margin = new Thickness(44.5, ry, 0, 0) });
-        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M 54,60 C 57,67 56,74 53,82"), Stroke = new SolidColorBrush(Hex("#FF9F3D")), StrokeThickness = 1.3, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round });
-        // face shell: long oval with a soft jaw, lit from the left
-        const string faceData = "M 50,9 C 64,9 71,22 70,38 C 69,50 63,61 50,64 C 37,61 31,50 30,38 C 29,22 36,9 50,9 Z";
-        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse(faceData), Fill = Grad(Hex("#FBFCFD"), Hex("#B4BDC9"), 20) });
-        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse(faceData), Fill = Grad(Color.FromArgb(0x00, 0, 0, 0), Color.FromArgb(0x55, 0x1C, 0x24, 0x33), 0) }); // shade on the right side
-        // helmet seam, temple plate, cheek line
-        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M 33,26 C 40,15 56,13 67,22"), Stroke = new SolidColorBrush(Color.FromArgb(0x6A, 0x5F, 0x69, 0x78)), StrokeThickness = 0.9 });
-        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M 36,52 C 41,57 46,59 50,59.5"), Stroke = new SolidColorBrush(Color.FromArgb(0x40, 0x5F, 0x69, 0x78)), StrokeThickness = 0.8 });
-        // narrow almond eyes with a small glowing iris
-        foreach (var (ex, tilt) in new[] { (36.0, -7.0), (54.0, 7.0) })
+        // night city bokeh disc
+        c.Children.Add(new Ellipse
         {
-            c.Children.Add(new Ellipse { Width = 11, Height = 4.2, Fill = Grad(Hex("#222833"), Hex("#07090D")), RenderTransform = new RotateTransform(tilt, 5.5, 2.1), Margin = new Thickness(ex, 35, 0, 0) });
-            c.Children.Add(new Ellipse { Width = 2.6, Height = 2.6, Fill = new RadialGradientBrush(Hex("#DFF4FF"), Hex("#3E9CFF")), Margin = new Thickness(ex + 4.2, 35.8, 0, 0) });
-            c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse($"M {ex - 1},{32.5 + (tilt < 0 ? 1.2 : -0.2)} Q {ex + 5.5},{30.5} {ex + 12},{32.5 + (tilt < 0 ? -0.2 : 1.2)}"), Stroke = new SolidColorBrush(Color.FromArgb(0x55, 0x4A, 0x53, 0x61)), StrokeThickness = 0.8, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round });
+            Width = 100, Height = 100,
+            Fill = new RadialGradientBrush(Hex("#2A1A3A"), Hex("#07060C"))
+            { GradientOrigin = new Point(0.35, 0.3), RadiusX = 0.9, RadiusY = 0.9 },
+        });
+        foreach (var (bx, by, br, col) in new[] { (10.0, 14.0, 6.0, "#66FF4FD8"), (78.0, 18.0, 8.0, "#44FFE66A"), (82.0, 62.0, 5.0, "#5539FF9A"), (12.0, 68.0, 5.0, "#407AEAFF") })
+            c.Children.Add(new Ellipse { Width = br * 2, Height = br * 2, Fill = new SolidColorBrush(Hex(col)), Margin = new Thickness(bx, by, 0, 0) });
+        // black chrome shoulders
+        c.Children.Add(new System.Windows.Shapes.Path
+        {
+            Data = Geometry.Parse("M 0,100 C 6,82 24,74 50,74 C 76,74 94,82 100,100 Z"),
+            Fill = Grad(Hex("#2A2E38"), Hex("#0A0B10")),
+        });
+        // mechanical neck with neon green rings
+        c.Children.Add(new Rectangle { Width = 14, Height = 28, RadiusX = 3, RadiusY = 3, Fill = Grad(Hex("#1A1E28"), Hex("#050608")), Margin = new Thickness(43, 56, 0, 0) });
+        foreach (var ry in new[] { 60.0, 65.0, 70.0, 75.0 })
+            c.Children.Add(new Rectangle { Width = 14, Height = 1.6, Fill = new SolidColorBrush(Hex("#39FF9A")), Opacity = 0.85, Margin = new Thickness(43, ry, 0, 0) });
+        // pale face shell
+        const string faceData = "M 50,10 C 64,10 71,22 70,38 C 69,50 63,60 50,63 C 37,60 31,50 30,38 C 29,22 36,10 50,10 Z";
+        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse(faceData), Fill = Grad(Hex("#F2E8E4"), Hex("#A8989A"), 25) });
+        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse(faceData), Fill = Grad(Color.FromArgb(0x00, 0, 0, 0), Color.FromArgb(0x50, 0x10, 0x08, 0x18), 0) });
+        // dark hair fringe
+        c.Children.Add(new System.Windows.Shapes.Path
+        {
+            Data = Geometry.Parse("M 30,28 C 34,12 48,6 62,10 C 72,14 74,24 72,34 C 60,22 48,18 36,28 Z"),
+            Fill = Grad(Hex("#1A1218"), Hex("#050308")),
+        });
+        // scalp implants / wires
+        c.Children.Add(new System.Windows.Shapes.Path
+        {
+            Data = Geometry.Parse("M 38,16 C 42,12 50,11 58,14"),
+            Stroke = new SolidColorBrush(Hex("#8A93A0")), StrokeThickness = 1.1, StrokeStartLineCap = PenLineCap.Round,
+        });
+        // purple LED grid at temple
+        for (var i = 0; i < 3; i++)
+            for (var j = 0; j < 3; j++)
+                c.Children.Add(new Ellipse
+                {
+                    Width = 1.6, Height = 1.6,
+                    Fill = new SolidColorBrush(Hex("#C77DFF")),
+                    Margin = new Thickness(66 + j * 2.4, 28 + i * 2.4, 0, 0),
+                });
+        // cyan glowing eyes
+        foreach (var (ex, tilt) in new[] { (35.5, -6.0), (53.5, 6.0) })
+        {
+            c.Children.Add(new Ellipse { Width = 12, Height = 5, Fill = Grad(Hex("#0A1020"), Hex("#020408")), RenderTransform = new RotateTransform(tilt, 6, 2.5), Margin = new Thickness(ex, 34, 0, 0) });
+            c.Children.Add(new Ellipse { Width = 3.2, Height = 3.2, Fill = new RadialGradientBrush(Hex("#E8FFFF"), Hex("#3EC8FF")), Margin = new Thickness(ex + 4.4, 34.8, 0, 0) });
         }
-        // slim nose and muted lips
-        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M 50.5,40 C 49,46 48.5,49 51.5,50"), Stroke = new SolidColorBrush(Color.FromArgb(0x55, 0x5F, 0x69, 0x78)), StrokeThickness = 0.8, StrokeStartLineCap = PenLineCap.Round });
-        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M 45,56 C 48,57.6 53,57.6 56,56"), Stroke = new SolidColorBrush(Hex("#C98A8E")), StrokeThickness = 1.3, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round });
-        // headset lens on the right ear
-        c.Children.Add(new Ellipse { Width = 8, Height = 8, Fill = Grad(Hex("#3B4250"), Hex("#0E1016")), Margin = new Thickness(66, 36, 0, 0) });
-        c.Children.Add(new Ellipse { Width = 3.4, Height = 3.4, Fill = new RadialGradientBrush(Hex("#DFF4FF"), Hex("#3E9CFF")), Margin = new Thickness(68.3, 38.3, 0, 0) });
-        // a thin rim light down the lit edge
-        c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M 33,20 C 30,32 31,46 38,57"), Stroke = new SolidColorBrush(Color.FromArgb(0x90, 255, 255, 255)), StrokeThickness = 1.2, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round });
+        // soft lips
+        c.Children.Add(new System.Windows.Shapes.Path
+        {
+            Data = Geometry.Parse("M 44,55 C 48,57.2 53,57.2 57,55"),
+            Stroke = new SolidColorBrush(Hex("#C97A86")), StrokeThickness = 1.4,
+            StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round,
+        });
+        // jaw mic / sensor
+        c.Children.Add(new Ellipse { Width = 3.2, Height = 3.2, Fill = new SolidColorBrush(Hex("#FFE66A")), Margin = new Thickness(68, 48, 0, 0) });
+        // rim light
+        c.Children.Add(new System.Windows.Shapes.Path
+        {
+            Data = Geometry.Parse("M 32,18 C 28,32 30,48 38,58"),
+            Stroke = new SolidColorBrush(Color.FromArgb(0xA0, 0x7A, 0xF0, 0xFF)),
+            StrokeThickness = 1.3, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round,
+        });
 
         return new Viewbox { Width = size, Height = size, Child = c, Stretch = Stretch.Fill, Clip = new EllipseGeometry(new Point(size / 2, size / 2), size / 2, size / 2) };
     }
 
+    private static BitmapImage? _portraitCache;
+    private static bool _portraitTried;
+
     /// <summary>Looks for a portrait the user dropped in as clara.png/.jpg (AppData first, then the app's Assets folder).</summary>
     private static BitmapImage? LoadPortrait()
     {
+        if (_portraitTried) return _portraitCache;
+        _portraitTried = true;
         var folders = new[]
         {
             System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DIsland"),
@@ -1335,7 +1414,7 @@ public sealed class AssistantPanel : Grid
                     image.DecodePixelWidth = 256;
                     image.EndInit();
                     image.Freeze();
-                    return image;
+                    return _portraitCache = image;
                 }
                 catch (Exception) { /* unreadable: fall back to the built-in look */ }
             }

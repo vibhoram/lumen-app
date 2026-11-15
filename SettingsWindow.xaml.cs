@@ -390,21 +390,22 @@ public partial class SettingsWindow : Window
         ai.Children.Add(bioBox);
         TextRow(ai, "Your name", () => s.UserName, v => s.UserName = v);
         Note(ai, "Clara calls you this and tailors her replies to you. With the cloud model the name is sent along with her instructions; offline it never leaves this PC.");
-        Check(ai, "Chat offline with a model on this PC (Ollama) for plain text; pictures and screenshots go to Groq", () => s.AssistantUseLocalAi, v => s.AssistantUseLocalAi = v);
+        Check(ai, "Chat offline with a model on this PC (Ollama) for plain text; pictures go to Gemini (Groq as backup)", () => s.AssistantUseLocalAi, v => s.AssistantUseLocalAi = v);
         TextRow(ai, "Offline model", () => s.LocalModel, v => s.LocalModel = v);
         Note(ai, "Leave the offline model empty to use the fastest one installed (llama3.2:3b if you have it). Ollama unloads it after about 5 minutes idle; the page loads it ahead of your first message.");
         Check(ai, "Show the Clara page", () => s.AssistantEnabled, v => s.AssistantEnabled = v);
         Check(ai, "Live screen: attach a fresh screenshot to every message", () => s.AssistantLiveScreen, v => s.AssistantLiveScreen = v);
         Check(ai, "Let Clara know the time, what's playing, battery and weather", () => s.ClaraContext, v => s.ClaraContext = v);
-        Choice(ai, "Cloud brain", new[] { (CloudProvider.Groq, "Groq"), (CloudProvider.Gemini, "Gemini (free, no card)") }, () => s.CloudProvider, v => s.CloudProvider = v);
-        TextRow(ai, "Gemini API key", () => s.GeminiApiKey, v => s.GeminiApiKey = v.Trim());
-        Note(ai, "Gemini is free with just a Google sign-in: get a key at aistudio.google.com/apikey, paste it here and pick Gemini above. It also reads screenshots.");
-        TextRow(ai, "Groq API key", () => s.GroqApiKey, v => { if (v.Trim().Length > 0 || s.GroqApiKey.Length == 0) s.GroqApiKey = v.Trim(); }); // an accidental empty field never wipes a saved key
-        TextRow(ai, "Model", () => s.GroqModel, v => s.GroqModel = v.Trim());
+        TextRow(ai, "Gemini API key (main)", () => s.GeminiApiKey, v => { s.GeminiApiKey = v.Trim(); if (s.GeminiApiKey.Length > 0) s.CloudProvider = CloudProvider.Gemini; });
+        Note(ai, "Gemini is Clara's main cloud brain (free Google sign-in): aistudio.google.com/apikey. Screenshots go here first.");
+        TextRow(ai, "Gemini model", () => s.GeminiModel, v => s.GeminiModel = string.IsNullOrWhiteSpace(v) ? "gemini-2.5-flash" : v.Trim());
+        TextRow(ai, "Groq API key (failsafe)", () => s.GroqApiKey, v => { if (v.Trim().Length > 0 || s.GroqApiKey.Length == 0) s.GroqApiKey = v.Trim(); });
+        TextRow(ai, "Groq model", () => s.GroqModel, v => s.GroqModel = v.Trim());
+        Note(ai, "Groq only kicks in if Gemini fails (rate limit, bad key, outage). Leave it blank if you don't want a backup.");
         var forget = new Button { Style = (Style)FindResource("ChipButton"), Content = "Clear Clara's memory", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 6, 0, 2) };
         forget.Click += (_, _) => { DIsland.Services.ClaraMemory.Shared.Clear(); forget.Content = "Memory cleared"; };
         ai.Children.Add(forget);
-        Note(ai, $"Press {s.AssistantHotkey} anywhere to grab your screen and ask about it. Your key is stored only in your settings file on this PC. Messages and screenshots go to Groq (api.groq.com) only when you send them.");
+        Note(ai, $"Press {s.AssistantHotkey} anywhere to grab your screen and ask about it. Keys stay in your settings file on this PC.");
 
         var notes = Section("TO-DO & NOTES", navLabel: "To-Do & Notes");
         Check(notes, "Show the To-Do page", () => s.TodoEnabled, v => s.TodoEnabled = v);

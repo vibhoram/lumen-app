@@ -658,6 +658,10 @@ public sealed class AppSettings
                 settings.PageHotkeys = new Dictionary<string, string>(settings.PageHotkeys ?? new(), StringComparer.Ordinal);
                 PageHotkeyMap.EnsureDefaults(settings.PageHotkeys, settings.AssistantHotkey, settings.ToggleHotkey, settings.QuickPasteHotkey);
 
+                // Clara: Gemini is the cloud main; keep Groq only as failsafe when a Gemini key is present.
+                if (!string.IsNullOrWhiteSpace(settings.GeminiApiKey))
+                    settings.CloudProvider = CloudProvider.Gemini;
+
                 return settings;
             }
         }

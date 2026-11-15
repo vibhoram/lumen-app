@@ -72,6 +72,30 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     public static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
 
+    [DllImport("user32.dll")]
+    public static extern IntPtr MonitorFromPoint(POINT pt, uint flags);
+
+    public const uint MONITOR_DEFAULTTONEAREST = 2;
+    private const int MDT_EFFECTIVE_DPI = 0;
+
+    [DllImport("Shcore.dll")]
+    private static extern int GetDpiForMonitor(IntPtr hmonitor, int dpiType, out uint dpiX, out uint dpiY);
+
+    /// <summary>Effective DPI scale for a WinForms screen (1 = 96 DPI). 0 if unknown.</summary>
+    public static double DpiScaleForScreen(System.Windows.Forms.Screen screen)
+    {
+        try
+        {
+            var cx = screen.Bounds.Left + screen.Bounds.Width / 2;
+            var cy = screen.Bounds.Top + screen.Bounds.Height / 2;
+            var mon = MonitorFromPoint(new POINT { X = cx, Y = cy }, MONITOR_DEFAULTTONEAREST);
+            if (mon == IntPtr.Zero || GetDpiForMonitor(mon, MDT_EFFECTIVE_DPI, out var dx, out _) != 0 || dx == 0)
+                return 0;
+            return dx / 96.0;
+        }
+        catch { return 0; }
+    }
+
     public const int VK_CONTROL = 0x11;
 
     [DllImport("user32.dll")]
@@ -118,6 +142,9 @@ internal static class NativeMethods
 
     [DllImport("gdi32.dll")]
     public static extern IntPtr CreateRoundRectRgn(int x1, int y1, int x2, int y2, int widthEllipse, int heightEllipse);
+
+    [DllImport("gdi32.dll")]
+    public static extern IntPtr CreateEllipticRgn(int x1, int y1, int x2, int y2);
 
     [DllImport("gdi32.dll")]
     public static extern int CombineRgn(IntPtr dest, IntPtr src1, IntPtr src2, int mode);

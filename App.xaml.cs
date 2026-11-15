@@ -51,6 +51,8 @@ public partial class App : Application
         _settings = AppSettings.Load();
         Updates = new UpdateService(_settings);
         _window = new MainWindow(_settings);
+        // Background (not ApplicationIdle): Idle never runs while the collapse spring is rendering,
+        // so the first gear click after expand used to do nothing until a later idle gap.
         _window.SettingsRequested += section => Dispatcher.InvokeAsync(() => OpenSettings(section), DispatcherPriority.Background);
         _window.Show();
 
@@ -66,7 +68,10 @@ public partial class App : Application
 
         _openSettingsSignal = new EventWaitHandle(false, EventResetMode.AutoReset, OpenSettingsEventName);
         _openSettingsWait = ThreadPool.RegisterWaitForSingleObject(_openSettingsSignal,
-            (_, _) => Dispatcher.InvokeAsync(() => OpenSettings()), null, Timeout.Infinite, executeOnlyOnce: false);
+            (_, _) => Dispatcher.InvokeAsync(() => OpenSettings(), DispatcherPriority.Background), null, Timeout.Infinite, executeOnlyOnce: false);
+
+        // Build Settings off the hot path so the first gear click doesn't stall mid-collapse.
+        Dispatcher.InvokeAsync(PrewarmSettings, DispatcherPriority.ApplicationIdle);
 
         if (e.Args.Contains("--settings", StringComparer.OrdinalIgnoreCase)) OpenSettings();
 #if DEBUG
@@ -101,15 +106,33 @@ public partial class App : Application
 #endif
     }
 
+    private bool _exiting;
+
+    /// <summary>
+    /// Builds the Settings tree once and keeps it. Closing used to dispose it, so every gear click
+    /// rebuilt hundreds of controls on the UI thread while the island was still collapsing — a
+    /// clear hitch. Hide on close; only destroy on exit.
+    /// </summary>
+    private void EnsureSettingsWindow()
+    {
+        if (_settingsWindow is not null) return;
+        _settingsWindow = new SettingsWindow(_settings!);
+        _settingsWindow.Closing += (_, e) =>
+        {
+            if (_exiting) return;
+            e.Cancel = true;
+            _settings!.Save();
+            _settingsWindow!.Hide();
+        };
+    }
+
+    private void PrewarmSettings() => EnsureSettingsWindow();
+
     private void OpenSettings(string? section = null)
     {
-        if (_settingsWindow is null)
-        {
-            _settingsWindow = new SettingsWindow(_settings!);
-            _settingsWindow.Closed += (_, _) => _settingsWindow = null;
-        }
-        BringToFront(_settingsWindow);
-        if (section is { Length: > 0 }) _settingsWindow.JumpTo(section);
+        EnsureSettingsWindow();
+        BringToFront(_settingsWindow!);
+        if (section is { Length: > 0 }) _settingsWindow!.JumpTo(section);
     }
 
     private WhatsNewWindow? _whatsNewWindow;
@@ -135,8 +158,9 @@ public partial class App : Application
     /// </summary>
     private static void BringToFront(Window window)
     {
-        window.Show();
+        if (!window.IsVisible) window.Show();
         if (window.WindowState == WindowState.Minimized) window.WindowState = WindowState.Normal;
+        // Activate alone is ignored under the foreground lock; Topmost toggle raises it every time.
         window.Topmost = true;
         window.Topmost = false;
         window.Activate();
@@ -163,6 +187,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _exiting = true;
         _openSettingsWait?.Unregister(null);
         _openSettingsSignal?.Dispose();
         _settingsWindow?.Close();

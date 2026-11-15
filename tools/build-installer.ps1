@@ -1,7 +1,7 @@
 # D-Island - Copyright 2026 h7 (ibuildrigs) and contributors.
 # Licensed under the D-Island License 1.0; see LICENSE.txt and NOTICE.txt.
 
-# Builds the D-Island installer: artifacts\D-Island-Setup-<version>.exe
+# Builds the Lumen installer: artifacts\Lumen-Setup-<version>.exe
 #
 #   1. Generates DIsland.ico (the black pill with a green dot, as in the tray) if it's missing.
 #   2. Publishes a self-contained Release build (no .NET install needed on the target PC).
@@ -102,7 +102,7 @@ $version = ([xml](Get-Content (Join-Path $root 'DIsland.csproj'))).Project.Prope
 if (-not $version) { $version = '1.0.0' }
 $publish = Join-Path $root 'artifacts\publish'
 Remove-Item $publish -Recurse -Force -ErrorAction SilentlyContinue
-Write-Host "Publishing D-Island $version (self-contained, win-x64)..."
+Write-Host "Publishing Lumen $version (self-contained, win-x64)..."
 dotnet publish (Join-Path $root 'DIsland.csproj') -c Release -r win-x64 --self-contained true `
     -p:PublishReadyToRun=false -p:DebugType=none -o $publish
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed ($LASTEXITCODE)" }
@@ -154,13 +154,14 @@ if ($tempPfx) { Remove-Item $tempPfx -Force -ErrorAction SilentlyContinue }
 if ($cert -and $before -notcontains $cert.Thumbprint) { Remove-Item "Cert:\CurrentUser\My\$($cert.Thumbprint)" -ErrorAction SilentlyContinue }
 if ($isccExit -ne 0) { throw "ISCC failed ($isccExit)" }
 # ---- 4. checksum file: the in-app updater only installs a release that has one, and verifies against it
-$setup = Join-Path $root "artifacts\D-Island-Setup-$version.exe"
+$setup = Join-Path $root "artifacts\Lumen-Setup-$version.exe"
+if (-not (Test-Path $setup)) { throw "Installer not found at $setup (check OutputBaseFilename in DIsland.iss)" }
 if ($signArgs) {
     $signature = Get-AuthenticodeSignature $setup
     if (-not $signature.SignerCertificate) { throw "The setup isn't signed ($($signature.Status))" }
     Write-Host "Signed by $($signature.SignerCertificate.Subject)"
 }
 $hash = (Get-FileHash $setup -Algorithm SHA256).Hash
-[System.IO.File]::WriteAllText("$setup.sha256", "$hash  D-Island-Setup-$version.exe`n")
+[System.IO.File]::WriteAllText("$setup.sha256", "$hash  Lumen-Setup-$version.exe`n")
 Write-Host ("Built {0} ({1:N1} MB), SHA-256 {2}" -f $setup, ((Get-Item $setup).Length / 1MB), $hash)
-Write-Host "Upload BOTH files to the GitHub release: D-Island-Setup-$version.exe and D-Island-Setup-$version.exe.sha256"
+Write-Host "Upload BOTH files to the GitHub release: Lumen-Setup-$version.exe and Lumen-Setup-$version.exe.sha256"
