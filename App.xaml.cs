@@ -51,13 +51,13 @@ public partial class App : Application
         _settings = AppSettings.Load();
         Updates = new UpdateService(_settings);
         _window = new MainWindow(_settings);
-        _window.SettingsRequested += () => Dispatcher.InvokeAsync(OpenSettings, DispatcherPriority.Background);
+        _window.SettingsRequested += section => Dispatcher.InvokeAsync(() => OpenSettings(section), DispatcherPriority.Background);
         _window.Show();
 
         // Defer until the tray menu has fully closed; opening a window mid-dismissal lets the menu's
         // focus handling push it behind other windows.
         _tray = new TrayIcon(_settings,
-            () => Dispatcher.InvokeAsync(OpenSettings, DispatcherPriority.Background),
+            () => Dispatcher.InvokeAsync(() => OpenSettings(), DispatcherPriority.Background),
             () => _window.IslandHidden,
             hidden => _window.SetIslandHidden(hidden),
             Shutdown,
@@ -66,7 +66,7 @@ public partial class App : Application
 
         _openSettingsSignal = new EventWaitHandle(false, EventResetMode.AutoReset, OpenSettingsEventName);
         _openSettingsWait = ThreadPool.RegisterWaitForSingleObject(_openSettingsSignal,
-            (_, _) => Dispatcher.InvokeAsync(OpenSettings), null, Timeout.Infinite, executeOnlyOnce: false);
+            (_, _) => Dispatcher.InvokeAsync(() => OpenSettings()), null, Timeout.Infinite, executeOnlyOnce: false);
 
         if (e.Args.Contains("--settings", StringComparer.OrdinalIgnoreCase)) OpenSettings();
 #if DEBUG
@@ -101,7 +101,7 @@ public partial class App : Application
 #endif
     }
 
-    private void OpenSettings()
+    private void OpenSettings(string? section = null)
     {
         if (_settingsWindow is null)
         {
@@ -109,6 +109,7 @@ public partial class App : Application
             _settingsWindow.Closed += (_, _) => _settingsWindow = null;
         }
         BringToFront(_settingsWindow);
+        if (section is { Length: > 0 }) _settingsWindow.JumpTo(section);
     }
 
     private WhatsNewWindow? _whatsNewWindow;

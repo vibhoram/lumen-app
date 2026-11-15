@@ -21,6 +21,10 @@ public partial class MainWindow
 
     private StackPanel _alarmChips = null!;
     private Border _dailyChip = null!;
+    private Border _setAlarmPill = null!;
+    private TextBlock _setAlarmLabel = null!;
+    private System.Windows.Threading.DispatcherTimer? _setAlarmReset;
+    private string? _alarmJustAdded; // "HH:mm" flash target in the chip row
 
     private static string Clock(int minutes) => DateTime.Today.AddMinutes(minutes).ToString("h:mm tt");
 
@@ -66,8 +70,12 @@ public partial class MainWindow
         row.Children.Add(time);
         var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
         _dailyChip = Pill("Daily", () => { _alarmDaily = !_alarmDaily; UpdateAlarmRow(); });
+        _setAlarmPill = Pill("Set alarm", AddAlarmFromRow);
+        _setAlarmLabel = (TextBlock)_setAlarmPill.Child;
+        _setAlarmPill.RenderTransformOrigin = new Point(0.5, 0.5);
+        _setAlarmPill.RenderTransform = new ScaleTransform(1, 1);
         actions.Children.Add(_dailyChip);
-        actions.Children.Add(Pill("Set alarm", AddAlarmFromRow));
+        actions.Children.Add(_setAlarmPill);
         Grid.SetColumn(actions, 2);
         row.Children.Add(actions);
 
@@ -107,11 +115,50 @@ public partial class MainWindow
 
     private void AddAlarm(TimeSpan timeOfDay, bool daily)
     {
-        _settings.Alarms.Add(new Alarm { Time = timeOfDay.ToString(@"hh\:mm"), Enabled = true, Daily = daily, Label = "Alarm" });
+        var key = timeOfDay.ToString(@"hh\:mm");
+        // Same time + daily already armed → confirm, don't stack silent duplicates.
+        if (_settings.Alarms.Any(a => a.Enabled && a.Daily == daily && a.Time == key))
+        {
+            ConfirmAlarmSet(already: true, Clock((int)timeOfDay.TotalMinutes));
+            return;
+        }
+
+        _settings.Alarms.Add(new Alarm { Time = key, Enabled = true, Daily = daily, Label = "Alarm" });
         SmartTime.RecordAlarm(_settings, timeOfDay);
         _settings.Save();
         _alarms.Reschedule();
+        RefreshAlarmArmed();
+        _alarmJustAdded = key;
         BuildAlarmChips();
+        ConfirmAlarmSet(already: false, Clock((int)timeOfDay.TotalMinutes) + (daily ? " daily" : ""));
+    }
+
+    /// <summary>Button flips to "Added" / "Already set" for a beat so the click never feels silent.</summary>
+    private void ConfirmAlarmSet(bool already, string when)
+    {
+        if (_setAlarmLabel is null || _setAlarmPill is null) return;
+        _setAlarmReset?.Stop();
+        _setAlarmLabel.Text = already ? "Already set" : "Added ✓";
+        _setAlarmLabel.ToolTip = when;
+        _setAlarmPill.Background = already
+            ? (Brush)FindResource("GlassFill")
+            : new LinearGradientBrush(Color.FromRgb(0x34, 0xC7, 0x59), Color.FromRgb(0x28, 0xA7, 0x48), 90);
+        _setAlarmPill.BorderBrush = already
+            ? (Brush)FindResource("GlassRim")
+            : new SolidColorBrush(Color.FromArgb(0x66, 0xFF, 0xFF, 0xFF));
+        PopPill(_setAlarmPill, 1.08);
+
+        _setAlarmReset = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1700) };
+        _setAlarmReset.Tick += (_, _) =>
+        {
+            _setAlarmReset!.Stop();
+            _setAlarmLabel.Text = "Set alarm";
+            _setAlarmLabel.ToolTip = null;
+            _setAlarmPill.Background = (Brush)FindResource("GlassFill");
+            _setAlarmPill.BorderBrush = (Brush)FindResource("GlassRim");
+            PopPill(_setAlarmPill, 1);
+        };
+        _setAlarmReset.Start();
     }
 
     private WrapPanel _alarmSuggest = null!;
@@ -164,20 +211,35 @@ public partial class MainWindow
         var list = _settings.Alarms.OrderBy(a => a.TimeOfDay).Take(4).ToList();
         foreach (var alarm in list)
         {
+            var just = _alarmJustAdded is not null && alarm.Time == _alarmJustAdded;
             var text = Clock((int)alarm.TimeOfDay.TotalMinutes) + (alarm.Daily ? " daily" : "") + "  ✕";
-            var chip = new TextBlock { Text = text, FontSize = 11.5, Opacity = alarm.Enabled ? 0.7 : 0.35, Margin = new Thickness(0, 0, 14, 0), Cursor = Cursors.Hand, ToolTip = "Click to remove", Background = Brushes.Transparent };
+            var chip = new TextBlock
+            {
+                Text = text,
+                FontSize = 11.5,
+                FontWeight = just ? FontWeights.SemiBold : FontWeights.Normal,
+                Opacity = just ? 1 : (alarm.Enabled ? 0.7 : 0.35),
+                Foreground = just ? Brushes.White : null,
+                Margin = new Thickness(0, 0, 14, 0),
+                Cursor = Cursors.Hand,
+                ToolTip = "Click to remove",
+                Background = Brushes.Transparent,
+            };
             chip.MouseEnter += (_, _) => chip.Opacity = 1;
             chip.MouseLeave += (_, _) => chip.Opacity = alarm.Enabled ? 0.7 : 0.35;
             chip.MouseLeftButtonUp += (_, e) =>
             {
                 e.Handled = true;
+                SmartTime.RecordAlarmRemoved(_settings, alarm.TimeOfDay);
                 _settings.Alarms.Remove(alarm);
                 _settings.Save();
                 _alarms.Reschedule();
+                RefreshAlarmArmed();
                 BuildAlarmChips();
             };
             _alarmChips.Children.Add(chip);
         }
+        _alarmJustAdded = null;
         _alarmChips.Visibility = list.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         if (IsLoaded && _state.IsExpanded && _page == ExpandedPage.Home) Dispatcher.InvokeAsync(Render);
     }
@@ -299,9 +361,11 @@ public partial class MainWindow
             var open = _clockMode == mode;
             var tint = open ? Brushes.White : (Brush)FindResource("Secondary");
             var label = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
-            label.Children.Add(new TextBlock { Style = (Style)FindResource("Glyph"), Text = ModeGlyphs[i], FontSize = 13, Foreground = open ? Brushes.White : (i == 2 ? (Brush)FindResource("Cyan") : (Brush)FindResource("Orange")), Margin = new Thickness(0, 0, 7, 0) });
+            // Alarm orange · Timer violet · Stopwatch cyan — readable when two statuses show at once.
+            var accent = (Brush)FindResource(i == 0 ? "Orange" : i == 1 ? "Violet" : "Cyan");
+            label.Children.Add(new TextBlock { Style = (Style)FindResource("Glyph"), Text = ModeGlyphs[i], FontSize = 13, Foreground = open ? Brushes.White : accent, Margin = new Thickness(0, 0, 7, 0) });
             label.Children.Add(new TextBlock { Text = ModeNames[i], FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = tint, VerticalAlignment = VerticalAlignment.Center });
-            var status = new TextBlock { FontSize = 11, FontWeight = FontWeights.SemiBold, Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Foreground = i == 2 ? (Brush)FindResource("Cyan") : (Brush)FindResource("Orange") };
+            var status = new TextBlock { FontSize = 11, FontWeight = FontWeights.SemiBold, Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Foreground = accent };
             _modeStatus[i] = status;
             label.Children.Add(status);
             var pill = new Border

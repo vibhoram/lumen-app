@@ -27,13 +27,8 @@ public sealed class LinkDialog : Window
         Topmost = true;
         FontFamily = new FontFamily("Segoe UI Variable Text, Segoe UI");
 
-        foreach (var box in new[] { _name, _url })
-        {
-            box.Background = new SolidColorBrush(Color.FromRgb(0x2C, 0x2C, 0x32));
-            box.Foreground = Brushes.White;
-            box.CaretBrush = Brushes.White;
-            box.BorderBrush = new SolidColorBrush(Color.FromRgb(0x48, 0x48, 0x4E));
-        }
+        var soft = Application.Current.TryFindResource("SoftField") as Style;
+        if (soft is not null) { _name.Style = soft; _url.Style = soft; }
         if (!string.IsNullOrEmpty(prefillUrl)) _url.Text = prefillUrl;
 
         var ok = new Button { Content = "Add", Padding = new Thickness(18, 6, 18, 6), IsDefault = true, Margin = new Thickness(0, 0, 8, 0) };

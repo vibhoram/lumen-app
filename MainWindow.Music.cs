@@ -40,10 +40,71 @@ public partial class MainWindow
         _lyricsPanel?.SetFont(_settings.LyricsFont, _settings.LyricsFontSize);
         _lyricsInline?.SetFont(_settings.LyricsFont, _settings.LyricsFontSize);
         MediaLyricLarge.FontFamily = new FontFamily($"{_settings.LyricsFont}, Segoe Print, Segoe UI");
+        ApplyLyricsLook();
         MediaLineSmall.Visibility = _settings.CompactProgressLine ? Visibility.Visible : Visibility.Collapsed;
         if (_settings.CompactMediaTime == CompactTime.Off) MediaTimeSmall.Visibility = Visibility.Collapsed;
         if (!_settings.LyricsEnabled) { _lyricLines = null; MediaLyricLarge.Visibility = Visibility.Collapsed; }
         MusicTick();
+    }
+
+    /// <summary>Current-lyric colour: classic green by default, or cover / accent / custom / gradients.</summary>
+    private void ApplyLyricsLook()
+    {
+        var brush = ResolveLyricsBrush();
+        MediaLyricLarge.Foreground = brush;
+        _lyricsPanel?.SetHighlight(brush);
+        _lyricsInline?.SetHighlight(brush);
+        // Collapsed pill title becomes the lyric line when that option is on — match the colour then.
+        if (_settings.LyricsInCompact && MediaTitleSmall.Text.StartsWith("♪ ", StringComparison.Ordinal))
+            MediaTitleSmall.Foreground = brush;
+        else
+            MediaTitleSmall.ClearValue(TextBlock.ForegroundProperty);
+    }
+
+    private Brush ResolveLyricsBrush()
+    {
+        static SolidColorBrush Solid(Color c)
+        {
+            var b = new SolidColorBrush(c);
+            b.Freeze();
+            return b;
+        }
+        static Brush Gradient(Color a, Color b)
+        {
+            var brush = new LinearGradientBrush(ColorTools.Readable(a), ColorTools.Readable(b), 0);
+            brush.Freeze();
+            return brush;
+        }
+
+        var green = Color.FromRgb(0x30, 0xD1, 0x58);
+        switch (_settings.LyricsColorMode)
+        {
+            case LyricsColorMode.Cover:
+                return Solid(ColorTools.Readable(_palette.Count > 0 ? _palette[0] : green));
+            case LyricsColorMode.Accent:
+            {
+                var accent = ResolveAccent() ?? _media.Current?.Accent ?? green;
+                return Solid(ColorTools.Readable(accent));
+            }
+            case LyricsColorMode.White:
+                return Solid(Colors.White);
+            case LyricsColorMode.Custom:
+                return Solid(ColorTools.Readable(ParseColor(_settings.LyricsCustomColor) ?? green));
+            case LyricsColorMode.CoverGradient:
+            {
+                var a = _palette.Count > 0 ? _palette[0] : green;
+                var b = _palette.Count > 1 ? _palette[1] : ColorTools.Mix(a, Colors.White, 0.35);
+                return Gradient(a, b);
+            }
+            case LyricsColorMode.CustomGradient:
+            {
+                var a = ParseColor(_settings.LyricsCustomColor) ?? green;
+                var b = ParseColor(_settings.LyricsCustomColorB) ?? Color.FromRgb(0x64, 0xD2, 0xFF);
+                return Gradient(a, b);
+            }
+            default:
+                return Solid(green);
+        }
     }
 
     /// <summary>Applies the display choices (Hindi in English letters) to the raw synced lyrics.</summary>
@@ -72,13 +133,14 @@ public partial class MainWindow
         if (media?.IsPlaying == true) _musicTimer.Start();
         else _musicTimer.Stop();
 
-        var key = media is null ? "" : $"{media.Title}|{media.Artist}|{(int)media.Duration.TotalSeconds}";
+        // AppId is part of the key so Spotify ↔ Vivaldi on different tracks (or the same song) always resets.
+        var key = media is null ? "" : $"{media.AppId}|{media.Title}|{media.Artist}|{(int)media.Duration.TotalSeconds}";
         if (key == _trackKey) { MusicTick(); return; }
         _trackKey = key;
         _lookupCts?.Cancel();
         _lyricLines = null;
         _rawLyrics = null;
-        _artOverride = null;
+        _artOverride = null; // also cleared earlier in OnMediaChanged before brushes bind
         MediaLyricLarge.Visibility = Visibility.Collapsed;
         ProgressBar.Seed = key;
         _lyricsInline.SetState(LyricsState.None, null);
@@ -102,6 +164,7 @@ public partial class MainWindow
         ApplyEqualizerLook(_media.Current?.Accent ?? Colors.White);
         MediaWave.Colors = _palette;
         ProgressBar.Palette = _palette.Select(BrightenAccent).ToList(); // the progress bar wears the cover's colours too
+        ApplyLyricsLook(); // cover / gradient lyrics track the new art
     }
 
     private static void EaseColor(GradientStop stop, Color to)
@@ -216,9 +279,42 @@ public partial class MainWindow
                 Cursor = System.Windows.Input.Cursors.Hand,
                 Background = selected ? new LinearGradientBrush(Color.FromArgb(0x99, 0x8B, 0x6C, 0xFF), Color.FromArgb(0x99, 0x2D, 0xD4, 0xFF), 35) : new SolidColorBrush(Color.FromArgb(0x26, 255, 255, 255)),
                 Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { dot, new TextBlock { Text = source.Name, FontSize = 11, FontWeight = FontWeights.SemiBold } } },
+                RenderTransformOrigin = new Point(0.5, 0.5),
+                RenderTransform = new ScaleTransform(1, 1),
             };
             var id = source.AppId;
-            chip.MouseLeftButtonUp += (_, e) => { e.Handled = true; _media.ChooseSource(id); };
+            chip.MouseLeftButtonUp += (_, e) =>
+            {
+                e.Handled = true;
+                var scale = (ScaleTransform)chip.RenderTransform;
+                var pop = new System.Windows.Media.Animation.DoubleAnimation(0.92, 1, TimeSpan.FromMilliseconds(420))
+                {
+                    EasingFunction = new System.Windows.Media.Animation.ElasticEase
+                    {
+                        EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut,
+                        Oscillations = 1,
+                        Springiness = 5,
+                    },
+                };
+                scale.BeginAnimation(ScaleTransform.ScaleXProperty, pop);
+                scale.BeginAnimation(ScaleTransform.ScaleYProperty, pop);
+                _media.ChooseSource(id);
+            };
+            if (selected)
+            {
+                var scale = (ScaleTransform)chip.RenderTransform;
+                var settle = new System.Windows.Media.Animation.DoubleAnimation(1.04, 1, TimeSpan.FromMilliseconds(480))
+                {
+                    EasingFunction = new System.Windows.Media.Animation.ElasticEase
+                    {
+                        EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut,
+                        Oscillations = 1,
+                        Springiness = 5.5,
+                    },
+                };
+                scale.BeginAnimation(ScaleTransform.ScaleXProperty, settle);
+                scale.BeginAnimation(ScaleTransform.ScaleYProperty, settle);
+            }
             MediaSources.Children.Add(chip);
         }
     }
@@ -277,6 +373,8 @@ public partial class MainWindow
             _marqueeKey = null; // new text: re-measure the scroll
             UpdateMarquee();
         }
+        if (lyricOnPill) ApplyLyricsLook();
+        else MediaTitleSmall.ClearValue(TextBlock.ForegroundProperty);
     }
 
     private string? _marqueeKey;
@@ -332,10 +430,25 @@ public partial class MainWindow
     {
         var ready = _lyricLines is not null;
         var open = ready && _lyricsOpen;
+        var appear = ready && LyricsToggle.Visibility != Visibility.Visible;
         LyricsToggle.Visibility = ready ? Visibility.Visible : Visibility.Collapsed;
         LyricsToggle.Background = open
             ? new LinearGradientBrush(Color.FromRgb(0x3B, 0x9D, 0xFF), Color.FromRgb(0x0A, 0x7A, 0xFF), 90)
             : (Brush)FindResource("GlassFill");
+        if (appear)
+        {
+            var pop = new System.Windows.Media.Animation.DoubleAnimation(0.86, 1, TimeSpan.FromMilliseconds(520))
+            {
+                EasingFunction = new System.Windows.Media.Animation.ElasticEase
+                {
+                    EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut,
+                    Oscillations = 1,
+                    Springiness = 5,
+                },
+            };
+            LyricsToggleScale.BeginAnimation(ScaleTransform.ScaleXProperty, pop);
+            LyricsToggleScale.BeginAnimation(ScaleTransform.ScaleYProperty, pop);
+        }
         var wasOpen = LyricsInlineHost.Visibility == Visibility.Visible;
         LyricsInlineHost.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
         if (open && !wasOpen) MusicTick();

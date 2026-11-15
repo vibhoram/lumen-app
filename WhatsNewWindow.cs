@@ -121,7 +121,7 @@ public sealed class WhatsNewWindow : Window
         {
             Content = list,
             MaxHeight = 420,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Style = (Style)Application.Current.FindResource("SlimScroll"),
             Focusable = false,
         });
 

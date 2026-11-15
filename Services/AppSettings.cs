@@ -63,6 +63,24 @@ public enum AccentSource
     Monochrome,
 }
 
+/// <summary>How the current lyric line is coloured (collapsed pill + expanded Home + lyrics page highlight).</summary>
+public enum LyricsColorMode
+{
+    /// <summary>The classic mint green (#30D158).</summary>
+    Green,
+    /// <summary>Vibrant colour pulled from the album / thumbnail art (same idea as Aura / aurora).</summary>
+    Cover,
+    /// <summary>Follows the island accent (wallpaper / media app / custom).</summary>
+    Accent,
+    White,
+    /// <summary>A single colour from <see cref="AppSettings.LyricsCustomColor"/>.</summary>
+    Custom,
+    /// <summary>Gradient across two colours from the cover palette.</summary>
+    CoverGradient,
+    /// <summary>Gradient from <see cref="AppSettings.LyricsCustomColor"/> to <see cref="AppSettings.LyricsCustomColorB"/>.</summary>
+    CustomGradient,
+}
+
 public enum ClockFormat
 {
     System,
@@ -77,6 +95,29 @@ public enum IdleStyle
     Clock,
     /// <summary>A small empty pill when nothing is happening.</summary>
     Minimal,
+}
+
+/// <summary>What fills the right side of Home when nothing is playing.</summary>
+public enum HomeGlance
+{
+    Weather,
+    NextEvent,
+    Vitals,
+    Todos,
+    Focus,
+    NextAlarm,
+    Clipboard,
+}
+
+/// <summary>Motion of the Home weather sky card.</summary>
+public enum WeatherMotion
+{
+    /// <summary>Dense, vivid rain/clouds — busy and alive.</summary>
+    Lively,
+    /// <summary>Sparse, slow filmic drift — fewer particles, long soft streaks.</summary>
+    Cinematic,
+    /// <summary>Same rich look as Lively, frozen (no timer — cheapest on CPU/GPU).</summary>
+    Static,
 }
 
 public enum PageNavigation
@@ -94,7 +135,7 @@ public sealed class AppSettings
     public IslandMode Mode { get; set; } = IslandMode.DynamicIsland;
 
     [JsonConverter(typeof(JsonStringEnumConverter))]
-    public IslandMaterial Material { get; set; } = IslandMaterial.Opaque;
+    public IslandMaterial Material { get; set; } = IslandMaterial.LiquidGlass;
 
     /// <summary>Background opacity in Translucent mode (content stays opaque), 0.15..1.</summary>
     public double BackgroundOpacity { get; set; } = 0.7;
@@ -103,25 +144,25 @@ public sealed class AppSettings
     public double GlassTint { get; set; } = 0.30;
 
     /// <summary>How much of the frosted blur is mixed over the sharp background: 0 = clear glass, 1 = fully frosted.</summary>
-    public double GlassBlur { get; set; } = 0.45;
+    public double GlassBlur { get; set; } = 0.85;
 
     [JsonConverter(typeof(JsonStringEnumConverter))]
-    public GlassEngine GlassEngine { get; set; } = GlassEngine.Auto;
+    public GlassEngine GlassEngine { get; set; } = GlassEngine.Lens;
 
     /// <summary>Cached GPU blur probe result, "&lt;windows build&gt;:ok|fail"; re-probed after Windows updates.</summary>
     public string? GpuBlurProbe { get; set; }
 
     /// <summary>Liquid Glass edge highlight and top sheen, 0 = matte, 1 = very glossy.</summary>
-    public double GlassShine { get; set; } = 0.9;
+    public double GlassShine { get; set; } = 0.7;
 
     /// <summary>The bright line along the glass edge and the soft light just inside it (0 = none).</summary>
-    public double GlassRim { get; set; } = 0.1;
+    public double GlassRim { get; set; } = 0.08;
 
     /// <summary>How vivid the background looks through the glass (0 = as it is, 1 = very rich colour).</summary>
-    public double GlassVibrancy { get; set; } = 0.65;
+    public double GlassVibrancy { get; set; } = 0.55;
 
     /// <summary>How strongly the Refraction engine bends the background at the island's rim.</summary>
-    public double GlassRefraction { get; set; } = 0.6;
+    public double GlassRefraction { get; set; } = 0.4;
 
     /// <summary>Soft shadow behind text and icons so they stay readable over see-through materials.</summary>
     public bool TextShadow { get; set; } = true;
@@ -129,7 +170,7 @@ public sealed class AppSettings
     public double IslandScale { get; set; } = 1.0;
 
     /// <summary>Multiplier on corner radius; 1 = fully rounded pill.</summary>
-    public double CornerRoundness { get; set; } = 1.0;
+    public double CornerRoundness { get; set; } = 0.9;
 
     public double OutlineWidth { get; set; }
     public double OutlineOpacity { get; set; } = 0.25;
@@ -146,7 +187,7 @@ public sealed class AppSettings
 
     // ---- colors
     [JsonConverter(typeof(JsonStringEnumConverter))]
-    public AccentSource AccentSource { get; set; } = AccentSource.Auto;
+    public AccentSource AccentSource { get; set; } = AccentSource.Wallpaper;
 
     public string CustomAccent { get; set; } = "#0A84FF";
 
@@ -157,13 +198,17 @@ public sealed class AppSettings
     public string FontFamily { get; set; } = "Segoe UI Variable Text";
 
     [JsonConverter(typeof(JsonStringEnumConverter))]
-    public ClockFormat ClockFormat { get; set; } = ClockFormat.System;
+    public ClockFormat ClockFormat { get; set; } = ClockFormat.TwelveHour;
 
     public bool ShowSeconds { get; set; }
-    public bool ShowDateWhenIdle { get; set; }
+    public bool ShowDateWhenIdle { get; set; } = true;
 
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public IdleStyle IdleStyle { get; set; } = IdleStyle.Clock;
+
+    /// <summary>Home, no music: glance card on the right (weather by default).</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public HomeGlance HomeGlance { get; set; } = HomeGlance.Weather;
 
     // ---- interaction & animation
     public bool ExpandOnHover { get; set; } = true;
@@ -174,7 +219,7 @@ public sealed class AppSettings
     public double AnimationSpeed { get; set; } = 1.0;
 
     /// <summary>0 = no overshoot, 1 = very bouncy.</summary>
-    public double Bounciness { get; set; } = 0.35;
+    public double Bounciness { get; set; } = 0.8;
 
     // ---- media & Wallpaper Engine
     public bool ShowArtBanner { get; set; } = true;
@@ -189,7 +234,7 @@ public sealed class AppSettings
     public bool WallpaperEngineControls { get; set; } = true;
 
     /// <summary>Mute Wallpaper Engine's audio while a media app is playing.</summary>
-    public bool MuteWallpaperDuringMedia { get; set; }
+    public bool MuteWallpaperDuringMedia { get; set; } = true;
 
     /// <summary>Superseded by <see cref="AccentSource"/>; read once for migration, never written.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -221,7 +266,7 @@ public sealed class AppSettings
     public bool CopyCodes { get; set; } = true;
 
     /// <summary>Pet look: 0 none, then hat, bow, glasses, scarf.</summary>
-    public PetOutfit PetOutfit { get; set; } = PetOutfit.None;
+    public PetOutfit PetOutfit { get; set; } = PetOutfit.Scarf;
 
     /// <summary>Minutes a snoozed notification or alarm waits before it comes back.</summary>
     public int SnoozeMinutes { get; set; } = 10;
@@ -244,8 +289,11 @@ public sealed class AppSettings
     /// <summary>With several screens, the island moves to the one the cursor stays on.</summary>
     public bool FollowCursorMonitor { get; set; } = true;
 
-    /// <summary>How often each alarm time ("07:00") was set; the smart suggestions learn from it.</summary>
+    /// <summary>Legacy flat set-counts (migrated into AlarmHabits on load).</summary>
     public Dictionary<string, int> AlarmUse { get; set; } = new();
+
+    /// <summary>Learned wake-time habits: distinct days, rings, deletes, weekday lean — not one-off sets.</summary>
+    public List<AlarmHabit> AlarmHabits { get; set; } = new();
 
     /// <summary>How often each timer length (minutes) was started.</summary>
     public Dictionary<string, int> TimerUse { get; set; } = new();
@@ -266,7 +314,7 @@ public sealed class AppSettings
     public int PetReminderMinutes { get; set; } = 40;
 
     /// <summary>How the big clock on the Home page is drawn: plain, outlined or glass (like the iOS 26 lock screen).</summary>
-    public ClockLook ClockLook { get; set; } = ClockLook.Outline;
+    public ClockLook ClockLook { get; set; } = ClockLook.Glass;
 
     /// <summary>Set once the thin outlined lock-screen clock became the default for existing settings files too.</summary>
     public bool ClockDefaultsV2 { get; set; }
@@ -286,7 +334,7 @@ public sealed class AppSettings
     public int ClipboardKeepHours { get; set; }
 
     /// <summary>Which cloud brain handles pictures (and text when offline isn't available). Gemini has a free tier with no card.</summary>
-    public CloudProvider CloudProvider { get; set; } = CloudProvider.Groq;
+    public CloudProvider CloudProvider { get; set; } = CloudProvider.Gemini;
 
     /// <summary>Google AI Studio key (free, no card): aistudio.google.com/apikey.</summary>
     public string GeminiApiKey { get; set; } = "";
@@ -304,13 +352,13 @@ public sealed class AppSettings
     public bool ShowAdvanced { get; set; }
 
     /// <summary>Shape of the animated line along the bottom of the music pill. Ribbon is the original.</summary>
-    public WaveStyle WaveStyle { get; set; } = WaveStyle.Ribbon;
+    public WaveStyle WaveStyle { get; set; } = WaveStyle.Aurora;
     /// <summary>A notification or copy leaves a small bubble beside the pill for this many seconds (0 = off).</summary>
     public int CarrySeconds { get; set; } = 8;
 
     /// <summary>A little pet that wanders beneath the collapsed island.</summary>
     public bool PetEnabled { get; set; } = true;
-    public PetKind PetKind { get; set; } = PetKind.Cat;
+    public PetKind PetKind { get; set; } = PetKind.Dog;
     /// <summary>The pet speaks (little speech bubbles).</summary>
     public bool PetTalks { get; set; } = true;
 
@@ -336,6 +384,12 @@ public sealed class AppSettings
     /// <summary>Handwriting-style font for all lyrics.</summary>
     public string LyricsFont { get; set; } = "Segoe Print";
     public double LyricsFontSize { get; set; } = 16;
+    /// <summary>Colour of the current lyric line.</summary>
+    public LyricsColorMode LyricsColorMode { get; set; } = LyricsColorMode.Cover;
+    /// <summary>Used when <see cref="LyricsColorMode"/> is Custom or CustomGradient (start).</summary>
+    public string LyricsCustomColor { get; set; } = "#FFFFD60A";
+    /// <summary>Used when <see cref="LyricsColorMode"/> is CustomGradient (end).</summary>
+    public string LyricsCustomColorB { get; set; } = "#FF64D2FF";
     /// <summary>Artist name under the title on the collapsed music pill.</summary>
     public bool ShowArtistOnPill { get; set; } = true;
     public bool LyricsInCompact { get; set; }
@@ -360,7 +414,11 @@ public sealed class AppSettings
     public bool FocusAutoStart { get; set; } = true;
 
     /// <summary>Order of the island's pages after Home (page names); anything missing follows in the default order.</summary>
-    public List<string> PageOrder { get; set; } = new();
+    public List<string> PageOrder { get; set; } = new()
+    {
+        "Lyrics", "Assistant", "Clipboard", "Focus", "Calendar", "Todo", "Notes",
+        "Shelf", "Weather", "Apps", "Notifications",
+    };
 
     /// <summary>Keep a history of what you copy (text, links, images, files), on this PC only.</summary>
     public bool ClipboardHistoryEnabled { get; set; } = true;
@@ -377,7 +435,13 @@ public sealed class AppSettings
     /// <summary>System-wide shortcut: grabs the screen, opens the assistant and focuses the input.</summary>
     public string AssistantHotkey { get; set; } = "Ctrl+Alt+J";
 
-    public ShakeSensitivity ShakeSensitivity { get; set; } = ShakeSensitivity.Medium;
+    /// <summary>
+    /// Per-page open shortcuts (page enum name → "Ctrl+Alt+N"). Defaults use the first free letter of
+    /// the page title; empty string = off. Clara stays on <see cref="AssistantHotkey"/>.
+    /// </summary>
+    public Dictionary<string, string> PageHotkeys { get; set; } = new(StringComparer.Ordinal);
+
+    public ShakeSensitivity ShakeSensitivity { get; set; } = ShakeSensitivity.High;
 
     /// <summary>System-wide shortcut that hides / shows the island, e.g. "Ctrl+Alt+I"; empty = none.</summary>
     public string ToggleHotkey { get; set; } = "Ctrl+Alt+I";
@@ -429,7 +493,7 @@ public sealed class AppSettings
 
     // ---- activities
     /// <summary>Clicking the collapsed music activity opens the music app (hover still expands), like tapping on iPhone.</summary>
-    public bool ClickOpensMediaApp { get; set; }
+    public bool ClickOpensMediaApp { get; set; } = true;
 
     /// <summary>When two activities run (e.g. timer + music), show the second as a small bubble beside the island.</summary>
     public bool ShowSecondActivity { get; set; } = true;
@@ -443,17 +507,17 @@ public sealed class AppSettings
     public bool StatusAlerts { get; set; } = true;
 
     // ---- notes and to-do
-    public bool TodoEnabled { get; set; } = true;
-    public bool NotesEnabled { get; set; } = true;
+    public bool TodoEnabled { get; set; }
+    public bool NotesEnabled { get; set; }
 
     // ---- file shelf
     public bool ShelfEnabled { get; set; } = true;
 
     /// <summary>Keep files on the shelf after dragging them out (otherwise a successful drop removes them).</summary>
-    public bool ShelfKeepAfterDrag { get; set; }
+    public bool ShelfKeepAfterDrag { get; set; } = true;
 
     // ---- calendar
-    public bool CalendarEnabled { get; set; } = true;
+    public bool CalendarEnabled { get; set; }
 
     /// <summary>iCal (.ics / webcal) addresses: Google "Secret address in iCal format", Outlook "ICS" link, iCloud public link.</summary>
     public List<string> CalendarIcsUrls { get; set; } = new();
@@ -474,7 +538,7 @@ public sealed class AppSettings
     public double NotificationSeconds { get; set; } = 5;
 
     // ---- weather
-    public bool WeatherEnabled { get; set; } = true;
+    public bool WeatherEnabled { get; set; }
 
     /// <summary>Windows location (rounded to ~1 km); otherwise the chosen city below.</summary>
     public bool WeatherUseDeviceLocation { get; set; } = true;
@@ -488,15 +552,20 @@ public sealed class AppSettings
     public double? WeatherLongitude { get; set; }
 
     [JsonConverter(typeof(JsonStringEnumConverter))]
-    public TemperatureUnit TemperatureUnit { get; set; } = TemperatureUnit.Auto;
+    public TemperatureUnit TemperatureUnit { get; set; } = TemperatureUnit.Celsius;
 
     /// <summary>Weather icon and temperature next to the clock in the idle pill ("10:58 PM | ☁ 26°").</summary>
     public bool WeatherInIdlePill { get; set; } = true;
     /// <summary>The idle weather sits in its own round bubble beside the clock pill, not inside it.</summary>
     public bool WeatherSeparate { get; set; } = true;
-    public ClockStyle ClockStyle { get; set; } = ClockStyle.Classic;
+
+    /// <summary>Home weather card motion. Default is cinematic (slow filmic); Static freezes the rich sky.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public WeatherMotion WeatherMotion { get; set; } = WeatherMotion.Cinematic;
+
+    public ClockStyle ClockStyle { get; set; } = ClockStyle.Stacked;
     /// <summary>Font of the idle clock.</summary>
-    public string ClockFont { get; set; } = "Bahnschrift Light";
+    public string ClockFont { get; set; } = "Segoe UI Variable";
 
     // ---- expanded pages
     [JsonConverter(typeof(JsonStringEnumConverter))]
@@ -585,6 +654,10 @@ public sealed class AppSettings
                     settings.AccentSource = AccentSource.MediaApp;
                 settings.ThemeFromWallpaper = null;
 
+                SmartTime.MigrateAlarmUse(settings);
+                settings.PageHotkeys = new Dictionary<string, string>(settings.PageHotkeys ?? new(), StringComparer.Ordinal);
+                PageHotkeyMap.EnsureDefaults(settings.PageHotkeys, settings.AssistantHotkey, settings.ToggleHotkey, settings.QuickPasteHotkey);
+
                 return settings;
             }
         }
@@ -594,7 +667,9 @@ public sealed class AppSettings
             // when the defaults are saved over it.
             try { File.Copy(FilePath, FilePath + ".unreadable", overwrite: false); } catch (Exception) { }
         }
-        return new AppSettings();
+        var fresh = new AppSettings();
+        PageHotkeyMap.EnsureDefaults(fresh.PageHotkeys, fresh.AssistantHotkey, fresh.ToggleHotkey, fresh.QuickPasteHotkey);
+        return fresh;
     }
 
     public void Save()

@@ -36,10 +36,10 @@ public partial class MainWindow
         }
         if (SHQueryUserNotificationState(out var state) != 0) return;
         var fullscreen = state is NotificationState.RunningD3DFullScreen or NotificationState.PresentationMode;
-        // The screenshot overlay (Win+Shift+S, Print Screen) briefly looks like a full-screen app: only a state
-        // that lasts a few seconds counts, and the island shows again the moment it ends.
+        // Win+Shift+S / Print Screen overlays also report as "full screen". Need a long debounce so a
+        // normal snip doesn't hide the island; real games/video stay fullscreen for many seconds.
         _fullscreenTicks = fullscreen ? _fullscreenTicks + 1 : 0;
-        if (fullscreen && !IslandHidden && _fullscreenTicks >= 4)
+        if (fullscreen && !IslandHidden && _fullscreenTicks >= 8)
         {
             _autoHidden = true;
             SetIslandHidden(true);

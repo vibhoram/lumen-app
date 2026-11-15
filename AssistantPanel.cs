@@ -49,8 +49,18 @@ public sealed class AssistantPanel : Grid
     private bool _engineLocal;
     private string _engineName = "";
 
-    /// <summary>True while she is replying, and for a few seconds after: the island must not collapse under the cursor while you read.</summary>
-    public bool KeepOpen => _busy || (DateTime.UtcNow - _lastActivity).TotalSeconds < 10;
+    /// <summary>Only while a reply is streaming — so you can look away and still see it land. Idle Clara collapses like any other page.</summary>
+    public bool KeepOpen => _busy;
+
+    /// <summary>Bumps activity (hotkey / send). Does not pin the island open anymore.</summary>
+    public void KeepAlive() => _lastActivity = DateTime.UtcNow;
+
+    /// <summary>Compact Clara chat well — grows for a long latest reply, shrinks back for short ones; older messages stay scrollable.</summary>
+    private const double ChatMinHeight = 112;
+    private const double ChatMaxHeight = 300;
+
+    /// <summary>Island should remeasure when a reply grows the chat.</summary>
+    public event Action? LayoutChanged;
 
     /// <summary>A tiny always-visible badge: green dot "local" (the model on this PC) or blue dot "cloud" (Groq).</summary>
     private void SetEngine(bool local, string name)
@@ -82,8 +92,9 @@ public sealed class AssistantPanel : Grid
     public AssistantPanel(AppSettings settings)
     {
         _settings = settings;
+        // Auto rows only — Star was eating leftover island height and left a dead empty well under the input.
         RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
@@ -121,8 +132,7 @@ public sealed class AssistantPanel : Grid
         _scroll = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
-            MaxHeight = 250,
-            MinHeight = 92,
+            Height = ChatMinHeight,
             Content = _messages,
         };
         var slim = new SlimScroller(_scroll);
@@ -130,6 +140,15 @@ public sealed class AssistantPanel : Grid
         {
             slim.Wheel(e.Delta);
             e.Handled = true; // never flips the page while you read
+            // After the scroller moves, size the well to whatever message is in view.
+            Dispatcher.BeginInvoke(() => { FitChatHeight(allowShrink: true); LayoutChanged?.Invoke(); }, DispatcherPriority.Background);
+        };
+        _scroll.ScrollChanged += (_, e) =>
+        {
+            if (_busy || _fitting || e.ExtentHeightChange != 0 && e.VerticalChange == 0) return;
+            if (Math.Abs(e.VerticalChange) < 0.5) return; // ignore height-only refits
+            FitChatHeight(allowShrink: true);
+            LayoutChanged?.Invoke();
         };
         _empty = BuildEmpty();
         var stack = new Grid();
@@ -147,20 +166,21 @@ public sealed class AssistantPanel : Grid
         Children.Add(well);
 
         // ---- attachment chip
-        _chipImage = new Image { Width = 56, Height = 34, Stretch = Stretch.UniformToFill };
-        _chipThumb = new Border { CornerRadius = new CornerRadius(7), Child = _chipImage, ClipToBounds = true };
-        _chipText = new TextBlock { FontSize = 11.5, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0), Opacity = 0.9, MaxWidth = 240, TextTrimming = TextTrimming.CharacterEllipsis };
-        var remove = new TextBlock { Text = "", FontFamily = IconFont, FontSize = 10, VerticalAlignment = VerticalAlignment.Center, Cursor = Cursors.Hand, Opacity = 0.7, Margin = new Thickness(0, 0, 4, 0) };
+        // Tiny thumb + X by default; label only on hover so "Screen attached" doesn't eat chat space.
+        _chipImage = new Image { Width = 36, Height = 22, Stretch = Stretch.UniformToFill };
+        _chipThumb = new Border { CornerRadius = new CornerRadius(6), Child = _chipImage, ClipToBounds = true };
+        _chipText = new TextBlock { FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 4, 0), Opacity = 0.85, MaxWidth = 160, TextTrimming = TextTrimming.CharacterEllipsis, Visibility = Visibility.Collapsed };
+        var remove = new TextBlock { Text = "", FontFamily = IconFont, FontSize = 9, VerticalAlignment = VerticalAlignment.Center, Cursor = Cursors.Hand, Opacity = 0.65, Margin = new Thickness(2, 0, 2, 0) };
         remove.MouseLeftButtonUp += (_, e) => { _pending = null; _pendingText = null; UpdateChip(); e.Handled = true; };
         _chip = new Border
         {
-            CornerRadius = new CornerRadius(10),
+            CornerRadius = new CornerRadius(8),
             Background = GlassFillBrush(),
             BorderBrush = GlassRimBrush(),
             BorderThickness = new Thickness(1),
-            Padding = new Thickness(4),
+            Padding = new Thickness(3),
             HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(0, 8, 0, 0),
+            Margin = new Thickness(0, 6, 0, 0),
             Visibility = Visibility.Collapsed,
             Child = new StackPanel
             {
@@ -173,6 +193,8 @@ public sealed class AssistantPanel : Grid
                 },
             },
         };
+        _chip.MouseEnter += (_, _) => { if (_chip.Visibility == Visibility.Visible) _chipText.Visibility = Visibility.Visible; };
+        _chip.MouseLeave += (_, _) => _chipText.Visibility = Visibility.Collapsed;
         SetRow(_chip, 2);
         Children.Add(_chip);
 
@@ -282,19 +304,21 @@ public sealed class AssistantPanel : Grid
     }
 #endif
 
-    /// <summary>Attaches a piece of text (selection, clipboard item) as context for the next message.</summary>
-    public void AttachText(string? text)
-    {
-        if (string.IsNullOrWhiteSpace(text)) return;
-        _pendingText = text.Trim();
-        UpdateChip();
-    }
-
     /// <summary>Attaches a screenshot to the next message.</summary>
     public void AttachImage(BitmapSource? image)
     {
         if (image is null) return;
         _pending = image;
+        KeepAlive();
+        UpdateChip();
+    }
+
+    /// <summary>Attaches selected / clipboard text to the next message.</summary>
+    public void AttachText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return;
+        _pendingText = text.Trim();
+        KeepAlive();
         UpdateChip();
     }
 
@@ -352,8 +376,19 @@ public sealed class AssistantPanel : Grid
         _history.Clear();
         _messages.Children.Clear();
         _pending = null;
+        _pendingText = null;
         UpdateChip();
         ShowEmpty(true);
+        FitChatHeight(allowShrink: true);
+        LayoutChanged?.Invoke();
+    }
+
+    /// <summary>Drops the pending screen/text chip (e.g. Clara hotkey toggled closed).</summary>
+    public void ClearAttachment()
+    {
+        _pending = null;
+        _pendingText = null;
+        UpdateChip();
     }
 
     private void UpdateChip()
@@ -366,12 +401,16 @@ public sealed class AssistantPanel : Grid
         var wasHidden = _chip.Visibility != Visibility.Visible;
         _chipImage.Source = _pending;
         _chipThumb.Visibility = _pending is null ? Visibility.Collapsed : Visibility.Visible;
-        _chipText.Text = (_pending, _pendingText) switch
+        // Compact by default — full label only on hover (the long "Screen attached" ate chat height).
+        var full = (_pending, _pendingText) switch
         {
-            (not null, not null) => "Screen + selected text",
-            (not null, null) => "Screen attached",
-            _ => "\u201C" + _pendingText!.Replace('\n', ' ') + "\u201D",
+            (not null, not null) => "Screen + text",
+            (not null, null) => "Screen",
+            _ => "\u201C" + (_pendingText!.Length > 42 ? _pendingText[..42] + "…" : _pendingText).Replace('\n', ' ') + "\u201D",
         };
+        _chipText.Text = full;
+        _chipText.Visibility = _chip.IsMouseOver ? Visibility.Visible : Visibility.Collapsed;
+        _chip.ToolTip = full;
         _chip.Visibility = Visibility.Visible;
         if (wasHidden) Appear(_chip, 6);
     }
@@ -665,6 +704,8 @@ public sealed class AssistantPanel : Grid
 
     private void ScrollDown() => Dispatcher.BeginInvoke(() =>
     {
+        FitChatHeight(allowShrink: !_busy);
+        LayoutChanged?.Invoke();
         var target = _scroll.ScrollableHeight;
         if (Math.Abs(target - _scroll.VerticalOffset) < 1) return;
         _scroll.SetValue(OffsetProperty, _scroll.VerticalOffset);
@@ -673,6 +714,78 @@ public sealed class AssistantPanel : Grid
             EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
         });
     }, DispatcherPriority.Background);
+
+    /// <summary>
+    /// Sizes the chat well to what's on screen: latest turn while at the bottom, or the message under the
+    /// scroll viewport when you roll back. While streaming, only grows (no shrink jitter).
+    /// </summary>
+    private bool _fitting;
+
+    private void FitChatHeight(bool allowShrink = true)
+    {
+        if (_fitting) return;
+        _fitting = true;
+        try
+        {
+        _messages.UpdateLayout();
+        var width = _scroll.ActualWidth > 0 ? _scroll.ActualWidth : 360;
+        double need;
+        if (_messages.Children.Count == 0)
+        {
+            need = ChatMinHeight;
+        }
+        else
+        {
+            // Prefer the tallest message currently overlapping the viewport (scroll-back expands for that bubble).
+            var viewTop = _scroll.VerticalOffset;
+            var viewBot = viewTop + Math.Max(_scroll.Height, 1);
+            var atBottom = _scroll.ScrollableHeight <= 1 || viewTop >= _scroll.ScrollableHeight - 12;
+            need = ChatMinHeight;
+            double y = 0;
+            FrameworkElement? last = null;
+            FrameworkElement? prev = null;
+            foreach (var child in _messages.Children)
+            {
+                if (child is not FrameworkElement el) continue;
+                el.Measure(new Size(width, double.PositiveInfinity));
+                var h = el.DesiredSize.Height;
+                var top = y;
+                var bot = y + h;
+                y = bot;
+                prev = last;
+                last = el;
+                if (bot > viewTop + 2 && top < viewBot - 2)
+                    need = Math.Max(need, Math.Min(h + 8, ChatMaxHeight));
+            }
+            // Pinned to the bottom (live reply): fit the latest turn (+ user bubble above when short).
+            if (atBottom && last is not null)
+            {
+                last.Measure(new Size(width, double.PositiveInfinity));
+                var live = last.DesiredSize.Height;
+                if (prev is not null)
+                {
+                    prev.Measure(new Size(width, double.PositiveInfinity));
+                    live += prev.DesiredSize.Height;
+                }
+                need = Math.Clamp(live + 8, ChatMinHeight, ChatMaxHeight);
+            }
+            need = Math.Clamp(need, ChatMinHeight, ChatMaxHeight);
+        }
+        if (!allowShrink && need < _scroll.Height) need = _scroll.Height;
+        if (Math.Abs(_scroll.Height - need) >= 1)
+            _scroll.Height = need;
+        }
+        finally { _fitting = false; }
+    }
+
+    /// <summary>Called from a streaming bubble so the island grows as tokens arrive.</summary>
+    internal void RefitWhileStreaming()
+    {
+        FitChatHeight(allowShrink: false);
+        LayoutChanged?.Invoke();
+        if (_scroll.ScrollableHeight > 0)
+            _scroll.ScrollToVerticalOffset(_scroll.ScrollableHeight);
+    }
 
     private void ShowNoKey()
     {
@@ -798,7 +911,7 @@ public sealed class AssistantPanel : Grid
                 BorderBrush = B("#12FFFFFF"),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(16, 16, 16, 4),
-                Padding = new Thickness(12, 8, 12, 8),
+                Padding = new Thickness(14, 10, 14, 10),
                 HorizontalAlignment = HorizontalAlignment.Left,
                 MaxWidth = 330,
                 Child = _host,
@@ -820,6 +933,7 @@ public sealed class AssistantPanel : Grid
                 if (!_dirty) return;
                 _dirty = false;
                 Render(_text);
+                _owner.RefitWhileStreaming(); // grow the island live as tokens land
             };
         }
 
@@ -834,6 +948,7 @@ public sealed class AssistantPanel : Grid
                 _body.Children.Remove(_dots);
                 Render(text);
                 _dirty = false;
+                _owner.RefitWhileStreaming();
                 _render.Start();
             }
         }
@@ -880,6 +995,7 @@ public sealed class AssistantPanel : Grid
                 _body.Children.Add(copy);
             }
             _owner.ScrollDown();
+            _owner.LayoutChanged?.Invoke();
         }
 
         /// <summary>A small badge for something Clara just did on the PC.</summary>
@@ -954,11 +1070,17 @@ public sealed class AssistantPanel : Grid
         private void AddProse(string prose)
         {
             var paragraph = new List<string>();
+            var afterList = false;
             void Flush()
             {
                 if (paragraph.Count == 0) return;
-                _body.Children.Add(Inline(string.Join("\n", paragraph), 0));
+                var tb = Inline(string.Join("\n", paragraph), 0);
+                // breathing room between blocks so lists don't glue to the paragraph above
+                if (afterList) tb.Margin = new Thickness(0, 8, 0, 6);
+                else tb.Margin = new Thickness(0, 0, 0, 8);
+                _body.Children.Add(tb);
                 paragraph.Clear();
+                afterList = false;
             }
             foreach (var raw in prose.Split('\n'))
             {
@@ -968,19 +1090,53 @@ public sealed class AssistantPanel : Grid
                 if (trimmed.StartsWith("- ") || trimmed.StartsWith("* "))
                 {
                     Flush();
-                    _body.Children.Add(Inline("•  " + trimmed[2..], 8));
+                    _body.Children.Add(Bullet(trimmed[2..]));
+                    afterList = true;
+                }
+                else if (Regex.Match(trimmed, @"^(\d+\.)\s+(.*)$") is { Success: true } num)
+                {
+                    Flush();
+                    _body.Children.Add(Bullet(num.Groups[2].Value, num.Groups[1].Value));
+                    afterList = true;
                 }
                 else if (trimmed.StartsWith('#'))
                 {
                     Flush();
                     var tb = Inline(trimmed.TrimStart('#').Trim(), 0);
                     tb.FontWeight = FontWeights.SemiBold;
-                    tb.FontSize = 14;
+                    tb.FontSize = 14.5;
+                    tb.LineHeight = 22;
+                    tb.Margin = new Thickness(0, afterList ? 10 : 4, 0, 6);
                     _body.Children.Add(tb);
+                    afterList = false;
                 }
                 else paragraph.Add(line);
             }
             Flush();
+        }
+
+        private static FrameworkElement Bullet(string text, string? marker = null)
+        {
+            var row = new Grid { Margin = new Thickness(2, 3, 0, 3) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            var mark = new TextBlock
+            {
+                Text = marker ?? "•",
+                FontSize = 13,
+                Foreground = B("#CCFFFFFF"),
+                Width = 16,
+                Margin = new Thickness(0, 1, 4, 0),
+                LineHeight = 20,
+            };
+            var body = Inline(text, 0);
+            body.Margin = new Thickness(0);
+            body.LineHeight = 20;
+            SetColumn(mark, 0);
+            SetColumn(body, 1);
+            row.Children.Add(mark);
+            row.Children.Add(body);
+            return row;
         }
 
         private static TextBlock Inline(string text, double indent)
@@ -988,21 +1144,55 @@ public sealed class AssistantPanel : Grid
             var tb = new TextBlock
             {
                 TextWrapping = TextWrapping.Wrap,
-                FontSize = 13,
+                FontSize = 13.2,
                 Foreground = B("#F2FFFFFF"),
-                Margin = new Thickness(indent, 1, 0, 3),
-                LineHeight = 18,
+                Margin = new Thickness(indent, 0, 0, 6),
+                LineHeight = 20,
             };
-            foreach (var part in Regex.Split(text, @"(\*\*.+?\*\*|`[^`]+`)"))
+            foreach (var part in Regex.Split(text, @"(\*\*.+?\*\*|`[^`]+`|https?://[^\s<>\]]+)"))
             {
                 if (part.Length == 0) continue;
                 if (part.StartsWith("**") && part.EndsWith("**") && part.Length > 4)
                     AddWithEmoji(tb, part[2..^2], FontWeights.SemiBold);
                 else if (part.StartsWith('`') && part.EndsWith('`') && part.Length > 2)
                     tb.Inlines.Add(new Run(part[1..^1]) { FontFamily = new FontFamily("Cascadia Mono, Consolas"), Background = B("#40000000"), FontSize = 12 });
+                else if (part.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || part.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                {
+                    var url = part.TrimEnd('.', ',', ')', ']');
+                    try
+                    {
+                        var link = new Hyperlink(new Run(ShortUrl(url)))
+                        {
+                            NavigateUri = new Uri(url),
+                            Foreground = new SolidColorBrush(AccentA),
+                            TextDecorations = null,
+                            ToolTip = url,
+                        };
+                        link.RequestNavigate += (_, e) =>
+                        {
+                            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true }); }
+                            catch (Exception) { }
+                            e.Handled = true;
+                        };
+                        tb.Inlines.Add(link);
+                    }
+                    catch (Exception) { AddWithEmoji(tb, part, null); }
+                }
                 else AddWithEmoji(tb, part, null);
             }
             return tb;
+        }
+
+        private static string ShortUrl(string url)
+        {
+            try
+            {
+                var u = new Uri(url);
+                var host = u.Host.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? u.Host[4..] : u.Host;
+                var path = u.AbsolutePath is "/" or "" ? "" : (u.AbsolutePath.Length > 22 ? u.AbsolutePath[..20] + "…" : u.AbsolutePath);
+                return host + path;
+            }
+            catch (Exception) { return url.Length > 36 ? url[..34] + "…" : url; }
         }
 
         private static bool IsEmoji(string element)

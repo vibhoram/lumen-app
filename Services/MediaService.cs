@@ -356,8 +356,14 @@ public sealed class MediaService : IDisposable
         if (IsAppleMusic(appId)) return "Apple Music";
         if (appId.Contains("ZuneMusic", StringComparison.OrdinalIgnoreCase)) return "Media Player";
         if (appId.Contains("Chrome", StringComparison.OrdinalIgnoreCase)) return "Chrome";
-        if (appId.Contains("MSEdge", StringComparison.OrdinalIgnoreCase)) return "Edge";
+        if (appId.Contains("MSEdge", StringComparison.OrdinalIgnoreCase)
+            || appId.Contains("MicrosoftEdge", StringComparison.OrdinalIgnoreCase)) return "Edge";
         if (appId.Contains("Firefox", StringComparison.OrdinalIgnoreCase)) return "Firefox";
+        if (appId.Contains("Brave", StringComparison.OrdinalIgnoreCase)) return "Brave";
+        if (appId.Contains("Opera", StringComparison.OrdinalIgnoreCase)) return "Opera";
+        if (appId.Contains("Vivaldi", StringComparison.OrdinalIgnoreCase)) return "Vivaldi";
+        if (appId.Contains("Discord", StringComparison.OrdinalIgnoreCase)) return "Discord";
+        if (appId.Contains("YouTube", StringComparison.OrdinalIgnoreCase)) return "YouTube";
 
         // "Foo.exe", "Publisher.App_hash!App" → "Foo", "App"
         var name = appId.Split('!')[0];
@@ -366,7 +372,25 @@ public sealed class MediaService : IDisposable
         if (underscore > 0) name = name[..underscore];
         var dot = name.LastIndexOf('.');
         if (dot >= 0 && dot < name.Length - 1) name = name[(dot + 1)..];
-        return name.Length > 0 ? name : "Media";
+        // PWAs / site media often expose a random AUMID fragment (e.g. BG3O22N3OBJ…). Don't show that.
+        if (name.Length == 0 || LooksLikeOpaqueId(name)) return "Media";
+        return name;
+    }
+
+    /// <summary>True for hash-like ids with no human words (Windows sometimes uses these for web apps).</summary>
+    private static bool LooksLikeOpaqueId(string name)
+    {
+        if (name.Length < 12) return false;
+        var letters = 0;
+        var digits = 0;
+        foreach (var c in name)
+        {
+            if (char.IsLetter(c)) letters++;
+            else if (char.IsDigit(c)) digits++;
+            else return false; // spaces / dashes → treat as a real name
+        }
+        // Long mixed alnum with no separators reads as a machine id, not "Spotify".
+        return digits > 0 && letters > 0 && name.Length >= 16;
     }
 
     private static async Task<Artwork?> LoadThumbnailAsync(IRandomAccessStreamReference? reference)

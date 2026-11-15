@@ -34,6 +34,14 @@ public partial class MainWindow
         UpdateMediaBubbles();
     }
 
+    private void OnMediaDiscClick(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        // Same as tapping the music pill: jump to the player (best-effort tab match in browsers).
+        if (_settings.ClickOpensMediaApp) OpenMediaApp();
+        else { SetExpanded(true); ShowPage(ExpandedPage.Home, animate: true); }
+    }
+
     /// <summary>Shows the disc and pulse bubbles while the collapsed music pill is on screen.</summary>
     private void UpdateMediaBubbles()
     {
@@ -48,7 +56,12 @@ public partial class MainWindow
         if (show && _media.Current is { Duration.Ticks: > 0 } media)
         {
             MediaDiscRing.Stroke = _discRing;
-            MediaDiscRing.Data = RingGeometry(Math.Max(26, MediaDiscBubble.Width), Math.Clamp(media.EstimatePosition(DateTimeOffset.Now) / media.Duration, 0, 1));
+            // Prefer the size ApplyGeometry will use (collapsed pill), not the xaml default Width
+            // which is briefly wrong the frame the bubble first appears after collapse.
+            var disc = Math.Max(26, Math.Min(
+                MediaDiscBubble.ActualWidth > 0 ? MediaDiscBubble.ActualWidth : MediaDiscBubble.Width,
+                MediaView.Height > 0 ? MediaView.Height : 40));
+            MediaDiscRing.Data = RingGeometry(disc, Math.Clamp(media.EstimatePosition(DateTimeOffset.Now) / media.Duration, 0, 1));
         }
         else MediaDiscRing.Data = Geometry.Empty;
         if (changed) ApplyGeometry();

@@ -23,7 +23,12 @@ public partial class MainWindow
         SetRing(ActivityBubble, ActivityBubbleRing, allowed ? _state.SecondaryView : null);
         SetRing(ActivityBubble2, ActivityBubbleRing2, allowed ? _state.TertiaryView : null);
         if (MediaDiscBubble.Visibility == Visibility.Visible && _media.Current is { Duration.Ticks: > 0 } media)
-            MediaDiscRing.Data = RingGeometry(Math.Max(26, MediaDiscBubble.Width), Math.Clamp(media.EstimatePosition(DateTimeOffset.Now) / media.Duration, 0, 1));
+        {
+            var disc = Math.Max(26, Math.Min(
+                MediaDiscBubble.ActualWidth > 0 ? MediaDiscBubble.ActualWidth : MediaDiscBubble.Width,
+                MediaView.Height > 0 ? MediaView.Height : 40));
+            MediaDiscRing.Data = RingGeometry(disc, Math.Clamp(media.EstimatePosition(DateTimeOffset.Now) / media.Duration, 0, 1));
+        }
     }
 
     private void SetRing(Grid bubble, Path ring, IslandView? view)

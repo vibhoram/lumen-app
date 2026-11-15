@@ -27,6 +27,7 @@ public sealed class LyricsPanel : Grid
     private List<LyricLine>? _data;
     private FontFamily _font = new("Segoe Print, Ink Free, Segoe UI");
     private double _size = 16;
+    private Brush _highlight = SoftWhite(1);
     private int _current = -1;
     private DateTime _userScrolledAt = DateTime.MinValue;
 
@@ -46,9 +47,12 @@ public sealed class LyricsPanel : Grid
         }
 
         _scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, Content = _lines };
-        // fade the top and bottom so lines melt away instead of cutting off
-        TextOptions.SetTextFormattingMode(this, TextFormattingMode.Ideal);
-        UseLayoutRounding = true;
+        // Display + ClearType keeps handwriting fonts sharp; Ideal + element Opacity was soft/bitmapty on glass.
+        TextOptions.SetTextFormattingMode(this, TextFormattingMode.Display);
+        TextOptions.SetTextRenderingMode(this, TextRenderingMode.ClearType);
+        TextOptions.SetTextHintingMode(this, TextHintingMode.Fixed);
+        UseLayoutRounding = false;
+        SnapsToDevicePixels = true;
         _scroll.PreviewMouseWheel += (_, e) =>
         {
             _userScrolledAt = DateTime.Now; // reading ahead: don't yank the view back for a few seconds
@@ -92,6 +96,13 @@ public sealed class LyricsPanel : Grid
         foreach (var block in _blocks) { block.FontFamily = _font; block.FontSize = _size; }
     }
 
+    /// <summary>Brush for the line currently being sung (solid or gradient). Dim lines stay soft white.</summary>
+    public void SetHighlight(Brush brush)
+    {
+        _highlight = brush;
+        if (_current >= 0 && _current < _blocks.Count) FadeLines();
+    }
+
     public void SetTrack(string title, string artist)
     {
         _title.Text = title;
@@ -124,10 +135,12 @@ public sealed class LyricsPanel : Grid
                 FontSize = _size,
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 4, 0, 4),
-                Opacity = 0.5,
+                Foreground = SoftWhite(0.55),
                 Cursor = Cursors.Hand,
                 Tag = line.Time,
             };
+            TextOptions.SetTextFormattingMode(block, TextFormattingMode.Display);
+            TextOptions.SetTextRenderingMode(block, TextRenderingMode.ClearType);
             block.MouseLeftButtonUp += (_, e) => { e.Handled = true; SeekRequested?.Invoke(line.Time); };
             _lines.Children.Add(block);
             _blocks.Add(block);
@@ -173,16 +186,30 @@ public sealed class LyricsPanel : Grid
         block.FontWeight = current ? FontWeights.SemiBold : FontWeights.Normal;
     }
 
+    /// <summary>Brush alpha instead of UIElement.Opacity — Opacity forces a bitmap layer and makes lyrics look pixelated.</summary>
+    private static SolidColorBrush SoftWhite(double opacity)
+    {
+        var brush = new SolidColorBrush(Color.FromArgb((byte)Math.Clamp((int)(opacity * 255), 0, 255), 255, 255, 255));
+        brush.Freeze();
+        return brush;
+    }
+
     /// <summary>Lines fade with distance from the one being sung (a mask over the whole list made the text blurry).</summary>
     private void FadeLines()
     {
-        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
         for (var i = 0; i < _blocks.Count; i++)
         {
             var distance = _current < 0 ? i + 1 : Math.Abs(i - _current);
             // gentle falloff with a readable floor, so the whole song stays legible while scrolling
-            var to = distance == 0 ? 1.0 : Math.Max(0.42, 0.7 - 0.1 * (distance - 1));
-            _blocks[i].BeginAnimation(OpacityProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(260)) { EasingFunction = ease });
+            _blocks[i].BeginAnimation(UIElement.OpacityProperty, null);
+            _blocks[i].Opacity = 1;
+            if (distance == 0)
+                _blocks[i].Foreground = _highlight;
+            else
+            {
+                var to = Math.Max(0.42, 0.7 - 0.1 * (distance - 1));
+                _blocks[i].Foreground = SoftWhite(to);
+            }
         }
     }
 }

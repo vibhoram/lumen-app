@@ -77,64 +77,8 @@
             </Setter>
         </Style>
 
-        <!-- Slider: thin track, accent fill, round white thumb. -->
-        <Style x:Key="SliderFill" TargetType="RepeatButton">
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="RepeatButton">
-                        <Border Height="4" CornerRadius="2,0,0,2" Background="{StaticResource Accent}" />
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        <Style x:Key="SliderHit" TargetType="RepeatButton">
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="RepeatButton">
-                        <Border Height="20" Background="Transparent" />
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        <Style TargetType="Slider">
-            <Setter Property="Height" Value="24" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Slider">
-                        <Grid Background="Transparent">
-                            <Border Height="4" CornerRadius="2" Background="#26FFFFFF" VerticalAlignment="Center" />
-                            <Track x:Name="PART_Track">
-                                <Track.DecreaseRepeatButton>
-                                    <RepeatButton Style="{StaticResource SliderFill}" Command="Slider.DecreaseLarge" />
-                                </Track.DecreaseRepeatButton>
-                                <Track.Thumb>
-                                    <Thumb Width="18" Height="18" Cursor="Hand">
-                                        <Thumb.Template>
-                                            <ControlTemplate TargetType="Thumb">
-                                                <Ellipse Fill="White">
-                                                    <Ellipse.Effect><DropShadowEffect BlurRadius="5" ShadowDepth="1" Opacity="0.4" /></Ellipse.Effect>
-                                                </Ellipse>
-                                            </ControlTemplate>
-                                        </Thumb.Template>
-                                    </Thumb>
-                                </Track.Thumb>
-                                <Track.IncreaseRepeatButton>
-                                    <RepeatButton Style="{StaticResource SliderHit}" Command="Slider.IncreaseLarge" />
-                                </Track.IncreaseRepeatButton>
-                            </Track>
-                        </Grid>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style TargetType="TextBox">
-            <Setter Property="Background" Value="#33000000" />
-            <Setter Property="Foreground" Value="White" />
-            <Setter Property="BorderBrush" Value="#33FFFFFF" />
-            <Setter Property="CaretBrush" Value="White" />
-            <Setter Property="Padding" Value="6,3" />
-        </Style>
+        <!-- Soft fields only in Settings — never leak into Clara / the island. -->
+        <Style TargetType="TextBox" BasedOn="{StaticResource SoftField}" />
     </Window.Resources>
 
     <DockPanel>
@@ -149,11 +93,11 @@
         </Border>
         <!-- Section index: jumps to a section; the current one is highlighted while scrolling. -->
         <Border x:Name="NavBar" DockPanel.Dock="Left" Width="176" Background="#8C121214" BorderBrush="#1FFFFFFF" BorderThickness="0,0,1,0">
-            <ScrollViewer x:Name="NavScroller" VerticalScrollBarVisibility="Auto">
+            <ScrollViewer x:Name="NavScroller" Style="{StaticResource SlimScroll}">
                 <StackPanel x:Name="Nav" Margin="10,14,10,14" />
             </ScrollViewer>
         </Border>
-        <ScrollViewer x:Name="SettingsScroller" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer x:Name="SettingsScroller" Style="{StaticResource SlimScroll}">
             <!-- Sections are generated in code-behind. -->
             <StackPanel x:Name="Sections" Margin="24,4,24,20" />
         </ScrollViewer>

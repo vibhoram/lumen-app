@@ -43,6 +43,9 @@ public sealed class KeyboardWatcher : IDisposable
     private bool _registered;
     private bool _pasteKeyDown;
     private bool _shortcutKeyDown;
+    private bool _assistKeyDown;
+    private bool _quickPasteKeyDown;
+    private readonly List<(ModifierKeys Modifiers, int VirtualKey, Action Handler, bool KeyDown)> _extraFallbacks = new();
 
     /// <summary>Key and its new state (true = on), raised on the UI thread.</summary>
     public event Action<LockKey, bool>? LockToggled;
@@ -52,6 +55,12 @@ public sealed class KeyboardWatcher : IDisposable
 
     /// <summary><see cref="Shortcut"/> was pressed.</summary>
     public event Action? ShortcutPressed;
+
+    /// <summary><see cref="AssistShortcut"/> was pressed (Clara, when RegisterHotKey lost the combo).</summary>
+    public event Action? AssistShortcutPressed;
+
+    /// <summary><see cref="QuickPasteShortcut"/> was pressed (when RegisterHotKey lost the combo).</summary>
+    public event Action? QuickPasteShortcutPressed;
 
     public bool LockKeysEnabled { get; set; }
     public bool PasteEnabled { get; set; }
@@ -63,6 +72,21 @@ public sealed class KeyboardWatcher : IDisposable
     /// </summary>
     public (ModifierKeys Modifiers, int VirtualKey)? Shortcut { get; set; }
 
+    /// <summary>Clara hotkey fallback when another app owns RegisterHotKey.</summary>
+    public (ModifierKeys Modifiers, int VirtualKey)? AssistShortcut { get; set; }
+
+    /// <summary>Quick-paste hotkey fallback when another app owns RegisterHotKey.</summary>
+    public (ModifierKeys Modifiers, int VirtualKey)? QuickPasteShortcut { get; set; }
+
+    /// <summary>Extra owned-combo fallbacks (page hotkeys when RegisterHotKey lost them).</summary>
+    public void SetExtraFallbacks(IEnumerable<(ModifierKeys Modifiers, int VirtualKey, Action Handler)> items)
+    {
+        _extraFallbacks.Clear();
+        foreach (var (mod, vk, handler) in items)
+            _extraFallbacks.Add((mod, vk, handler, false));
+        Update();
+    }
+
     public void Attach(HwndSource source)
     {
         _source = source;
@@ -73,7 +97,8 @@ public sealed class KeyboardWatcher : IDisposable
     /// <summary>Registers for keyboard input only while something wants it.</summary>
     public void Update()
     {
-        var want = LockKeysEnabled || PasteEnabled || Shortcut is not null;
+        var want = LockKeysEnabled || PasteEnabled || Shortcut is not null
+            || AssistShortcut is not null || QuickPasteShortcut is not null || _extraFallbacks.Count > 0;
         if (_source is null || want == _registered) return;
         var device = new RAWINPUTDEVICE
         {
@@ -89,7 +114,8 @@ public sealed class KeyboardWatcher : IDisposable
     public void Dispose()
     {
         LockKeysEnabled = PasteEnabled = false;
-        Shortcut = null;
+        Shortcut = AssistShortcut = QuickPasteShortcut = null;
+        _extraFallbacks.Clear();
         Update();
         _source?.RemoveHook(WndProc);
         _source = null;
@@ -108,24 +134,16 @@ public sealed class KeyboardWatcher : IDisposable
         var released = (input.keyboard.Flags & RI_KEY_BREAK) != 0;
         TrackModifier(vk, input.keyboard.Flags, input.keyboard.MakeCode, released);
 
-        if (Shortcut is { } shortcut && vk == shortcut.VirtualKey)
+        // When another app owns RegisterHotKey, Windows swallows key-down; raw input only sees key-up.
+        TryFireOwnedShortcut(Shortcut, vk, released, ref _shortcutKeyDown, ShortcutPressed);
+        TryFireOwnedShortcut(AssistShortcut, vk, released, ref _assistKeyDown, AssistShortcutPressed);
+        TryFireOwnedShortcut(QuickPasteShortcut, vk, released, ref _quickPasteKeyDown, QuickPasteShortcutPressed);
+        for (var i = 0; i < _extraFallbacks.Count; i++)
         {
-            // When another app owns the shortcut, Windows turns the key-down into its hotkey message and
-            // raw input never sees it; only the key-up comes through. So: act on the key-down when it
-            // arrives, otherwise on a key-up whose key-down was swallowed (modifiers still held).
-            var fire = false;
-            if (released)
-            {
-                fire = !_shortcutKeyDown;
-                _shortcutKeyDown = false;
-            }
-            else if (!_shortcutKeyDown) // first key-down only, not auto-repeat
-            {
-                _shortcutKeyDown = true;
-                fire = true;
-            }
-            if (fire && ModifiersDown() == shortcut.Modifiers)
-                Dispatcher.CurrentDispatcher.InvokeAsync(() => ShortcutPressed?.Invoke(), DispatcherPriority.Input);
+            var entry = _extraFallbacks[i];
+            var down = entry.KeyDown;
+            TryFireOwnedShortcut((entry.Modifiers, entry.VirtualKey), vk, released, ref down, entry.Handler);
+            _extraFallbacks[i] = (entry.Modifiers, entry.VirtualKey, entry.Handler, down);
         }
 
         if (LockKeysEnabled && released && vk is VK_CAPITAL or VK_NUMLOCK)
@@ -153,6 +171,25 @@ public sealed class KeyboardWatcher : IDisposable
             }
         }
         return IntPtr.Zero;
+    }
+
+    private void TryFireOwnedShortcut(
+        (ModifierKeys Modifiers, int VirtualKey)? combo, int vk, bool released, ref bool keyDown, Action? handler)
+    {
+        if (combo is not { } shortcut || vk != shortcut.VirtualKey || handler is null) return;
+        var fire = false;
+        if (released)
+        {
+            fire = !keyDown;
+            keyDown = false;
+        }
+        else if (!keyDown) // first key-down only, not auto-repeat
+        {
+            keyDown = true;
+            fire = true;
+        }
+        if (fire && ModifiersDown() == shortcut.Modifiers)
+            Dispatcher.CurrentDispatcher.InvokeAsync(() => handler(), DispatcherPriority.Input);
     }
 
     // Modifier keys held (key → when pressed), per physical key (left/right), as seen in this raw input

@@ -9,7 +9,7 @@
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         Topmost="True" ShowInTaskbar="False" ShowActivated="False"
         ResizeMode="NoResize" Focusable="False"
-        FontFamily="Segoe UI Variable Text, Segoe UI" Foreground="White"
+        FontFamily="Segoe UI Variable Text, Segoe UI Emoji, Segoe UI" Foreground="White"
         TextOptions.TextRenderingMode="Grayscale">
 
     <Window.Resources>
@@ -20,6 +20,7 @@
             <Setter Property="Margin" Value="0,8,0,0" />
         </Style>
         <SolidColorBrush x:Key="Orange" Color="#FFFF9F0A" />
+        <SolidColorBrush x:Key="Violet" Color="#FFBF5AF2" />
         <SolidColorBrush x:Key="Green" Color="#FF30D158" />
         <SolidColorBrush x:Key="Cyan" Color="#FF64D2FF" />
         <SolidColorBrush x:Key="Secondary" Color="#99FFFFFF" />
@@ -55,45 +56,7 @@
             </Setter>
         </Style>
 
-        <!-- Thin, rounded, translucent scroll bar for pages that can outgrow the island. -->
-        <Style x:Key="SlimScrollThumb" TargetType="Thumb">
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Thumb">
-                        <Border CornerRadius="2" Background="#55FFFFFF" />
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        <Style x:Key="SlimScroll" TargetType="ScrollViewer">
-            <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
-            <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
-            <Setter Property="Focusable" Value="False" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ScrollViewer">
-                        <Grid>
-                            <ScrollContentPresenter CanContentScroll="{TemplateBinding CanContentScroll}" />
-                            <ScrollBar x:Name="PART_VerticalScrollBar" HorizontalAlignment="Right" Width="4"
-                                       Margin="0,2,-10,2" Orientation="Vertical"
-                                       Value="{TemplateBinding VerticalOffset}" Maximum="{TemplateBinding ScrollableHeight}"
-                                       ViewportSize="{TemplateBinding ViewportHeight}"
-                                       Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}">
-                                <ScrollBar.Template>
-                                    <ControlTemplate TargetType="ScrollBar">
-                                        <Track x:Name="PART_Track" IsDirectionReversed="True">
-                                            <Track.Thumb>
-                                                <Thumb Style="{StaticResource SlimScrollThumb}" />
-                                            </Track.Thumb>
-                                        </Track>
-                                    </ControlTemplate>
-                                </ScrollBar.Template>
-                            </ScrollBar>
-                        </Grid>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+        <!-- SlimScroll / SlimScrollThumb live in App.xaml so Settings and the island share them. -->
     </Window.Resources>
 
     <!-- Root has no background: only the pill and its content are hit-testable, the rest clicks through. -->
@@ -192,13 +155,13 @@
                            Foreground="{StaticResource Secondary}" Typography.NumeralAlignment="Tabular" Visibility="Collapsed" />
             </Grid>
 
-            <!-- Timer (compact) -->
+            <!-- Timer (compact) — violet so it doesn't collide with alarm orange / stopwatch cyan -->
             <Grid x:Name="TimerView" Style="{StaticResource IslandView}" Width="210" Height="36">
                 <Grid Margin="16,0">
                     <TextBlock Style="{StaticResource Glyph}" HorizontalAlignment="Left" Text="&#xE916;"
-                               FontSize="15" Foreground="{StaticResource Orange}" />
+                               FontSize="15" Foreground="{StaticResource Violet}" />
                     <TextBlock x:Name="TimerTextSmall" HorizontalAlignment="Right" VerticalAlignment="Center"
-                               FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource Orange}"
+                               FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource Violet}"
                                Typography.NumeralAlignment="Tabular" />
                 </Grid>
             </Grid>
@@ -453,48 +416,110 @@
                                        VerticalAlignment="Center" Foreground="{StaticResource Secondary}"
                                        Typography.NumeralAlignment="Tabular" />
                         </Grid>
-                        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0">
-                            <Button x:Name="PrevButton" Style="{StaticResource IconButton}" Width="44" Height="40"
-                                    Click="OnPreviousClick" ToolTip="Previous">
-                                <!-- filled double-triangle rewind (iOS style) -->
-                                <Path Fill="White" Stroke="White" StrokeThickness="1.8" StrokeLineJoin="Round"
-                                      Data="M12,1.5 L1.5,10 L12,18.5 Z M22.5,1.5 L12,10 L22.5,18.5 Z" />
-                            </Button>
-                            <Button x:Name="PlayPauseButton" Style="{StaticResource IconButton}" Width="52" Height="44"
-                                    Margin="14,0" Click="OnPlayPauseClick">
-                                <Grid Width="24" Height="26">
-                                    <TextBlock x:Name="PlayPauseGlyph" Visibility="Collapsed" />
-                                    <Path x:Name="PlayShape" Fill="White" Stroke="White" StrokeThickness="2.4" StrokeLineJoin="Round"
-                                          Data="M5,2.5 L21,13 L5,23.5 Z" Visibility="Collapsed" />
-                                    <Path x:Name="PauseShape" Fill="White"
-                                          Data="M3.5,1 H6.5 A2.5,2.5 0 0 1 9,3.5 V22.5 A2.5,2.5 0 0 1 6.5,25 H3.5 A2.5,2.5 0 0 1 1,22.5 V3.5 A2.5,2.5 0 0 1 3.5,1 Z M17.5,1 H20.5 A2.5,2.5 0 0 1 23,3.5 V22.5 A2.5,2.5 0 0 1 20.5,25 H17.5 A2.5,2.5 0 0 1 15,22.5 V3.5 A2.5,2.5 0 0 1 17.5,1 Z" />
-                                </Grid>
-                            </Button>
-                            <Button x:Name="NextButton" Style="{StaticResource IconButton}" Width="44" Height="40"
-                                    Click="OnNextClick" ToolTip="Next">
-                                <Path Fill="White" Stroke="White" StrokeThickness="1.8" StrokeLineJoin="Round"
-                                      Data="M1.5,1.5 L12,10 L1.5,18.5 Z M12,1.5 L22.5,10 L12,18.5 Z" />
-                            </Button>
-                        </StackPanel>
-                        <!-- Lyrics button: only when synced lyrics were found for this song. -->
-                        <Border x:Name="LyricsToggle" Grid.Row="2" HorizontalAlignment="Right" VerticalAlignment="Center"
-                                Margin="0,8,0,0" CornerRadius="15" Padding="11,6" Cursor="Hand" Visibility="Collapsed"
-                                Background="{StaticResource GlassFill}" BorderBrush="{StaticResource GlassRim}" BorderThickness="1" MouseLeftButtonUp="OnLyricsToggleClick" RenderTransformOrigin="0.5,0.5">
-                            <Border.RenderTransform><ScaleTransform x:Name="LyricsToggleScale" /></Border.RenderTransform>
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Style="{StaticResource Glyph}" Text="&#xE8D6;" FontSize="12" Margin="0,0,6,0" />
-                                <TextBlock Text="Lyrics" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <!-- Same row: volume | transport | lyrics. Hover: long springy slider, grows left+right; playback stays. -->
+                        <Grid Grid.Row="2" Margin="0,8,0,0" MinHeight="44" ClipToBounds="False">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" MinWidth="36" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" MinWidth="36" />
+                            </Grid.ColumnDefinitions>
+                            <!-- Glass bg scales for jelly; content stays clipped so the white track never pokes out. -->
+                            <Grid x:Name="MediaVolumeChip" Grid.Column="0" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                  Margin="0,0,4,0" ClipToBounds="False"
+                                  MouseEnter="OnMediaVolumeChipEnter" MouseLeave="OnMediaVolumeChipLeave">
+                                <Grid.RenderTransform>
+                                    <TranslateTransform x:Name="MediaVolumeChipShift" />
+                                </Grid.RenderTransform>
+                                <Border x:Name="MediaVolumePillGlass" CornerRadius="16"
+                                        Background="{StaticResource GlassFill}" BorderBrush="{StaticResource GlassRim}" BorderThickness="1"
+                                        RenderTransformOrigin="0.5,0.5">
+                                    <Border.RenderTransform>
+                                        <ScaleTransform x:Name="MediaVolumePillScale" />
+                                    </Border.RenderTransform>
+                                </Border>
+                                <StackPanel Orientation="Horizontal" Margin="3,2" ClipToBounds="True">
+                                    <Button x:Name="MediaMuteButton" Style="{StaticResource IconButton}" Width="28" Height="28" Tag="NoHover"
+                                            Click="OnMediaMuteClick" ToolTip="Mute / unmute">
+                                        <TextBlock x:Name="MediaVolumeGlyph" Style="{StaticResource Glyph}" Text="&#xE767;" FontSize="13" />
+                                    </Button>
+                                    <Grid x:Name="MediaVolumeSliderHost" Width="0" Height="28" ClipToBounds="True" VerticalAlignment="Center">
+                                        <Slider x:Name="MediaVolumeSlider" Height="24" Minimum="0" Maximum="1" TickFrequency="0.01"
+                                                IsSnapToTickEnabled="False" VerticalAlignment="Center" HorizontalAlignment="Stretch"
+                                                Margin="4,0,10,0" Opacity="0" ToolTip="Volume"
+                                                ValueChanged="OnMediaVolumeChanged"
+                                                PreviewMouseLeftButtonDown="OnMediaVolumeSliderDown"
+                                                PreviewMouseLeftButtonUp="OnMediaVolumeSliderUp"
+                                                LostMouseCapture="OnMediaVolumeSliderUp" />
+                                    </Grid>
+                                </StackPanel>
+                            </Grid>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                        Margin="10,0">
+                                <Button x:Name="PrevButton" Style="{StaticResource IconButton}" Width="44" Height="40"
+                                        Click="OnPreviousClick" ToolTip="Previous">
+                                    <Path Fill="White" Stroke="White" StrokeThickness="1.8" StrokeLineJoin="Round"
+                                          Data="M12,1.5 L1.5,10 L12,18.5 Z M22.5,1.5 L12,10 L22.5,18.5 Z" />
+                                </Button>
+                                <Button x:Name="PlayPauseButton" Style="{StaticResource IconButton}" Width="52" Height="44"
+                                        Margin="14,0" Click="OnPlayPauseClick">
+                                    <Grid Width="24" Height="26">
+                                        <TextBlock x:Name="PlayPauseGlyph" Visibility="Collapsed" />
+                                        <Path x:Name="PlayShape" Fill="White" Stroke="White" StrokeThickness="2.4" StrokeLineJoin="Round"
+                                              Data="M5,2.5 L21,13 L5,23.5 Z" Visibility="Collapsed" />
+                                        <Path x:Name="PauseShape" Fill="White"
+                                              Data="M3.5,1 H6.5 A2.5,2.5 0 0 1 9,3.5 V22.5 A2.5,2.5 0 0 1 6.5,25 H3.5 A2.5,2.5 0 0 1 1,22.5 V3.5 A2.5,2.5 0 0 1 3.5,1 Z M17.5,1 H20.5 A2.5,2.5 0 0 1 23,3.5 V22.5 A2.5,2.5 0 0 1 20.5,25 H17.5 A2.5,2.5 0 0 1 15,22.5 V3.5 A2.5,2.5 0 0 1 17.5,1 Z" />
+                                    </Grid>
+                                </Button>
+                                <Button x:Name="NextButton" Style="{StaticResource IconButton}" Width="44" Height="40"
+                                        Click="OnNextClick" ToolTip="Next">
+                                    <Path Fill="White" Stroke="White" StrokeThickness="1.8" StrokeLineJoin="Round"
+                                          Data="M1.5,1.5 L12,10 L1.5,18.5 Z M12,1.5 L22.5,10 L12,18.5 Z" />
+                                </Button>
                             </StackPanel>
-                        </Border>
+                            <Border x:Name="LyricsToggle" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                    CornerRadius="15" Padding="11,6" Cursor="Hand" Visibility="Collapsed"
+                                    Background="{StaticResource GlassFill}" BorderBrush="{StaticResource GlassRim}" BorderThickness="1"
+                                    MouseLeftButtonUp="OnLyricsToggleClick" RenderTransformOrigin="0.5,0.5">
+                                <Border.RenderTransform><ScaleTransform x:Name="LyricsToggleScale" /></Border.RenderTransform>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource Glyph}" Text="&#xE8D6;" FontSize="12" Margin="0,0,6,0" />
+                                    <TextBlock Text="Lyrics" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
                         <!-- The lyrics, opened under the controls; the island grows to fit. -->
                         <Border x:Name="LyricsInlineHost" Grid.Row="3" Margin="0,8,0,0" Visibility="Collapsed"
                                 CornerRadius="16" Background="#33000000" Padding="12,4" />
                     </Grid>
 
-                    <StackPanel x:Name="ClockSection">
-                        <local:GlassText x:Name="BigTime" FontSize="44" FontWeight="Light" HorizontalAlignment="Left" />
-                        <TextBlock x:Name="DateText" FontSize="13" Foreground="{StaticResource Secondary}" />
-                    </StackPanel>
+                    <!-- No music: clock left, glance card right (weather / next event / vitals / …). -->
+                    <Grid x:Name="ClockSection">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <local:GlassText x:Name="BigTime" FontSize="44" FontWeight="Light" HorizontalAlignment="Left" />
+                            <TextBlock x:Name="DateText" FontSize="13" Foreground="{StaticResource Secondary}" />
+                        </StackPanel>
+                        <Border x:Name="HomeGlanceCard" Grid.Column="1" MinWidth="148" MaxWidth="210" Margin="16,0,0,0"
+                                CornerRadius="16" Padding="12,10" VerticalAlignment="Center"
+                                Background="{StaticResource GlassFill}" BorderBrush="{StaticResource GlassRim}" BorderThickness="1"
+                                Cursor="Hand" MouseLeftButtonUp="OnHomeGlanceClick" RenderTransformOrigin="0.5,0.5"
+                                ClipToBounds="True">
+                            <Border.RenderTransform><ScaleTransform x:Name="HomeGlanceScale" /></Border.RenderTransform>
+                            <StackPanel x:Name="HomeGlanceBody" />
+                        </Border>
+                        <!-- Kept for UpdateNextUp / OnNextUpClick wiring; glance owns the visible next-event card. -->
+                        <Border x:Name="NextUpChip" Visibility="Collapsed" IsHitTestVisible="False"
+                                MouseLeftButtonUp="OnNextUpClick">
+                            <Border.RenderTransform><ScaleTransform x:Name="NextUpScale" /></Border.RenderTransform>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock x:Name="NextUpWhen" />
+                                <TextBlock x:Name="NextUpTitle" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
 
                     <Border Height="1" Background="#22FFFFFF" Margin="0,14,0,12" />
 
@@ -504,7 +529,7 @@
                     <Grid x:Name="TimerPresets">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center" Visibility="Collapsed">
                             <TextBlock Style="{StaticResource Glyph}" Text="&#xE916;" FontSize="14"
-                                       Foreground="{StaticResource Orange}" />
+                                       Foreground="{StaticResource Violet}" />
                             <TextBlock Text="Timer" FontSize="13" FontWeight="SemiBold" Margin="8,0,0,0"
                                        VerticalAlignment="Center" />
                         </StackPanel>
@@ -538,9 +563,9 @@
                     <Grid x:Name="TimerActivePanel">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
                             <TextBlock Style="{StaticResource Glyph}" Text="&#xE916;" FontSize="16"
-                                       Foreground="{StaticResource Orange}" />
+                                       Foreground="{StaticResource Violet}" />
                             <TextBlock x:Name="TimerTextLarge" FontSize="24" FontWeight="SemiBold" Margin="10,0,0,0"
-                                       VerticalAlignment="Center" Foreground="{StaticResource Orange}"
+                                       VerticalAlignment="Center" Foreground="{StaticResource Violet}"
                                        Typography.NumeralAlignment="Tabular" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
@@ -828,7 +853,8 @@
 
         <!-- Music split: the album art as a spinning disc with a progress ring, left of the title pill. -->
         <Grid x:Name="MediaDiscBubble" HorizontalAlignment="Left" VerticalAlignment="Top" Width="36" Height="36"
-              Visibility="Collapsed" RenderTransformOrigin="1,0.5" Cursor="Hand">
+              Visibility="Collapsed" RenderTransformOrigin="1,0.5" Cursor="Hand"
+              MouseLeftButtonUp="OnMediaDiscClick">
             <Grid.RenderTransform><ScaleTransform /></Grid.RenderTransform>
             <Ellipse Fill="{StaticResource BubbleFill}" Stroke="{StaticResource BubbleRim}" StrokeThickness="1" />
             <Ellipse x:Name="MediaDiscArt" Margin="4.5" RenderTransformOrigin="0.5,0.5" Fill="#33FFFFFF">

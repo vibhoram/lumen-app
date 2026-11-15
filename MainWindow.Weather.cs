@@ -12,7 +12,7 @@ public partial class MainWindow
     private void UpdateIdleWeatherBubble()
     {
         if (_state is null || IdleWeatherBubble is null) return;
-        var weather = _settings.WeatherEnabled && _settings.WeatherInIdlePill && _settings.WeatherSeparate ? _weather.Current : null;
+        var weather = _settings.WeatherInIdlePill && _settings.WeatherSeparate ? _weather.Current : null;
         var show = weather is not null && _currentView == ClockView && !_state.IsExpanded && !IslandHidden && !BarIsIdle
                    && _settings.IdleStyle != IdleStyle.Minimal && _state.Transient is null;
         if (show && weather is not null)

@@ -78,6 +78,16 @@ public sealed class VolumeService : IDisposable
         _endpoint.SetMute(!Muted, ref ctx);
     }
 
+    /// <summary>Sets master volume to <paramref name="level"/> (0..1). Unmutes when raising above silence.</summary>
+    public void SetLevel(float level)
+    {
+        if (_endpoint is null) return;
+        var ctx = Guid.Empty;
+        level = Math.Clamp(level, 0f, 1f);
+        if (level > 0.001f && Muted) _endpoint.SetMute(false, ref ctx);
+        _endpoint.SetMasterVolumeLevelScalar(level, ref ctx);
+    }
+
     public void Dispose()
     {
         DetachEndpoint();

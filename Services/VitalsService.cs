@@ -188,8 +188,25 @@ public sealed class VitalsService : IDisposable
 
     private static string Pretty(string process)
     {
-        var name = process.Replace("_", " ");
-        return name.Length == 0 ? process : char.ToUpperInvariant(name[0]) + name[1..];
+        // Plain English for the usual Windows suspects so Maximum/Tidy doesn't look like "the app ate RAM".
+        switch (process.ToLowerInvariant())
+        {
+            case "memcompression":
+            case "memory compression":
+                return "Windows memory compression";
+            case "svchost":
+                return "Windows services";
+            case "dwm":
+                return "Desktop compositor";
+            case "msmpeng":
+            case "securityhealthservice":
+                return "Windows Security";
+            case "disland":
+                return "Lumen";
+            default:
+                var name = process.Replace("_", " ");
+                return name.Length == 0 ? process : char.ToUpperInvariant(name[0]) + name[1..];
+        }
     }
 
     /// <summary>The biggest memory user, for the "RAM is almost full" alert.</summary>

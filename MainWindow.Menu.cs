@@ -65,7 +65,7 @@ public partial class MainWindow
         if (_timer.IsActive) menu.Items.Add(Item(_timerPinned ? "Unpin the timer" : "Pin the timer beside the island", () => SetTimerPinned(!_timerPinned)));
         menu.Items.Add(new Separator());
         menu.Items.Add(Item("Hide the island", () => SetIslandHidden(true)));
-        menu.Items.Add(Item("Settings", OpenSettings));
+        menu.Items.Add(Item("Settings", () => OpenSettings()));
         return menu;
     }
 
@@ -131,26 +131,86 @@ public partial class MainWindow
 
     // ------------------------------------------------------------------ shortcuts
 
-    /// <summary>Re-registers the Clara and quick-paste shortcuts when they change in Settings.</summary>
+    /// <summary>Re-registers Clara, quick-paste, and per-page shortcuts when they change in Settings.</summary>
     private void UpdateShortcuts()
     {
         if (new System.Windows.Interop.WindowInteropHelper(this).Handle == IntPtr.Zero) return;
-        if (_assistHotkeyText != _settings.AssistantHotkey)
-        {
-            _assistHotkeyText = _settings.AssistantHotkey;
-            _assistHotkey.Set(_settings.AssistantHotkey);
-        }
+        PageHotkeyMap.EnsureDefaults(_settings.PageHotkeys, _settings.AssistantHotkey, _settings.ToggleHotkey, _settings.QuickPasteHotkey);
+
+        // Always re-apply so TakenByAnotherApp + raw-input fallback stay correct after Attach.
+        _assistHotkeyText = _settings.AssistantHotkey;
+        var assistProblem = _assistHotkey.Set(_settings.AssistantHotkey);
         var paste = _settings.QuickPasteEnabled ? _settings.QuickPasteHotkey : "";
-        if (_pasteHotkeyText != paste)
+        _pasteHotkeyText = paste;
+        var pasteProblem = _pasteHotkey.Set(paste);
+
+        // Same raw-input fallback as hide/show: if another app already owns the combo,
+        // RegisterHotKey fails but we still catch it from the keyboard stream.
+        _keyboard.AssistShortcut = _assistHotkey.TakenByAnotherApp
+            && Hotkey.TryParse(_settings.AssistantHotkey, out var am, out var ak)
+            ? (am, KeyInterop.VirtualKeyFromKey(ak))
+            : null;
+        _keyboard.QuickPasteShortcut = _pasteHotkey.TakenByAnotherApp && paste.Length > 0
+            && Hotkey.TryParse(paste, out var pm, out var pk)
+            ? (pm, KeyInterop.VirtualKeyFromKey(pk))
+            : null;
+
+        RegisterPageHotkeys();
+        _keyboard.Update();
+        RefreshHotkeyProblem(assistProblem, pasteProblem);
+    }
+
+    private void RegisterPageHotkeys()
+    {
+        foreach (var (hook, _) in _pageHotkeys) hook.Dispose();
+        _pageHotkeys.Clear();
+        var extras = new List<(ModifierKeys Modifiers, int VirtualKey, Action Handler)>();
+        var source = System.Windows.Interop.HwndSource.FromHwnd(new System.Windows.Interop.WindowInteropHelper(this).Handle);
+        if (source is null) return;
+
+        foreach (var name in PageHotkeyMap.PageNames)
         {
-            _pasteHotkeyText = paste;
-            _pasteHotkey.Set(paste);
+            if (!_settings.PageHotkeys.TryGetValue(name, out var text) || string.IsNullOrWhiteSpace(text)) continue;
+            if (!Enum.TryParse<ExpandedPage>(name, out var page)) continue;
+            var hook = new Hotkey(_nextPageHotkeyId++);
+            hook.Attach(source);
+            var problem = hook.Set(text);
+            var captured = page;
+            hook.Pressed += () => OnPageHotkey(captured);
+            _pageHotkeys.Add((hook, name));
+            if (hook.TakenByAnotherApp && Hotkey.TryParse(text, out var mod, out var key))
+                extras.Add((mod, KeyInterop.VirtualKeyFromKey(key), () => OnPageHotkey(captured)));
+            else if (problem is not null && _settings.HotkeyProblem is null)
+                _settings.HotkeyProblem = problem;
         }
+        _keyboard.SetExtraFallbacks(extras);
+    }
+
+    /// <summary>One Settings banner for every shortcut another app already owns.</summary>
+    private void RefreshHotkeyProblem(string? assistProblem = null, string? pasteProblem = null)
+    {
+        var stolen = new List<string>();
+        if (_keyboard.Shortcut is not null) stolen.Add(_settings.ToggleHotkey);
+        if (_keyboard.AssistShortcut is not null) stolen.Add(_settings.AssistantHotkey);
+        if (_keyboard.QuickPasteShortcut is not null) stolen.Add(_settings.QuickPasteHotkey);
+        foreach (var (hook, page) in _pageHotkeys)
+        {
+            if (hook.TakenByAnotherApp && _settings.PageHotkeys.TryGetValue(page, out var text))
+                stolen.Add($"{PageHotkeyMap.TitleOf(page)} ({text})");
+        }
+        if (stolen.Count > 0)
+        {
+            _settings.HotkeyProblem =
+                $"Another app also uses {string.Join(", ", stolen)}. Lumen still responds, but that app may react too. Pick another shortcut to avoid that.";
+            return;
+        }
+        _settings.HotkeyProblem = assistProblem ?? pasteProblem;
     }
 
     private void OnPasteHotkey()
     {
         if (!_settings.QuickPasteEnabled) return;
+        HoldOpenFromHotkey(8); // window is separate, but keep island from collapsing under a leave-poll race
         new QuickPasteWindow(_clipHistory).Show();
     }
 
@@ -188,7 +248,9 @@ public partial class MainWindow
                 if (id.StartsWith("timer") && int.TryParse(id[5..], out var minutes)) _timer.Start(TimeSpan.FromMinutes(minutes));
                 else if (id.StartsWith("page:") && Enum.TryParse<ExpandedPage>(id[5..], out var page) && AvailablePages().Contains(page))
                 {
-                    if (!_state.IsExpanded) SetExpanded(true);
+                    HoldOpenFromHotkey();
+                    if (IslandHidden) SetIslandHidden(false);
+                    SetExpanded(true);
                     ShowPage(page, animate: true);
                 }
                 break;

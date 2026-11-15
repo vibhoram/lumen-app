@@ -59,7 +59,7 @@ public sealed class WeatherService : IDisposable
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(15) };
 
     private readonly Dispatcher _ui = Dispatcher.CurrentDispatcher;
-    private readonly DispatcherTimer _refresh = new(DispatcherPriority.Background) { Interval = TimeSpan.FromMinutes(20) };
+    private readonly DispatcherTimer _refresh = new(DispatcherPriority.Background) { Interval = TimeSpan.FromMinutes(10) };
     private readonly AppSettings _settings;
     private CancellationTokenSource? _pending;
     private bool _running;
@@ -81,12 +81,19 @@ public sealed class WeatherService : IDisposable
     /// <summary>Why there's no (fresh) report, e.g. "Location is off"; null when fine.</summary>
     public string? Problem { get; private set; }
 
+    /// <summary>Whether <see cref="Start"/> has been called and not stopped.</summary>
+    public bool IsRunning => _running;
+
     /// <summary>Raised on the UI thread after each refresh attempt.</summary>
     public event Action? Changed;
 
     public void Start()
     {
-        if (_running) return;
+        if (_running)
+        {
+            Refresh(); // already up — still pull a fresh Open-Meteo reading
+            return;
+        }
         _running = true;
         _refresh.Start();
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
@@ -229,25 +236,37 @@ public sealed class WeatherService : IDisposable
             throw new LocationException("Choose a city for weather in Settings");
         }
 
-        var access = await Geolocator.RequestAccessAsync().AsTask(cancel);
-        if (access != GeolocationAccessStatus.Allowed)
-            throw new LocationException("Location is off. Turn it on in Windows, or choose a city in Settings");
-        var locator = new Geolocator { DesiredAccuracy = PositionAccuracy.Default };
-        Geoposition position;
         try
         {
+            var access = await Geolocator.RequestAccessAsync().AsTask(cancel);
+            if (access != GeolocationAccessStatus.Allowed)
+                return CityFallbackOrThrow("Location is off. Turn it on in Windows, or choose a city in Settings");
+            var locator = new Geolocator { DesiredAccuracy = PositionAccuracy.Default };
             // An hour-old fix is fine for weather and avoids waking the Wi-Fi scan on every refresh.
-            position = await locator.GetGeopositionAsync(TimeSpan.FromHours(1), TimeSpan.FromSeconds(15)).AsTask(cancel);
+            var position = await locator.GetGeopositionAsync(TimeSpan.FromHours(1), TimeSpan.FromSeconds(15)).AsTask(cancel);
+            var p = position.Coordinate.Point.Position;
+            // ~1 km is plenty for weather; don't send a precise location anywhere.
+            var (latitude, longitude) = (Math.Round(p.Latitude, 2), Math.Round(p.Longitude, 2));
+            return (latitude, longitude, await PlaceNameAsync(latitude, longitude, cancel) ?? "My location");
+        }
+        catch (LocationException)
+        {
+            throw;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            // Location service hiccups (timeouts, "pipe is being closed", Wi-Fi off): temporary, not a bug.
+            // Location hiccup: use a saved city if we have one, else retry soon as transient.
+            if (_settings.WeatherLatitude is { } lat && _settings.WeatherLongitude is { } lon)
+                return (lat, lon, _settings.WeatherPlace is { Length: > 0 } place ? place : "Saved place");
             throw new TransientException();
         }
-        var p = position.Coordinate.Point.Position;
-        // ~1 km is plenty for weather; don't send a precise location anywhere.
-        var (latitude, longitude) = (Math.Round(p.Latitude, 2), Math.Round(p.Longitude, 2));
-        return (latitude, longitude, await PlaceNameAsync(latitude, longitude, cancel) ?? "My location");
+    }
+
+    private (double Latitude, double Longitude, string Place) CityFallbackOrThrow(string message)
+    {
+        if (_settings.WeatherLatitude is { } lat && _settings.WeatherLongitude is { } lon)
+            return (lat, lon, _settings.WeatherPlace is { Length: > 0 } place ? place : "Saved place");
+        throw new LocationException(message);
     }
 
     /// <summary>

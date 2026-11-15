@@ -217,6 +217,7 @@ public sealed class PetWidget : Canvas
                 Say(Pick("time's up!", "ding ding!", "that's the timer!"));
                 break;
             case PetEvent.MusicStart:
+                SetMood(Mood.Dance);
                 Say(Pick("nice song", "ooh, music!", "play it loud"));
                 break;
             case PetEvent.LowBattery:
@@ -331,9 +332,10 @@ public sealed class PetWidget : Canvas
 
     private Mood PickActivity()
     {
-        if (_music) return Mood.Dance;
-        var h = DateTime.Now.Hour;
         var r = _rng.NextDouble();
+        // Music on: sometimes dance, otherwise still wander / play so it isn't a permanent rave.
+        if (_music) return r < 0.5 ? Mood.Dance : r < 0.75 ? Mood.Play : Mood.Walk;
+        var h = DateTime.Now.Hour;
         if (h is >= 23 or < 5) return r < 0.7 ? Mood.Yawn : Mood.Walk;                  // night: sleepy
         if (h < 11) return r < 0.35 ? Mood.Stretch : r < 0.6 ? Mood.Play : Mood.Walk;   // morning: stretch and play
         if (h < 14) return r < 0.4 ? Mood.Play : Mood.Walk;                             // midday
@@ -566,7 +568,7 @@ public sealed class PetWidget : Canvas
             Mood.Walk => 3 + _rng.NextDouble() * 5,
             Mood.Idle => 2 + _rng.NextDouble() * 4,
             Mood.Sleep => 8 + _rng.NextDouble() * 10,
-            Mood.Dance => 5,
+            Mood.Dance => 7 + _rng.NextDouble() * 6, // a short groove, not forever
             Mood.Yawn => 1.4,
             Mood.Watch => 3 + _rng.NextDouble() * 4,
             Mood.Follow => 6,
@@ -669,7 +671,9 @@ public sealed class PetWidget : Canvas
                 bobY = -Math.Abs(Math.Sin(_phase * 11)) * 1.4;
                 nod = Math.Sin(_phase * 5.5) * 2;
                 if (_mood == Mood.Follow && (Math.Abs(_lookX) < 34 || _moodLeft <= 0)) SetMood(Mood.Watch);
-                else if (_mood == Mood.Walk && _moodLeft <= 0) SetMood(_rng.NextDouble() < 0.5 ? Mood.Idle : Mood.Walk);
+                else if (_mood == Mood.Walk && _moodLeft <= 0)
+                    SetMood(_music && _rng.NextDouble() < 0.4 ? Mood.Dance
+                        : _rng.NextDouble() < 0.5 ? Mood.Idle : Mood.Walk);
                 break;
             }
             case Mood.Idle:
@@ -721,7 +725,8 @@ public sealed class PetWidget : Canvas
                 wag = Math.Sin(_phase * 14) * 20;
                 foreach (var (_, rot, _) in _legs) rot.Angle *= 0.8; // feet planted: it bounces and bobs, it doesn't march
                 if (!_music) SetMood(Mood.Idle);
-                else if (_moodLeft <= 0) SetMood(Mood.Walk); // dance a few seconds, then wander on
+                else if (_moodLeft <= 0)
+                    SetMood(_rng.NextDouble() < 0.3 ? Mood.Dance : Mood.Walk); // sometimes encore, usually wander
                 break;
             case Mood.Excited:
             {

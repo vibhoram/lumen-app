@@ -4,6 +4,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using DIsland.Services;
@@ -103,6 +104,7 @@ public partial class SettingsWindow : Window
         Sections.Children.Clear();
         Nav.Children.Clear();
         _nav.Clear();
+        _sectionJump.Clear();
         _navSelected = null;
         var s = _settings;
 
@@ -176,6 +178,17 @@ public partial class SettingsWindow : Window
         Choice(text, "Big clock look", new[] { (ClockLook.Glass, "Glass"), (ClockLook.Outline, "Outline"), (ClockLook.Solid, "Solid") }, () => s.ClockLook, v => s.ClockLook = v);
         Choice(text, "When idle", new[] { (IdleStyle.Clock, "Show clock"), (IdleStyle.Minimal, "Minimal pill") },
             () => s.IdleStyle, v => s.IdleStyle = v);
+        Choice(text, "Home glance (no music)", new[]
+        {
+            (HomeGlance.Weather, "Weather"),
+            (HomeGlance.NextEvent, "Next event"),
+            (HomeGlance.Vitals, "RAM / system"),
+            (HomeGlance.Todos, "To-dos"),
+            (HomeGlance.Focus, "Focus"),
+            (HomeGlance.NextAlarm, "Next alarm"),
+            (HomeGlance.Clipboard, "Clipboard"),
+        }, () => s.HomeGlance, v => s.HomeGlance = v);
+        Note(text, "Fills the right side of Home when nothing is playing. Weather is the default.");
 
         var interaction = Section("INTERACTION");
         Check(interaction, "Expand on hover (click always works)", () => s.ExpandOnHover, v => s.ExpandOnHover = v);
@@ -195,6 +208,15 @@ public partial class SettingsWindow : Window
         HotkeyRow(keys, "Ask Clara (grabs the screen)", () => s.AssistantHotkey, v => s.AssistantHotkey = v);
         Check(keys, "Quick paste picker: your latest copies at the cursor, paste with one key", () => s.QuickPasteEnabled, v => s.QuickPasteEnabled = v);
         HotkeyRow(keys, "Quick paste", () => s.QuickPasteHotkey, v => s.QuickPasteHotkey = v);
+        Note(keys, "Pages default to Ctrl+Alt + the first free letter of the name (conflicts skip to the next letter). Change any below, or clear with Backspace.");
+        PageHotkeyMap.EnsureDefaults(s.PageHotkeys, s.AssistantHotkey, s.ToggleHotkey, s.QuickPasteHotkey);
+        foreach (var page in PageHotkeyMap.PageNames)
+        {
+            var name = page;
+            HotkeyRow(keys, $"Open {PageHotkeyMap.TitleOf(name)}",
+                () => s.PageHotkeys.TryGetValue(name, out var h) ? h : "",
+                v => s.PageHotkeys[name] = v);
+        }
         Check(keys, "Peek-through: hold a key over the island to see and click through it", () => s.CtrlPeek, v => s.CtrlPeek = v);
         Choice(keys, "Peek-through key", new[] { (PeekKey.Alt, "Alt"), (PeekKey.Ctrl, "Ctrl"), (PeekKey.Shift, "Shift") }, () => s.PeekKey, v => s.PeekKey = v);
         Check(keys, "Magic Shake: shake the mouse to dismiss an alert, or hide / show the island", () => s.MagicShake, v => s.MagicShake = v);
@@ -208,6 +230,7 @@ public partial class SettingsWindow : Window
         {
             var d = new AppSettings();
             _settings.ToggleHotkey = d.ToggleHotkey; _settings.AssistantHotkey = d.AssistantHotkey; _settings.QuickPasteHotkey = d.QuickPasteHotkey;
+            _settings.PageHotkeys = PageHotkeyMap.BuildDefaults(d.AssistantHotkey, d.ToggleHotkey, d.QuickPasteHotkey);
             _settings.PeekKey = d.PeekKey; _settings.CtrlPeek = d.CtrlPeek; _settings.MagicShake = d.MagicShake; _settings.ShakeSensitivity = d.ShakeSensitivity;
             _settings.NotifyChanged(); _settings.Save();
             Build();
@@ -217,6 +240,13 @@ public partial class SettingsWindow : Window
         var animation = Section("ANIMATION");
         Slider(animation, "Speed", 0.5, 2.5, 0.1, () => s.AnimationSpeed, v => s.AnimationSpeed = v, v => $"{v:0.0}×");
         Slider(animation, "Bounciness", 0, 1, 0.05, () => s.Bounciness, v => s.Bounciness = v, v => $"{v * 100:0}%");
+        Choice(animation, "Home weather motion", new[]
+        {
+            (WeatherMotion.Lively, "Lively"),
+            (WeatherMotion.Cinematic, "Cinematic"),
+            (WeatherMotion.Static, "Static"),
+        }, () => s.WeatherMotion, v => s.WeatherMotion = v);
+        Note(animation, "Applies to every sky (clear, cloudy, rain, snow, fog, thunder). Lively = busy & fast. Cinematic = sparse & slow. Static = rich still frame (lowest CPU). Also under Weather.");
 
         var media = Section("MEDIA");
         Check(media, "Show album art banner when expanded", () => s.ShowArtBanner, v => s.ShowArtBanner = v);
@@ -245,9 +275,35 @@ public partial class SettingsWindow : Window
         Check(media, "Find real album art when a browser only gives an icon", () => s.AutoAlbumArt, v => s.AutoAlbumArt = v);
         Check(media, "Synced lyrics", () => s.LyricsEnabled, v => s.LyricsEnabled = v);
         Check(media, "Also show a separate Lyrics page", () => s.LyricsPageEnabled, v => s.LyricsPageEnabled = v);
-        Choice(media, "Lyrics font", new[] { ("Segoe Print", "Print"), ("Ink Free", "Ink"), ("Segoe Script", "Script"), ("Lucida Handwriting", "Lucida"), ("Segoe UI Variable", "Plain") },
-            () => s.LyricsFont, v => s.LyricsFont = v);
+        Choice(media, "Lyrics font", new[]
+        {
+            ("Segoe Print", "Print"), ("Ink Free", "Ink"), ("Segoe Script", "Script"),
+            ("Lucida Handwriting", "Lucida"), ("Comic Sans MS", "Comic"), ("Georgia", "Georgia"),
+            ("Segoe UI Variable", "Plain"), ("Bahnschrift", "Bahnschrift"),
+        }, () => s.LyricsFont, v => s.LyricsFont = v);
         Slider(media, "Lyrics size", 13, 26, 1, () => s.LyricsFontSize, v => s.LyricsFontSize = v, v => $"{v:0}");
+        Choice(media, "Lyrics colour", new[]
+        {
+            (LyricsColorMode.Green, "Green (classic)"),
+            (LyricsColorMode.Cover, "Cover art"),
+            (LyricsColorMode.CoverGradient, "Cover gradient"),
+            (LyricsColorMode.Accent, "Island accent"),
+            (LyricsColorMode.White, "White"),
+            (LyricsColorMode.Custom, "Custom"),
+            (LyricsColorMode.CustomGradient, "Custom gradient"),
+        }, () => s.LyricsColorMode, v =>
+        {
+            s.LyricsColorMode = v;
+            // Swatches only show for Custom / Custom gradient — rebuild so they appear.
+            Dispatcher.InvokeAsync(() =>
+            {
+                var offset = SettingsScroller.VerticalOffset;
+                Build();
+                SettingsScroller.ScrollToVerticalOffset(offset);
+            });
+        });
+        LyricsColorRow(media);
+        Note(media, "Cover art / cover gradient pull colours from the thumbnail the same way Aura and the music wave do. Custom uses the swatches below.");
         Check(media, "Write Hindi lyrics in English letters (Hinglish)", () => s.RomanizeHindi, v => s.RomanizeHindi = v);
         Check(media, "Show the current lyric in the expanded island", () => s.LyricsInExpanded, v => s.LyricsInExpanded = v);
         Check(media, "Show the current lyric on the collapsed pill", () => s.LyricsInCompact, v => s.LyricsInCompact = v);
@@ -362,7 +418,7 @@ public partial class SettingsWindow : Window
         Note(shelf, "The shelf remembers where files are; it doesn't copy them. Double-click an item to open it.");
 
         var weather = Section("WEATHER");
-        Check(weather, "Show the Weather page", () => s.WeatherEnabled, v => s.WeatherEnabled = v);
+        Check(weather, "Show the Weather page (optional — home glance / clock don't need this)", () => s.WeatherEnabled, v => s.WeatherEnabled = v);
         Choice(weather, "Location", new[] { (true, "My location"), (false, "A city") },
             () => s.WeatherUseDeviceLocation, v => s.WeatherUseDeviceLocation = v);
         CitySearch(weather);
@@ -372,10 +428,16 @@ public partial class SettingsWindow : Window
             (TemperatureUnit.Celsius, "°C"),
             (TemperatureUnit.Fahrenheit, "°F"),
         }, () => s.TemperatureUnit, v => s.TemperatureUnit = v);
-        Check(weather, "Show the weather next to the clock", () => s.WeatherInIdlePill, v => s.WeatherInIdlePill = v);
+        Check(weather, "Show the weather next to the clock (and on the Home glance)", () => s.WeatherInIdlePill, v => s.WeatherInIdlePill = v);
         Check(weather, "Weather in its own round bubble (not inside the clock pill)", () => s.WeatherSeparate, v => s.WeatherSeparate = v);
-        Note(weather, "Forecasts from Open-Meteo (free, no account), and your town's name from OpenStreetMap. \"My location\" uses Windows location, rounded to " +
-                      "about 1 km before it's sent.");
+        Choice(weather, "Home weather motion", new[]
+        {
+            (WeatherMotion.Lively, "Lively"),
+            (WeatherMotion.Cinematic, "Cinematic"),
+            (WeatherMotion.Static, "Static"),
+        }, () => s.WeatherMotion, v => s.WeatherMotion = v);
+        Note(weather, "Applies to every sky (clear, cloudy, rain, snow, fog, thunder). Lively = busy & fast. Cinematic = sparse & slow. Static = rich still frame (lowest CPU). Also under Animation.");
+        Note(weather, "You can leave the Weather page off and still get the forecast on Home / the idle pill. Forecasts from Open-Meteo (free, no account), and your town's name from OpenStreetMap. \"My location\" uses Windows location, rounded to about 1 km before it's sent.");
 
         var quickApps = Section("QUICK APPS");
         Note(quickApps, $"The Apps page. Up to {AppSettings.MaxQuickApps} apps from the Start menu.");
@@ -441,7 +503,11 @@ public partial class SettingsWindow : Window
         CreditText.Text = "Lumen  ·  made by Vibhor and Claude";
 
         _loading = false;
-        Dispatcher.InvokeAsync(UpdateNavSelection, DispatcherPriority.Loaded); // after layout
+        Dispatcher.InvokeAsync(() =>
+        {
+            UpdateNavSelection();
+            if (_pendingJump is { } pending) ApplyJump(pending);
+        }, DispatcherPriority.Loaded); // after layout
     }
 
     /// <summary>One-click looks (built-in and your own), a save box, and the Advanced switch.</summary>
@@ -670,6 +736,7 @@ public partial class SettingsWindow : Window
                 var remove = SmallButton("", "Delete alarm");
                 remove.Click += (_, _) =>
                 {
+                    SmartTime.RecordAlarmRemoved(_settings, alarm.TimeOfDay);
                     _settings.Alarms.Remove(alarm);
                     Save();
                     Fill();
@@ -1041,7 +1108,7 @@ public partial class SettingsWindow : Window
         var resultsScroller = new ScrollViewer
         {
             MaxHeight = 260,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Style = (Style)FindResource("SlimScroll"),
             Content = results,
         };
         WheelScrolling.Attach(resultsScroller, pixelsPerNotch: 36);
@@ -1145,6 +1212,8 @@ public partial class SettingsWindow : Window
     }
 
     private TextBox? _customColorBox;
+    private TextBox? _lyricsColorBox;
+    private TextBox? _lyricsColorBoxB;
 
     private void SetCustomColor(string hex, bool updateBox = true)
     {
@@ -1163,10 +1232,77 @@ public partial class SettingsWindow : Window
         Build();
     }
 
+    /// <summary>Swatches + hex for lyrics custom / custom-gradient colours (Green default stays untouched).</summary>
+    private void LyricsColorRow(StackPanel panel)
+    {
+        var mode = _settings.LyricsColorMode;
+        if (mode is not (LyricsColorMode.Custom or LyricsColorMode.CustomGradient)) return;
+
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 2) };
+        void AddSwatch(StackPanel into, string hex, bool second)
+        {
+            Color color;
+            try { color = (Color)ColorConverter.ConvertFromString(hex)!; }
+            catch { return; }
+            var btn = new Button
+            {
+                Style = (Style)FindResource("IconButton"),
+                Width = 28, Height = 28, Margin = new Thickness(0, 0, 6, 0), ToolTip = hex,
+                Content = new Ellipse { Width = 18, Height = 18, Fill = new SolidColorBrush(color) },
+            };
+            btn.Click += (_, _) =>
+            {
+                Update(() =>
+                {
+                    if (second) _settings.LyricsCustomColorB = hex;
+                    else _settings.LyricsCustomColor = hex;
+                });
+                Build();
+            };
+            into.Children.Add(btn);
+        }
+
+        foreach (var hex in new[] { "#FF30D158", "#FFFF375F", "#FFFF9F0A", "#FF64D2FF", "#FFBF5AF2", "#FFFFFFFF", "#FFFFD60A", "#FFFF6482" })
+            AddSwatch(row, hex, second: false);
+
+        TextBox Box(string value, Action<string> set)
+        {
+            var box = new TextBox { Text = value, Width = 90, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
+            box.TextChanged += (_, _) =>
+            {
+                if (_loading) return;
+                try
+                {
+                    if (ColorConverter.ConvertFromString(box.Text.Trim()) is Color)
+                        Update(() => set(box.Text.Trim()));
+                }
+                catch (FormatException) { }
+            };
+            return box;
+        }
+
+        _lyricsColorBox = Box(_settings.LyricsCustomColor, v => _settings.LyricsCustomColor = v);
+        row.Children.Add(_lyricsColorBox);
+        panel.Children.Add(row);
+
+        if (mode == LyricsColorMode.CustomGradient)
+        {
+            var rowB = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 2) };
+            rowB.Children.Add(new TextBlock { Text = "→", Opacity = 0.5, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
+            foreach (var hex in new[] { "#FF64D2FF", "#FFBF5AF2", "#FFFF9F0A", "#FF30D158", "#FFFFFFFF", "#FFFF375F" })
+                AddSwatch(rowB, hex, second: true);
+            _lyricsColorBoxB = Box(_settings.LyricsCustomColorB, v => _settings.LyricsCustomColorB = v);
+            rowB.Children.Add(_lyricsColorBoxB);
+            panel.Children.Add(rowB);
+        }
+    }
+
     // ---------------------------------------------------------------- builders
 
     private readonly List<(TextBlock Header, Border Item)> _nav = new();
+    private readonly Dictionary<string, (TextBlock Header, Border Card)> _sectionJump = new(StringComparer.OrdinalIgnoreCase);
     private Border? _navSelected;
+    private string? _pendingJump;
 
     private StackPanel Section(string title, string? navLabel = null)
     {
@@ -1181,7 +1317,7 @@ public partial class SettingsWindow : Window
         Sections.Children.Add(header);
         var panel = new StackPanel();
         // Each section sits on a rounded card.
-        Sections.Children.Add(new Border
+        var card = new Border
         {
             // a glass card: light gathered at the top, a thin lit rim
             Background = _backdropOn ? (Brush)FindResource("GlassFill") : Frozen(Color.FromArgb(0xFF, 0x1F, 0x1F, 0x23)),
@@ -1190,10 +1326,57 @@ public partial class SettingsWindow : Window
             CornerRadius = new CornerRadius(18),
             Padding = new Thickness(18, 10, 18, 10),
             Child = panel,
-        });
+        };
+        Sections.Children.Add(card);
         // "WALLPAPER ENGINE" → "Wallpaper Engine"
-        AddNavItem(navLabel ?? System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(title.ToLowerInvariant()), header);
+        var label = navLabel ?? System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(title.ToLowerInvariant());
+        AddNavItem(label, header);
+        _sectionJump[label] = (header, card);
+        _sectionJump[title] = (header, card);
         return panel;
+    }
+
+    /// <summary>Scrolls to a section (nav label or title) and briefly highlights the card.</summary>
+    public void JumpTo(string section)
+    {
+        _pendingJump = section;
+        if (!IsLoaded || !_sectionJump.ContainsKey(section))
+        {
+            // Build may not have run yet — retry after layout.
+            Dispatcher.InvokeAsync(() =>
+            {
+                if (_pendingJump is { } pending) ApplyJump(pending);
+            }, DispatcherPriority.Loaded);
+            return;
+        }
+        Dispatcher.InvokeAsync(() => ApplyJump(section), DispatcherPriority.Loaded);
+    }
+
+    private void ApplyJump(string section)
+    {
+        if (!_sectionJump.TryGetValue(section, out var target)) return;
+        _pendingJump = null;
+        Sections.UpdateLayout();
+        var y = target.Header.TransformToAncestor(Sections).Transform(new Point(0, 0)).Y - target.Header.Margin.Top + 4;
+        SettingsScroller.ScrollToVerticalOffset(Math.Max(0, y));
+        UpdateNavSelection();
+
+        // One pulse on the card rim so the deep-link target is obvious without fighting glass fills.
+        var rim = new SolidColorBrush(Color.FromRgb(0x0A, 0x84, 0xFF));
+        var priorBrush = target.Card.BorderBrush;
+        var priorThickness = target.Card.BorderThickness;
+        target.Card.BorderBrush = rim;
+        target.Card.BorderThickness = new Thickness(2);
+        var fade = new ColorAnimation(Color.FromRgb(0x0A, 0x84, 0xFF), Color.FromArgb(0x00, 0x0A, 0x84, 0xFF), TimeSpan.FromMilliseconds(1600))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+        };
+        fade.Completed += (_, _) =>
+        {
+            target.Card.BorderBrush = priorBrush;
+            target.Card.BorderThickness = priorThickness;
+        };
+        rim.BeginAnimation(SolidColorBrush.ColorProperty, fade);
     }
 
     /// <summary>A sidebar entry that scrolls its section's header to the top.</summary>

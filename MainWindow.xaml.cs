@@ -48,6 +48,8 @@ public partial class MainWindow : Window
     private readonly Hotkey _assistHotkey = new(2);
     private readonly Hotkey _pasteHotkey = new(3);
     private string? _assistHotkeyText, _pasteHotkeyText;
+    private readonly List<(Hotkey Hook, string Page)> _pageHotkeys = new();
+    private int _nextPageHotkeyId = 100;
     private AssistantPanel _assistant = null!;
     private bool _assistFit;
     private PetWidget _pet = null!;
@@ -110,12 +112,15 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _leavePoll = new() { Interval = TimeSpan.FromMilliseconds(LeavePollMs) };
     private readonly DispatcherTimer _progressTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private int _msOutside;
+    /// <summary>After a global hotkey / tray command opens the island, leave-poll ignores the cursor until this time.</summary>
+    private DateTime _hotkeyHoldUntil;
     private long _lastKey = Environment.TickCount64;
     private DateTime _collapsedAt;
     private bool _hoverSuppressed;
     private bool _equalizerRunning;
     private bool _osdDimmed;
     private Artwork? _shownArt;
+    private string? _shownArtAppId;
     private WallpaperTheme? _shownWallpaperTheme;
 
     private readonly SolidColorBrush _pillBrush = new(Colors.Black);
@@ -135,7 +140,7 @@ public partial class MainWindow : Window
         AssistantPage.Children.Add(_assistant);
         _assistant.BeginTypingRequested += BeginTyping;
         _assistant.EndTypingRequested += () => EndTyping(restoreFocus: true);
-        _assistant.OpenSettingsRequested += () => SettingsRequested?.Invoke();
+        _assistant.OpenSettingsRequested += () => SettingsRequested?.Invoke(null);
         _assistant.ScreenRequested = CaptureScreenAsync;
         WireClara();
         WireContext();
@@ -146,6 +151,7 @@ public partial class MainWindow : Window
         ActivityBubble.SizeChanged += (_, _) => UpdateBubbleRings();
         ActivityBubble2.SizeChanged += (_, _) => UpdateBubbleRings();
         WireMusic();
+        WireMediaVolumeChip();
         WireDock();
         ArtBanner.IsVisibleChanged += (_, _) => { ApplyTabSelection(); };
         _pet = new PetWidget { HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Visibility = Visibility.Collapsed };
@@ -226,7 +232,7 @@ public partial class MainWindow : Window
             if (showProgress != (ProgressRow.Visibility == Visibility.Visible)) Render(); // row appears/disappears
             else UpdateProgress();
         };
-        _volume.Changed += ShowVolume;
+        _volume.Changed += OnVolumeChanged;
         _brightness.Changed += ShowBrightness;
         _volumeKeys.VolumeKey += OnVolumeKey;
         // Shake: if an alert (notification, code...) is showing, it goes away and the pill stays; otherwise hide / show the pill.
@@ -248,10 +254,14 @@ public partial class MainWindow : Window
         _privacy.Changed += OnPrivacyChanged;
         _toggleHotkey.Pressed += () => SetIslandHidden(!IslandHidden);
         _keyboard.ShortcutPressed += () => SetIslandHidden(!IslandHidden); // same shortcut, when another app owns it
+        _keyboard.AssistShortcutPressed += OnAssistHotkey;
+        _keyboard.QuickPasteShortcutPressed += OnPasteHotkey;
         _weather.Changed += () =>
         {
             UpdateWeather();
             UpdateClock(); // the idle pill may show the temperature
+            UpdateIdleWeatherBubble();
+            BuildHomeGlance(); // Home glance was stuck on "—" until something else refreshed it
         };
         _wallpaper.Changed += OnWallpaperChanged;
         _background.Changed += ApplyTheme;
@@ -266,17 +276,24 @@ public partial class MainWindow : Window
             UpdateClock();
             // Relative times ("in 5 min", "3m") on an open page.
             if (!_state.IsExpanded || _animating) return;
-            if (_page == ExpandedPage.Calendar) BuildCalendar();
+            if (_page == ExpandedPage.Home) UpdateNextUp();
+            else if (_page == ExpandedPage.Calendar) BuildCalendar();
             else if (_page == ExpandedPage.Notifications) BuildNotificationList();
         };
         _hoverTimer.Tick += (_, _) =>
         {
             _hoverTimer.Stop();
-            if (_peeking || !IsCursorOverPill()) return; // bubbles and the pet don't open the island
-            // An alarm or notification pill carries its own buttons (Stop, Snooze, Dismiss): hovering it must leave them in
-            // place, or the island opens under the cursor and the buttons vanish before they can be pressed.
-            if (_state.Transient is IslandView.TimerDone or IslandView.Notification) return;
-            // Hovering shows the quick tray when there is something in it; clicking opens the whole island.
+            if (_peeking || _hoverSuppressed || _state.IsExpanded) return;
+            // Bubbles/pet don't open the island — keep trying while still over chrome until the pill is under the cursor.
+            if (!IsCursorOverPill())
+            {
+                if (NativeMethods.GetCursorPos(out var c) && OverInteractiveChrome(c.X, c.Y))
+                    _hoverTimer.Start();
+                return;
+            }
+            // Alarm / notification action pills: don't expand out from under the buttons.
+            // Only skip when that alert is actually what's on the pill (a stuck flag used to block hover forever).
+            if (_state.CurrentView is IslandView.TimerDone or IslandView.Notification) return;
             SetExpanded(true);
         };
         _leavePoll.Tick += OnLeavePoll;
@@ -306,7 +323,7 @@ public partial class MainWindow : Window
         };
         _notifications.Arrived += OnNotificationArrived;
         _notifications.Changed += BuildNotificationList;
-        _calendar.Changed += BuildCalendar;
+        _calendar.Changed += () => { BuildCalendar(); UpdateNextUp(); };
         _calendar.Reminder += OnCalendarReminder;
         Root.MouseRightButtonUp += (_, e) =>
         {
@@ -344,7 +361,8 @@ public partial class MainWindow : Window
     }
 
     /// <summary>The gear button or a right-click on the island asked for the settings window.</summary>
-    public event Action? SettingsRequested;
+    /// <summary>Opens Settings; optional section name (e.g. "Weather") scrolls there with a pulse highlight.</summary>
+    public event Action<string?>? SettingsRequested;
 
     /// <summary>Hidden with the shortcut or the tray menu: nothing shows, alerts included.</summary>
     public bool IslandHidden { get; private set; }
@@ -439,9 +457,7 @@ public partial class MainWindow : Window
             ? (modifiers, KeyInterop.VirtualKeyFromKey(key))
             : null;
         _keyboard.Update();
-        _settings.HotkeyProblem = _keyboard.Shortcut is not null
-            ? $"Another app also uses {text}. D-Island still responds to it, but that app may react too. Pick another shortcut to avoid that."
-            : problem;
+        RefreshHotkeyProblem(problem);
     }
 
     private bool IsNotch => _settings.Mode == IslandMode.Notch;
@@ -488,6 +504,7 @@ public partial class MainWindow : Window
         ApplyMusicSettings();
         ApplyPetSettings();
         UpdateShortcuts();
+        if (IsLoaded) BuildHomeGlance();
         _shake.Sensitivity = _settings.ShakeSensitivity;
         _shake.Enabled = _settings.MagicShake;
 
@@ -495,7 +512,7 @@ public partial class MainWindow : Window
         Width = BaseWidth * Scale;
         Reposition(); // the width just changed (scale, DPI): keep the island centred on its screen
         UpdateWindowHeight();
-        FontFamily = new FontFamily($"{_settings.FontFamily}, Segoe UI");
+        FontFamily = new FontFamily($"{_settings.FontFamily}, Segoe UI Emoji, Segoe UI");
 
         UpdateViewMargins();
 
@@ -553,15 +570,12 @@ public partial class MainWindow : Window
             _keyboard.Attach(source);
             _assistHotkey.Attach(source);
             _assistHotkey.Pressed += OnAssistHotkey;
-            _assistHotkey.Set(_settings.AssistantHotkey);
-            _assistHotkeyText = _settings.AssistantHotkey;
             _pasteHotkey.Attach(source);
             _pasteHotkey.Pressed += OnPasteHotkey;
-            _pasteHotkey.Set(_settings.QuickPasteEnabled ? _settings.QuickPasteHotkey : "");
-            _pasteHotkeyText = _settings.QuickPasteEnabled ? _settings.QuickPasteHotkey : "";
             _clipboard.Attach(source);
             _toggleHotkey.Attach(source);
             UpdateToggleHotkey();
+            UpdateShortcuts(); // registers Clara / paste + raw-input fallbacks when another app owns them
         }
     }
 
@@ -626,6 +640,7 @@ public partial class MainWindow : Window
 
         // What the island shows straight away (volume / battery alerts, wallpaper theme, glass).
         _volume.Start();
+        SyncMediaVolumeUi(_volume.Level, _volume.Muted);
         _battery.Start();
         _wallpaper.Start();
         _alarms.Start();
@@ -951,6 +966,8 @@ public partial class MainWindow : Window
         _background.Dispose();
         _volumeKeys.Dispose();
         _shake.Dispose();
+        foreach (var (hook, _) in _pageHotkeys) hook.Dispose();
+        _pageHotkeys.Clear();
         _assistHotkey.Dispose();
         _pasteHotkey.Dispose();
         _battery.Dispose();
@@ -1080,8 +1097,10 @@ public partial class MainWindow : Window
         MediaSection.Visibility = media is not null ? Visibility.Visible : Visibility.Collapsed;
         if (!AvailablePages().Contains(_page)) ShowPage(ExpandedPage.Home, animate: false);
         UpdatePageVisibility();
+        // Use the art we actually paint (_shownArt / online override), not only GSMTC's thumbnail —
+        // browsers often have a null/icon Art while AutoAlbumArt already filled the banner.
         ArtBanner.Visibility = _page == ExpandedPage.Home && _settings.ShowArtBanner && media is not null
-                               && (media.Art is not null || _motionReady)
+                               && (_shownArt is not null || media.Art is not null || _motionReady)
             ? Visibility.Visible
             : Visibility.Collapsed;
 #if DEBUG
@@ -1092,6 +1111,7 @@ public partial class MainWindow : Window
         ApplyClockMode();
         if (_stopwatch.IsActive) StopwatchTextLarge.Text = StopwatchService.Format(_stopwatch.Elapsed, tenths: true);
         UpdateProgress();
+        UpdateNextUp();
     }
 
     // ---------------------------------------------------------------- expanded pages
@@ -1582,6 +1602,7 @@ public partial class MainWindow : Window
         // its ancestors keep a cached size until the next layout pass. Run it now, then measure.
         ExpandedView.UpdateLayout();
         ExpandedView.Measure(new Size(ExpandedWidth, double.PositiveInfinity));
+        // Clara grows/shrinks with the chat (scroll caps long threads). No height floor — that left a hollow pill.
         return ExpandedView.DesiredSize.Height - PillTop;
     }
 
@@ -1732,9 +1753,14 @@ public partial class MainWindow : Window
         PlaceTray(w, h);
         if (MediaDiscBubble.Visibility == Visibility.Visible)
         {
-            var disc = Math.Max(26, h);
+            // Cap to the collapsed music pill height. During expand→collapse the spring height is still
+            // large for a moment; sizing the disc to that made the progress ring lag one size behind.
+            var disc = Math.Max(26, Math.Min(h, MediaView.Height > 0 ? MediaView.Height : 40));
             MediaDiscBubble.Width = MediaDiscBubble.Height = disc;
             MediaDiscBubble.Margin = new Thickness((BaseWidth - w) / 2 - 7 - disc, PillTop + (h - disc) / 2, 0, 0);
+            // Keep the ring geometry in lockstep with the bubble (MusicTick is only ~300 ms).
+            if (_media.Current is { Duration.Ticks: > 0 } discMedia)
+                MediaDiscRing.Data = RingGeometry(disc, Math.Clamp(discMedia.EstimatePosition(DateTimeOffset.Now) / discMedia.Duration, 0, 1));
         }
         if (PinnedTimerBubble.Visibility == Visibility.Visible)
         {
@@ -1754,12 +1780,12 @@ public partial class MainWindow : Window
         if (PrivacyDot.Visibility == Visibility.Visible)
             PrivacyDot.Margin = new Thickness(right + 7, PillTop + h / 2 - PrivacyDot.Height / 2, 0, 0);
 
-        // Clip HWND hit-testing (and drawing) to the real chrome. WS_EX_TRANSPARENT alone was not
-        // sticking on this layered WPF window — empty 620×90 chrome kept eating YouTube chips.
+        // One padded axis-aligned region around the real chrome. Tight per-shape GDI regions clipped the
+        // pet (it walks via RenderTransform outside its 44px box) and jagged the WPF-AA pill corners.
         UpdateWindowRegion();
     }
 
-    /// <summary>Win32 region = pill ∪ bubbles ∪ pet ∪ tray, so transparent padding around them passes clicks.</summary>
+    /// <summary>Loose HWND clip so empty side padding doesn't eat clicks, without carving the painted pill.</summary>
     private void UpdateWindowRegion()
     {
         var hwnd = new WindowInteropHelper(this).Handle;
@@ -1771,42 +1797,52 @@ public partial class MainWindow : Window
         }
         if (!NativeMethods.GetWindowRect(hwnd, out var wr)) return;
 
-        var acc = NativeMethods.CreateRectRgn(0, 0, 0, 0);
-        void AddBox(double x, double y, double bw, double bh, double radiusDip)
-        {
-            if (bw < 1 || bh < 1) return;
-            var tl = Root.PointToScreen(new Point(x, y));
-            var br = Root.PointToScreen(new Point(x + bw, y + bh));
-            var l = (int)Math.Floor(tl.X - wr.Left) - 1;
-            var t = (int)Math.Floor(tl.Y - wr.Top) - 1;
-            var right = (int)Math.Ceiling(br.X - wr.Left) + 1;
-            var bottom = (int)Math.Ceiling(br.Y - wr.Top) + 1;
-            var dpi = VisualTreeHelper.GetDpi(this).DpiScaleX;
-            var rr = Math.Max(2, (int)Math.Ceiling(radiusDip * Scale * dpi * 2));
-            var piece = NativeMethods.CreateRoundRectRgn(l, t, right, bottom, rr, rr);
-            NativeMethods.CombineRgn(acc, acc, piece, NativeMethods.RGN_OR);
-            NativeMethods.DeleteObject(piece);
-        }
-
         var pw = _width.Value;
         var ph = _height.Value;
-        AddBox((BaseWidth - pw) / 2, PillTop, pw, ph, _radius.Value);
+        var pillLeft = (BaseWidth - pw) / 2;
+        double x0 = pillLeft, y0 = PillTop, x1 = pillLeft + pw, y1 = PillTop + ph;
 
-        // Prefer Width/Margin set in this same ApplyGeometry pass — ActualWidth can still be 0 mid-frame.
-        void AddPart(FrameworkElement part)
+        void Include(double x, double y, double bw, double bh)
+        {
+            if (bw < 1 || bh < 1) return;
+            x0 = Math.Min(x0, x);
+            y0 = Math.Min(y0, y);
+            x1 = Math.Max(x1, x + bw);
+            y1 = Math.Max(y1, y + bh);
+        }
+
+        void IncludePart(FrameworkElement part)
         {
             if (part.Visibility != Visibility.Visible) return;
             var bw = part.Width > 0 ? part.Width : part.ActualWidth;
             var bh = part.Height > 0 ? part.Height : part.ActualHeight;
             if (bw < 1 || bh < 1) return;
-            AddBox(part.Margin.Left, part.Margin.Top, bw, bh, Math.Min(bw, bh) / 2);
+            Include(part.Margin.Left, part.Margin.Top, bw, bh);
         }
+
         foreach (var part in new FrameworkElement[]
                  { MediaDiscBubble, MediaPulseBubble, ActivityBubble, ActivityBubble2, IdleWeatherBubble,
-                   CarryBubble, PinnedTimerBubble, QuickTray, PrivacyDot, _pet })
-            AddPart(part);
+                   CarryBubble, PinnedTimerBubble, QuickTray, PrivacyDot })
+            IncludePart(part);
 
-        NativeMethods.SetWindowRgn(hwnd, acc, true); // system owns acc after this
+        // Pet walks with a translate across SetRange(0, pillW+44), not inside its 44px layout box.
+        if (_pet.Visibility == Visibility.Visible)
+        {
+            const double pad = 8; // speech bubble / bob room
+            Include(_pet.Margin.Left, _pet.Margin.Top - pad, pw + 44, PetWidget.SpriteHeight + pad + 18);
+        }
+
+        const double aa = 10; // keep WPF anti-aliased edges inside the region
+        x0 -= aa; y0 -= aa; x1 += aa; y1 += aa;
+
+        var tl = Root.PointToScreen(new Point(x0, y0));
+        var br = Root.PointToScreen(new Point(x1, y1));
+        var l = (int)Math.Floor(tl.X - wr.Left);
+        var t = (int)Math.Floor(tl.Y - wr.Top);
+        var r = (int)Math.Ceiling(br.X - wr.Left);
+        var b = (int)Math.Ceiling(br.Y - wr.Top);
+        var region = NativeMethods.CreateRectRgn(l, t, Math.Max(l + 1, r), Math.Max(t + 1, b));
+        NativeMethods.SetWindowRgn(hwnd, region, true); // system owns region
     }
 
     // ---------------------------------------------------------------- mic / camera in use
@@ -2491,16 +2527,36 @@ public partial class MainWindow : Window
     // ---------------------------------------------------------------- hover / click
 
     // ---- AI assistant: screen grab and the global shortcut.
+    /// <summary>Brief grace after a hotkey/tray open so leave-poll doesn't kill it before the cursor can arrive. Not a long pin.</summary>
+    private void HoldOpenFromHotkey(double seconds = 2.5)
+    {
+        _hotkeyHoldUntil = DateTime.UtcNow.AddSeconds(seconds);
+        _msOutside = 0;
+    }
+
     private async void OnAssistHotkey()
     {
         try
         {
             if (!_settings.AssistantEnabled) return;
-            var shot = await CaptureScreenAsync();
+            // Same combo again while Clara is open = dismiss (don't leave a sticky KeepOpen screen).
+            if (!IslandHidden && _state.IsExpanded && _page == ExpandedPage.Assistant)
+            {
+                _assistant.ClearAttachment();
+                _hotkeyHoldUntil = DateTime.MinValue;
+                SetExpanded(false);
+                return;
+            }
+            // Hold open before the screen grab — capture waits ~90 ms and leave-poll can collapse mid-flight.
+            HoldOpenFromHotkey();
             if (IslandHidden) SetIslandHidden(false);
-            ShowPage(ExpandedPage.Assistant, animate: false);
+            var shot = await CaptureScreenAsync();
+            // Expand first, then land on Clara. SetExpanded can "return home" after a long collapse;
+            // doing ShowPage after that keeps the assist hotkey from flashing Clara and bouncing away.
+            HoldOpenFromHotkey();
             SetExpanded(true);
-            _assistant.AttachImage(shot);
+            ShowPage(ExpandedPage.Assistant, animate: false);
+            _assistant.AttachImage(shot); // KeepAlive + pending screen also blocks leave-poll
             await Task.Delay(120);
             BeginTyping(_assistant.Input);
         }
@@ -2508,6 +2564,22 @@ public partial class MainWindow : Window
         {
             App.LogError(ex);
         }
+    }
+
+    /// <summary>Opens a page from its Ctrl+Alt+letter shortcut (or collapses if that page is already showing).</summary>
+    private void OnPageHotkey(ExpandedPage page)
+    {
+        if (!AvailablePages().Contains(page)) return;
+        if (!IslandHidden && _state.IsExpanded && _page == page)
+        {
+            _hotkeyHoldUntil = DateTime.MinValue;
+            SetExpanded(false);
+            return;
+        }
+        HoldOpenFromHotkey();
+        if (IslandHidden) SetIslandHidden(false);
+        SetExpanded(true);
+        ShowPage(page, animate: true);
     }
 
     /// <summary>Copies the primary screen, with the island itself excluded from the picture.</summary>
@@ -2571,7 +2643,7 @@ public partial class MainWindow : Window
             // Outside the pill/bubbles/pet/tray: let the desktop through without fading the island.
             ApplyPassThrough(wantPeek || !over);
 #if DEBUG
-            if (Environment.GetEnvironmentVariable("DISLAND_HIT_LOG") is { Length: > 0 } hlog) System.IO.File.WriteAllText(hlog, $"cursor=({c.X},{c.Y}) over={over} pass={_passThrough} ex=0x{NativeMethods.GetExStyle(new WindowInteropHelper(this).Handle):X} rgn-w={_width.Value:0}x{_height.Value:0}");
+            if (Environment.GetEnvironmentVariable("DISLAND_HIT_LOG") is { Length: > 0 } hlog) System.IO.File.WriteAllText(hlog, $"cursor=({c.X},{c.Y}) over={over} pill={IsCursorOverPill()} pass={_passThrough} hover={_hoverTimer.IsEnabled} supp={_hoverSuppressed} peek={_peeking} exp={_state.IsExpanded} ex=0x{NativeMethods.GetExStyle(new WindowInteropHelper(this).Handle):X} rgn-w={_width.Value:0}x{_height.Value:0}");
 #endif
 
             if (over && !_cursorOverChrome)
@@ -2584,6 +2656,12 @@ public partial class MainWindow : Window
                 _cursorOverChrome = false;
                 _hoverTimer.Stop();
                 _hoverSuppressed = false;
+            }
+            // Cursor slid from pet/bubble onto the pill: re-arm hover (edge trigger alone misses this).
+            else if (over && _cursorOverChrome && _settings.ExpandOnHover && !_state.IsExpanded && !_hoverSuppressed
+                     && !_hoverTimer.IsEnabled && IsCursorOverPill())
+            {
+                _hoverTimer.Start();
             }
         }
         catch
@@ -2673,11 +2751,11 @@ public partial class MainWindow : Window
 
     private void OnSettingsClick(object sender, RoutedEventArgs e) => OpenSettings();
 
-    private void OpenSettings()
+    private void OpenSettings(string? section = null)
     {
         _hoverTimer.Stop();
         SetExpanded(false);
-        SettingsRequested?.Invoke();
+        SettingsRequested?.Invoke(section);
     }
 
     private void SetExpanded(bool expanded)
@@ -2733,9 +2811,11 @@ public partial class MainWindow : Window
         // Typing keeps it open while keys are still being pressed and the island still has the keyboard;
         // once you stop (or click into another app) it collapses like normal.
         var stillTyping = _typing && IsActive && Environment.TickCount64 - _lastKey < 8000;
-        // Clara replying (or just finished): keep the island open wherever the cursor is, so the answer can be read
-        var claraBusy = _state.IsExpanded && _page == ExpandedPage.Assistant && _assistant.KeepOpen;
-        if (stillTyping || claraBusy || IsCursorOverPill())
+        // Short hotkey grace, or Clara still streaming a reply (so you can look away and still see it land).
+        // Idle Clara / pending screen / "recent activity" do NOT pin the island — that was the 30–40s hostage.
+        var hotkeyHold = DateTime.UtcNow < _hotkeyHoldUntil;
+        var claraStreaming = _state.IsExpanded && _page == ExpandedPage.Assistant && _assistant.KeepOpen;
+        if (stillTyping || hotkeyHold || claraStreaming || IsCursorOverPill())
         {
             _msOutside = 0;
             return;
@@ -2748,11 +2828,17 @@ public partial class MainWindow : Window
     private bool IsCursorOverPill()
     {
         if (!NativeMethods.GetCursorPos(out var pt)) return true;
-        var p = Root.PointFromScreen(new Point(pt.X, pt.Y)); // design units, scale and DPI undone
-        var w = _width.Target;
+        // Same screen-space AABB as OverInteractiveChrome — PointFromScreen disagreed with the
+        // painted pill after LayoutTransform/DPI and made hover expand fail while hit-test said "over".
+        var w = _width.Value;
+        var h = _height.Value;
+        if (w <= 1 || h <= 1) return false;
         var x = (BaseWidth - w) / 2;
+        var topLeft = Root.PointToScreen(new Point(x, PillTop));
+        var bottomRight = Root.PointToScreen(new Point(x + w, PillTop + h));
         const double slop = 6;
-        return p.X >= x - slop && p.X <= x + w + slop && p.Y >= 0 && p.Y <= PillTop + _height.Target + slop;
+        return pt.X >= topLeft.X - slop && pt.X <= bottomRight.X + slop
+            && pt.Y >= topLeft.Y - slop && pt.Y <= bottomRight.Y + slop;
     }
 
     // ---------------------------------------------------------------- to-do and notes
@@ -3016,7 +3102,7 @@ public partial class MainWindow : Window
         var style = _settings.ClockStyle;
         var showDate = _settings.ShowDateWhenIdle && style is ClockStyle.Classic or ClockStyle.Stacked or ClockStyle.Analog;
         var idleText = showDate ? $"{now:ddd d MMM}   {time}" : time;
-        var weather = _settings.WeatherEnabled && _settings.WeatherInIdlePill ? _weather.Current : null;
+        var weather = _settings.WeatherInIdlePill ? _weather.Current : null;
         var weatherKey = weather is null ? null : $"{weather.Kind}|{weather.IsDay}|{Degrees(weather.Temperature)}";
         var visibility = minimal ? Visibility.Collapsed : Visibility.Visible;
         var styleKey = $"{style}|{_settings.ClockFont}|{_settings.ClockLook}|{showDate}|{_settings.WeatherSeparate}|{minimal}|{Quiet}";
@@ -3133,6 +3219,19 @@ public partial class MainWindow : Window
         shift.BeginAnimation(TranslateTransform.XProperty, shake);
     }
 
+    private bool _mediaVolumeUi;
+    private bool _mediaVolumeOpen;
+    private bool _mediaVolumeDragging;
+    private readonly DispatcherTimer _mediaVolumeCollapse = new() { Interval = TimeSpan.FromMilliseconds(220) };
+    private const double MediaVolumeSliderIdeal = 180;
+
+    private void OnVolumeChanged(float level, bool muted)
+    {
+        SyncMediaVolumeUi(level, muted);
+        // While Home is open, the inline chip is enough — don't steal the view with the OSD pill.
+        if (!_state.IsExpanded) ShowVolume(level, muted);
+    }
+
     private void ShowVolume(float level, bool muted)
     {
         var glyph = muted || level <= 0.001 ? ""
@@ -3140,6 +3239,147 @@ public partial class MainWindow : Window
             : level < 0.67 ? ""
             : "";
         ShowOsd(IslandView.Volume, level, glyph, dimmed: muted);
+    }
+
+    private void SyncMediaVolumeUi(float level, bool muted)
+    {
+        if (MediaVolumeSlider is null || MediaVolumeGlyph is null) return;
+        var glyph = muted || level <= 0.001 ? "\uE74F"
+            : level < 0.34 ? "\uE993"
+            : level < 0.67 ? "\uE994"
+            : "\uE995";
+        var changed = MediaVolumeGlyph.Text != glyph;
+        _mediaVolumeUi = true;
+        MediaVolumeSlider.Value = muted ? 0 : Math.Clamp(level, 0, 1);
+        MediaVolumeGlyph.Text = glyph;
+        _mediaVolumeUi = false;
+        if (changed) PopElement(MediaVolumeGlyph, 1.22);
+    }
+
+    private void OnMediaVolumeChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_mediaVolumeUi || !IsLoaded) return;
+        _volume.SetLevel((float)e.NewValue);
+    }
+
+    private void OnMediaMuteClick(object sender, RoutedEventArgs e) => _volume.ToggleMute();
+
+    private void OnMediaVolumeChipEnter(object sender, MouseEventArgs e)
+    {
+        _mediaVolumeCollapse.Stop();
+        SetMediaVolumeExpanded(true);
+    }
+
+    private void OnMediaVolumeChipLeave(object sender, MouseEventArgs e)
+    {
+        if (_mediaVolumeDragging) return;
+        // Tiny delay so the spring doesn't fight a quick re-enter (iOS Control Center habit).
+        _mediaVolumeCollapse.Stop();
+        _mediaVolumeCollapse.Start();
+    }
+
+    private void OnMediaVolumeSliderDown(object sender, MouseButtonEventArgs e) => _mediaVolumeDragging = true;
+
+    private void OnMediaVolumeSliderUp(object sender, MouseEventArgs e)
+    {
+        _mediaVolumeDragging = false;
+        if (!MediaVolumeChip.IsMouseOver) SetMediaVolumeExpanded(false);
+    }
+
+    private void WireMediaVolumeChip()
+    {
+        _mediaVolumeCollapse.Tick += (_, _) =>
+        {
+            _mediaVolumeCollapse.Stop();
+            if (!_mediaVolumeDragging && !MediaVolumeChip.IsMouseOver) SetMediaVolumeExpanded(false);
+        };
+    }
+
+    /// <summary>
+    /// Speaker → long pill growing left + right. Track width is cubic only (never BackEase).
+    /// Jelly lives on <see cref="MediaVolumePillGlass"/> alone so the white slider can't look like it overshoots.
+    /// </summary>
+    private void SetMediaVolumeExpanded(bool open)
+    {
+        if (MediaVolumeSliderHost is null || MediaVolumeChipShift is null || open == _mediaVolumeOpen) return;
+        _mediaVolumeOpen = open;
+
+        var from = MediaVolumeSliderHost.Width;
+        if (double.IsNaN(from) || from < 0) from = 0;
+
+        var to = 0.0;
+        var push = 0.0;
+        if (open)
+        {
+            try
+            {
+                MediaVolumeChipShift.BeginAnimation(TranslateTransform.XProperty, null);
+                var shiftNow = MediaVolumeChipShift.X;
+                MediaVolumeChipShift.X = 0;
+                var iconW = (MediaMuteButton?.ActualWidth > 0 ? MediaMuteButton.ActualWidth : 28) + 8;
+                var chipLeft = MediaVolumeChip.TranslatePoint(new Point(0, 0), MediaSection).X;
+                var prevLeft = PrevButton.TranslatePoint(new Point(0, 0), MediaSection).X;
+                var leftRoom = Math.Max(0, chipLeft - 2);
+                var rightRoom = Math.Max(0, prevLeft - chipLeft - iconW - 6);
+                var budget = Math.Min(MediaVolumeSliderIdeal, leftRoom + rightRoom);
+                push = -Math.Min(leftRoom, budget * 0.42);
+                to = Math.Clamp(budget, 120, MediaVolumeSliderIdeal);
+                if (shiftNow != 0) MediaVolumeChipShift.X = shiftNow;
+            }
+            catch (Exception)
+            {
+                to = MediaVolumeSliderIdeal;
+                push = -36;
+            }
+        }
+
+        var time = TimeSpan.FromMilliseconds(open ? 420 : 200);
+        var trackEase = new CubicEase { EasingMode = open ? EasingMode.EaseOut : EasingMode.EaseIn };
+        var target = to;
+        var width = new DoubleAnimation(from, target, time) { EasingFunction = trackEase };
+        width.Completed += (_, _) =>
+        {
+            MediaVolumeSliderHost.BeginAnimation(FrameworkElement.WidthProperty, null);
+            MediaVolumeSliderHost.Width = _mediaVolumeOpen ? target : 0;
+            // Always park glass scale at 1 so a mid-flight leave can't leave the pill "stuck big".
+            if (MediaVolumePillScale is not null)
+            {
+                MediaVolumePillScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+                MediaVolumePillScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+                MediaVolumePillScale.ScaleX = 1;
+                MediaVolumePillScale.ScaleY = 1;
+            }
+        };
+        var shift = new DoubleAnimation(MediaVolumeChipShift.X, push, time) { EasingFunction = trackEase };
+        var fade = new DoubleAnimation(MediaVolumeSlider.Opacity, open ? 1 : 0, TimeSpan.FromMilliseconds(open ? 120 : 80))
+        {
+            BeginTime = open ? TimeSpan.FromMilliseconds(15) : TimeSpan.Zero,
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+        };
+
+        if (MediaVolumePillScale is not null)
+        {
+            MediaVolumePillScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            MediaVolumePillScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            MediaVolumePillScale.ScaleX = 1;
+            MediaVolumePillScale.ScaleY = 1;
+            if (open)
+            {
+                // Glass-only jelly — content StackPanel is not scaled, so the thumb stays inside.
+                var pop = new DoubleAnimationUsingKeyFrames();
+                pop.KeyFrames.Add(new DiscreteDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+                pop.KeyFrames.Add(new EasingDoubleKeyFrame(1.14, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(120)),
+                    new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.85 }));
+                pop.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(400)),
+                    new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 2, Springiness = 3.2 }));
+                MediaVolumePillScale.BeginAnimation(ScaleTransform.ScaleXProperty, pop);
+                MediaVolumePillScale.BeginAnimation(ScaleTransform.ScaleYProperty, pop);
+            }
+        }
+
+        MediaVolumeSliderHost.BeginAnimation(FrameworkElement.WidthProperty, width);
+        MediaVolumeChipShift.BeginAnimation(TranslateTransform.XProperty, shift);
+        MediaVolumeSlider.BeginAnimation(UIElement.OpacityProperty, fade);
     }
 
     private void ShowBrightness(int level) => ShowOsd(IslandView.Brightness, level / 100.0, "", dimmed: false);
@@ -3313,10 +3553,12 @@ public partial class MainWindow : Window
         if (_settings.ClipboardHistoryEnabled) _clipHistory.CaptureCurrent();
         if (!_settings.CopyAlerts) return;
         if (_typing) return; // copying inside the island's own note: no alert over it
+        // Screenshots land as images on the clipboard; don't shout "Copied" right after Win+Shift+S —
+        // the snip UI already flashed, and the alert made it feel like the island vanished and came back.
+        if (copy.Kind == ClipboardKind.Image) return;
         var (glyph, detail) = copy.Kind switch
         {
             ClipboardKind.Files => ("", copy.Preview),
-            ClipboardKind.Image => ("", "Image"),
             ClipboardKind.Text => ("", copy.Preview),
             _ => ("", null),
         };
@@ -3409,7 +3651,7 @@ public partial class MainWindow : Window
             ? new ImageBrush(icon) { Stretch = Stretch.UniformToFill }
             : (Brush)FindResource("ArtPlaceholder");
         var hide = _settings.NotificationsHideText;
-        _pendingCode = _settings.CopyCodes ? ExtractCode(n.Title + " " + n.Body) : null;
+        _pendingCode = _settings.CopyCodes ? ExtractCode(n.Title, n.Body) : null;
         NotifCopy.Visibility = _pendingCode is null ? Visibility.Collapsed : Visibility.Visible;
         NotifApp.Visibility = _pendingCode is null ? Visibility.Visible : Visibility.Collapsed;
         if (_pendingCode is not null) ResetCopyButton();
@@ -3430,20 +3672,59 @@ public partial class MainWindow : Window
     private static readonly System.Text.RegularExpressions.Regex CodeWords = new(
         @"\b(code|otp|verification|verify|passcode|pin|one[- ]time|security|authenticat\w*|login|log in|sign[- ]?in|2fa)\b",
         System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+    // Prefer "code is 482913" / "OTP: 123456" over a random digit run (SMS titles are often the sender shortcode).
+    private static readonly System.Text.RegularExpressions.Regex CodeNearKeyword = new(
+        @"(?:(?:one[- ]?time|verification|security)?\s*(?:code|otp|passcode|pin)|otp|2fa)\s*(?:is|:|=)?\s*[""']?(\d{3}[- ]\d{3}|\d{4,8})\b",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
     private static readonly System.Text.RegularExpressions.Regex CodeDigits = new(
         @"(?<![\d.])(\d{3}[- ]\d{3}|\d{4,8})(?![\d.])", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex PhoneLike = new(
+        @"(\+\d{1,3}[\s.-]?)?(\(?\d{2,4}\)?[\s.-]?)?\d{3}[\s.-]\d{4}\b|\b\d{10,15}\b",
+        System.Text.RegularExpressions.RegexOptions.Compiled);
 
-    /// <summary>A one-time code in a notification ("Your code is 482913"), or null.</summary>
-    private static string? ExtractCode(string text)
+    /// <summary>A one-time code in a notification ("Your code is 482913"), or null. Ignores sender shortcodes / phone numbers.</summary>
+    private static string? ExtractCode(string title, string body)
     {
-        if (!CodeWords.IsMatch(text)) return null;
-        foreach (System.Text.RegularExpressions.Match m in CodeDigits.Matches(text))
+        var combined = string.IsNullOrWhiteSpace(body) ? title : title + "\n" + body;
+        if (!CodeWords.IsMatch(combined)) return null;
+
+        // Body first: the title is often the carrier shortcode ("53454", "BX-12345") and used to win.
+        return BestCode(body, title) ?? BestCode(combined, title);
+    }
+
+    private static string? ExtractCode(string text) => ExtractCode("", text);
+
+    private static string? BestCode(string text, string title)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        string? best = null;
+        var bestScore = int.MinValue;
+
+        void Consider(string raw, int baseScore)
         {
-            var digits = m.Value.Replace(" ", "").Replace("-", "");
-            if (digits.Length is >= 4 and <= 8 && !(digits.Length == 4 && digits.StartsWith("20") && int.Parse(digits) is >= 2000 and <= 2099))
-                return m.Value;
+            var digits = raw.Replace(" ", "").Replace("-", "");
+            if (digits.Length is < 4 or > 8) return;
+            // Years in messages ("valid until 2026").
+            if (digits.Length == 4 && digits.StartsWith("20") && int.TryParse(digits, out var year) && year is >= 2000 and <= 2099)
+                return;
+            // Whole title is the sender id (shortcode / masked number) — not the OTP.
+            var titleDigits = System.Text.RegularExpressions.Regex.Replace(title ?? "", @"\D", "");
+            if (titleDigits.Length > 0 && titleDigits == digits) return;
+            if (PhoneLike.IsMatch(raw) && digits.Length >= 10) return;
+
+            var score = baseScore;
+            score += digits.Length switch { 6 => 40, 5 => 25, 4 => 10, 7 => 15, 8 => 5, _ => 0 };
+            // "123-456" OTPs are fine; long dashed phone fragments are not.
+            if (raw.Contains('-') && digits.Length >= 7) score -= 30;
+            if (score > bestScore) { bestScore = score; best = raw; }
         }
-        return null;
+
+        foreach (System.Text.RegularExpressions.Match m in CodeNearKeyword.Matches(text))
+            Consider(m.Groups[1].Value, 100);
+        foreach (System.Text.RegularExpressions.Match m in CodeDigits.Matches(text))
+            Consider(m.Value, 10);
+
+        return best;
     }
 
     private void ResetCopyButton()
@@ -3511,7 +3792,7 @@ public partial class MainWindow : Window
     private static string? NotificationTag(IslandNotification n)
     {
         var text = n.Title + " " + n.Body;
-        if (ExtractCode(text) is not null) return "Code";
+        if (ExtractCode(n.Title, n.Body) is not null) return "Code";
         if (System.Text.RegularExpressions.Regex.IsMatch(text, @"\b(out for delivery|delivered|arriving|shipped|tracking|your order|parcel|package)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase)) return "Delivery";
         if (System.Text.RegularExpressions.Regex.IsMatch(text, @"\bmissed (voice )?call\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase)) return "Missed call";
         return null;
@@ -4061,11 +4342,16 @@ public partial class MainWindow : Window
 
     // ---------------------------------------------------------------- weather
 
+    /// <summary>True when any UI wants a forecast — the Weather page, home glance, or the idle clock pill.</summary>
+    private bool WantsWeather =>
+        _settings.WeatherEnabled || _settings.WeatherInIdlePill || _settings.HomeGlance == HomeGlance.Weather;
+
     /// <summary>Starts / stops the service, and refetches when the location or unit changes.</summary>
     private void UpdateWeatherService()
     {
         if (!IsLoaded) return;
-        if (!_settings.WeatherEnabled)
+        // Page toggle only controls the Weather *page*. Glance / clock weather still need a forecast.
+        if (!WantsWeather)
         {
             _weather.Stop();
             _weatherKey = null;
@@ -4073,18 +4359,17 @@ public partial class MainWindow : Window
         }
         var s = _settings;
         var key = $"{s.WeatherUseDeviceLocation}|{s.WeatherLatitude}|{s.WeatherLongitude}|{s.TemperatureUnit}";
-        if (key == _weatherKey) return;
-        var first = _weatherKey is null;
+        var changed = key != _weatherKey;
         _weatherKey = key;
-        if (first)
+        // Always ensure the service is running when something wants weather (page-off used to leave it dead).
+        if (!_weather.IsRunning)
         {
-            UpdateWeather(); // "Loading weather…" until the first report
+            UpdateWeather();
+            BuildHomeGlance();
             _weather.Start();
+            return;
         }
-        else
-        {
-            _weather.Refresh();
-        }
+        if (changed) _weather.Refresh();
     }
 
     private static string Degrees(double value) => $"{Math.Round(value):0}°";
@@ -4423,6 +4708,8 @@ public partial class MainWindow : Window
     /// <summary>Rings until clicked (or a minute passes): looping alarm sound and the alert pill.</summary>
     private void OnAlarmRing(Alarm alarm)
     {
+        SmartTime.RecordAlarmRang(_settings, alarm.TimeOfDay);
+        _settings.Save();
         TimerDoneGlyph.Text = "";
         TimerDoneText.Text = string.IsNullOrWhiteSpace(alarm.Label) ? $"Alarm  {alarm.Time}" : $"{alarm.Label}  {alarm.Time}";
         try
@@ -4550,7 +4837,7 @@ public partial class MainWindow : Window
             glyph.Visibility = Visibility.Visible;
             glyph.FontSize = 15;
             glyph.Text = "\uE916";
-            glyph.Foreground = (Brush)FindResource(focus ? "Green" : view == IslandView.Timer ? "Orange" : "Cyan");
+            glyph.Foreground = (Brush)FindResource(focus ? "Green" : view == IslandView.Timer ? "Violet" : "Cyan");
             bubble.ToolTip = focus ? "Focus · " + TimerService.Format(_timer.Remaining)
                 : view == IslandView.Timer ? TimerService.Format(_timer.Remaining) : "Stopwatch";
         }
@@ -4574,23 +4861,37 @@ public partial class MainWindow : Window
         return true;
     }
 
-    /// <summary>Opens the app that's playing (click on the collapsed music activity, when enabled).</summary>
+    /// <summary>Opens the app that's playing (click on the collapsed music activity / disc, when enabled).</summary>
     private void OpenMediaApp()
     {
         if (_media.Current?.AppId is not { Length: > 0 } appId) return;
         if (BrowserHints.Any(h => appId.Contains(h, StringComparison.OrdinalIgnoreCase)))
         {
-            // A browser tab is playing: bring that browser forward. Launching it would open a brand new window.
+            // GSMTC can't switch browser tabs. Best effort: prefer a window whose title mentions the track.
+            var title = _media.Current.Title ?? "";
+            var artist = _media.Current.Artist ?? "";
+            IntPtr fallback = IntPtr.Zero;
             foreach (var hint in BrowserHints)
                 foreach (var process in Process.GetProcesses().Where(pr => pr.ProcessName.Contains(hint, StringComparison.OrdinalIgnoreCase)))
                 {
                     var hwnd = process.MainWindowHandle;
+                    var windowTitle = "";
+                    try { windowTitle = process.MainWindowTitle ?? ""; } catch (Exception) { }
                     process.Dispose();
                     if (hwnd == IntPtr.Zero) continue;
+                    if (fallback == IntPtr.Zero) fallback = hwnd;
+                    var hit = title.Length > 2 && windowTitle.Contains(title, StringComparison.OrdinalIgnoreCase)
+                              || artist.Length > 2 && windowTitle.Contains(artist, StringComparison.OrdinalIgnoreCase);
+                    if (!hit) continue;
                     if (NativeMethods.IsIconic(hwnd)) NativeMethods.ShowWindow(hwnd, 9);
                     SetForegroundWindow(hwnd);
                     return;
                 }
+            if (fallback != IntPtr.Zero)
+            {
+                if (NativeMethods.IsIconic(fallback)) NativeMethods.ShowWindow(fallback, 9);
+                SetForegroundWindow(fallback);
+            }
             return;
         }
         if (appId.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
@@ -4618,6 +4919,12 @@ public partial class MainWindow : Window
     private void OnMediaChanged()
     {
         var media = _media.Current;
+        // Drop a previous track's online cover *before* we pick what to show — otherwise switching
+        // Spotify ↔ Vivaldi keeps the old ArtBanner / disc art for a beat (or forever if the new
+        // source already has its own thumbnail and never re-fetches).
+        var trackKey = media is null ? "" : $"{media.AppId}|{media.Title}|{media.Artist}|{(int)media.Duration.TotalSeconds}";
+        if (trackKey != _trackKey) _artOverride = null;
+
         if (media is not null)
         {
             var title = string.IsNullOrWhiteSpace(media.Title) ? "Unknown title" : media.Title;
@@ -4627,13 +4934,14 @@ public partial class MainWindow : Window
             MediaArtistLarge.Text = string.IsNullOrEmpty(media.Album) ? media.Artist : $"{media.Artist} — {media.Album}";
             MediaAppName.Text = media.AppName;
             var shownArt = _artOverride ?? media.Art; // real album art found online beats a browser icon
-            if (!ReferenceEquals(shownArt, _shownArt))
+            // Rebind when the artwork *or* the source app changes (same cover object can be reused).
+            if (!ReferenceEquals(shownArt, _shownArt) || _shownArtAppId != media.AppId)
             {
-                // Only rebuild brushes on new artwork, so animated art doesn't restart on every update.
                 _shownArt = shownArt;
+                _shownArtAppId = media.AppId;
                 SetArt(MediaArtSmall, MediaArtSmallFallback, shownArt);
                 SetArt(MediaArtLarge, MediaArtLargeFallback, shownArt);
-                ArtBanner.Background = shownArt?.CreateBrush();
+                SetArtBanner(shownArt);
                 MediaDiscArt.Fill = shownArt is null ? new SolidColorBrush(Color.FromArgb(0x33, 255, 255, 255)) : shownArt.CreateBrush();
                 UpdatePalette();
             }
@@ -4644,6 +4952,7 @@ public partial class MainWindow : Window
             NextButton.IsEnabled = media.CanNext;
             ProgressHit.Cursor = media.CanSeek ? Cursors.Hand : null;
         }
+        else _shownArtAppId = null;
 
         _state.MediaPlaying = media?.IsPlaying == true;
         if (media?.IsPlaying == true && !_petWasPlaying) _pet.React(PetEvent.MusicStart);
@@ -4697,10 +5006,72 @@ public partial class MainWindow : Window
 
     private void SetArt(Border target, TextBlock fallback, Artwork? art)
     {
-        target.Background = art is null
-            ? (Brush)FindResource("ArtPlaceholder")
-            : art.CreateBrush();
-        fallback.Visibility = art is null ? Visibility.Visible : Visibility.Collapsed;
+        void Apply()
+        {
+            target.Background = art is null
+                ? (Brush)FindResource("ArtPlaceholder")
+                : art.CreateBrush();
+            fallback.Visibility = art is null ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        // Soft crossfade so Spotify ↔ Vivaldi / track changes don't hard-cut the cover.
+        if (!IsLoaded || target.Opacity < 0.01)
+        {
+            target.BeginAnimation(UIElement.OpacityProperty, null);
+            target.Opacity = 1;
+            Apply();
+            return;
+        }
+        var outAnim = new DoubleAnimation(target.Opacity, 0, TimeSpan.FromMilliseconds(110))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn },
+        };
+        outAnim.Completed += (_, _) =>
+        {
+            Apply();
+            var inn = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(320))
+            {
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+            };
+            target.BeginAnimation(UIElement.OpacityProperty, inn);
+        };
+        target.BeginAnimation(UIElement.OpacityProperty, outAnim);
+    }
+
+    private void SetArtBanner(Artwork? art)
+    {
+        void Apply() => ArtBanner.Background = art?.CreateBrush();
+        if (!IsLoaded || ArtBanner.Visibility != Visibility.Visible)
+        {
+            ArtBanner.BeginAnimation(UIElement.OpacityProperty, null);
+            Apply();
+            return;
+        }
+        var from = ArtBanner.Opacity > 0 ? ArtBanner.Opacity : 0.55;
+        var outAnim = new DoubleAnimation(from, 0, TimeSpan.FromMilliseconds(140))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn },
+        };
+        outAnim.Completed += (_, _) =>
+        {
+            Apply();
+            ArtBanner.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 0.55, TimeSpan.FromMilliseconds(380))
+            {
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+            });
+        };
+        ArtBanner.BeginAnimation(UIElement.OpacityProperty, outAnim);
+    }
+
+    // ---- home glance (right of the clock when idle)
+
+    private void UpdateNextUp() => BuildHomeGlance();
+
+    private void OnNextUpClick(object sender, MouseButtonEventArgs e)
+    {
+        // Legacy handler for the hidden NextUpChip; HomeGlance owns clicks now.
+        e.Handled = true;
+        OnHomeGlanceClick(sender, e);
     }
 
     // ---- real waveform: bars follow the output level (left / right peaks), 30 fps while visible.

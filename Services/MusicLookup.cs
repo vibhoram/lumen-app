@@ -18,7 +18,7 @@ public static class MusicLookup
 
     static MusicLookup() => Http.DefaultRequestHeaders.UserAgent.ParseAdd("D-Island/1.0 (personal)");
 
-    /// <summary>Browser titles carry noise: "(Official Video)", "[Lyrics]", "ft. X", "- Topic", "VEVO".</summary>
+    /// <summary>Browser titles carry noise: "(Official Video)", "[Lyrics]", "ft. X", "- Topic", "VEVO", "Artist // Song".</summary>
     public static (string Title, string Artist) Clean(string title, string artist)
     {
         // "Song | Film | Singers | Label": the song is the first part.
@@ -29,9 +29,9 @@ public static class MusicLookup
         t = Regex.Replace(t, @"(\s+(official|full|lyrical|lyric|lyrics|music|video|song|audio|hd|4k|8k|1080p|mv))+\s*$", "", RegexOptions.IgnoreCase);
         t = Regex.Replace(t, @"\s+(ft\.?|feat\.?|featuring)\s+.*$", "", RegexOptions.IgnoreCase).Trim();
         var a = Regex.Replace(artist, @"\s*-\s*Topic$|VEVO$", "", RegexOptions.IgnoreCase).Trim();
-        // "Artist - Song" in the title of a YouTube video
-        var split = Regex.Match(t, @"^(?<a>.+?)\s[-–—]\s(?<s>.+)$");
-        if (split.Success && (a.Length == 0 || split.Groups["a"].Value.Length < 40))
+        // "Artist - Song" or YouTube-style "Artist // Song" (Mac DeMarco // No Other Heart)
+        var split = Regex.Match(t, @"^(?<a>.+?)\s(?:[-–—]|//)\s(?<s>.+)$");
+        if (split.Success && (a.Length == 0 || LooksLikeLabel(a) || split.Groups["a"].Value.Length < 40))
         {
             a = split.Groups["a"].Value.Trim();
             t = split.Groups["s"].Value.Trim();
@@ -41,7 +41,7 @@ public static class MusicLookup
 
     /// <summary>Channels that are labels or networks say nothing about who sings: leave them out of the search.</summary>
     private static bool LooksLikeLabel(string artist) =>
-        Regex.IsMatch(artist, @"(music|records|entertainment|company|official|network|studios?|films?|t-series|vevo|channel)", RegexOptions.IgnoreCase);
+        Regex.IsMatch(artist, @"(music|records|entertainment|company|official|network|studios?|films?|t-series|vevo|channel|capturedtracks)", RegexOptions.IgnoreCase);
 
     private static IEnumerable<string> Queries(string title, string artist)
     {
@@ -147,19 +147,29 @@ public static class MusicLookup
         byte[]? bytes = null;
         try
         {
-            var url = "https://itunes.apple.com/search?media=music&entity=song&limit=1&term=" + Uri.EscapeDataString(Queries(t, a).First());
-            using var response = await Http.GetAsync(url, cancel);
-            if (response.IsSuccessStatusCode)
+            // Same multi-query path as lyrics — one bad "Channel + messy title" hit shouldn't stick.
+            foreach (var query in Queries(t, a))
             {
+                if (cancel.IsCancellationRequested) break;
+                var url = "https://itunes.apple.com/search?media=music&entity=song&limit=3&term=" + Uri.EscapeDataString(query);
+                using var response = await Http.GetAsync(url, cancel);
+                if (!response.IsSuccessStatusCode) continue;
                 using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancel));
                 var results = doc.RootElement.GetProperty("results");
-                if (results.GetArrayLength() > 0 && results[0].TryGetProperty("artworkUrl100", out var art) && art.GetString() is { Length: > 0 } small)
+                foreach (var item in results.EnumerateArray())
+                {
+                    if (!item.TryGetProperty("artworkUrl100", out var art) || art.GetString() is not { Length: > 0 } small)
+                        continue;
                     bytes = await Http.GetByteArrayAsync(small.Replace("100x100bb", "600x600bb"), cancel);
+                    if (bytes is { Length: > 0 }) break;
+                }
+                if (bytes is { Length: > 0 }) break;
             }
         }
         catch (Exception) when (!cancel.IsCancellationRequested) { }
 
-        if (!cancel.IsCancellationRequested) ArtCache[key] = bytes;
+        // Only cache hits. Caching null made a flaky first miss stick until the next process start.
+        if (bytes is not null && !cancel.IsCancellationRequested) ArtCache[key] = bytes;
         return bytes;
     }
 }

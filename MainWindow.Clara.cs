@@ -13,6 +13,11 @@ public partial class MainWindow
     {
         _assistant.ContextProvider = ClaraContext;
         _assistant.ToolRunner = RunClaraTool;
+        _assistant.LayoutChanged += () =>
+        {
+            if (_state.IsExpanded && _page == ExpandedPage.Assistant)
+                Dispatcher.InvokeAsync(Render);
+        };
     }
 
     /// <summary>"Ask Clara" on a clipboard item: open her page with the item attached and the cursor ready.</summary>
@@ -20,6 +25,9 @@ public partial class MainWindow
     {
         try
         {
+            HoldOpenFromHotkey();
+            if (IslandHidden) SetIslandHidden(false);
+            SetExpanded(true);
             ShowPage(ExpandedPage.Assistant, animate: true);
             if (item.Kind == ClipKind.Image) _assistant.AttachImage(_clipHistory.LoadImage(item));
             else _assistant.AttachText(item.Text);
@@ -277,6 +285,7 @@ public partial class MainWindow
                     var daily = doc.RootElement.TryGetProperty("daily", out var dv) && dv.ValueKind == JsonValueKind.True;
                     var label = Str("label").Trim();
                     _settings.Alarms.Add(new Alarm { Time = tod.ToString(@"hh\:mm"), Enabled = true, Daily = daily, Label = label.Length > 0 ? label : "Alarm" });
+                    SmartTime.RecordAlarm(_settings, tod);
                     _settings.Save();
                     _alarms.Reschedule();
                     return (true, $"Alarm set for {DateTime.Today.Add(tod):h:mm tt}{(daily ? ", every day" : "")}.", $"Alarm · {DateTime.Today.Add(tod):h:mm tt}");
