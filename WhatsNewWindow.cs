@@ -198,12 +198,13 @@ public sealed class WhatsNewWindow : Window
         {
             CornerRadius = new CornerRadius(24),
             Background = cardBg,
-            BorderBrush = Frozen(Color.FromArgb(0x55, 0xBF, 0x5A, 0xF2)),
+            BorderBrush = Frozen(Color.FromArgb(0x28, 0xFF, 0xFF, 0xFF)),
             BorderThickness = new Thickness(1),
-            Margin = new Thickness(18),
+            Margin = new Thickness(16),
+            // Soft shadow only — a violet bloom reads as "AI glow" and fights the glass look.
             Effect = new DropShadowEffect
             {
-                Color = Violet, BlurRadius = 36, ShadowDepth = 0, Opacity = 0.55,
+                Color = Colors.Black, BlurRadius = 22, ShadowDepth = 4, Direction = 270, Opacity = 0.45,
             },
             Child = content,
         };
