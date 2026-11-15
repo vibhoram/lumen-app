@@ -1,3 +1,10 @@
+LUMEN
+Copyright 2026 vibhoram. A personal modified version — not an official D-Island release.
+https://github.com/vibhoram/Lumen
+
+----------------------------------------------------------------------
+Original work (required by the D-Island License 1.0)
+----------------------------------------------------------------------
 D-Island
 Copyright 2026 h7 (ibuildrigs) and the D-Island contributors.
 Created by h7 (ibuildrigs) - https://ibuildrigs.com - https://github.com/H7gamer/d-island
@@ -12,24 +19,22 @@ Anyone who distributes D-Island or a modified version must show this credit wher
     Based on D-Island by h7 (ibuildrigs) - https://github.com/H7gamer/d-island
 
 
-OFFICIAL DISTRIBUTION
+OFFICIAL DISTRIBUTION (original D-Island only)
 
 Official D-Island releases are published only at:
-- https://github.com/H7gamer/d-island (GitHub Releases of this repository)
+- https://github.com/H7gamer/d-island (GitHub Releases of that repository)
 - https://ibuildrigs.com
 
-Copies of D-Island, its installer or modified versions downloaded from anywhere else, including other GitHub repositories, forks, mirrors, download sites, app stores and package managers, are not authorised, checked or supported by h7 or ibuildrigs. They may have been changed, for example to include malware. Anyone who downloads, installs or uses such a copy does so entirely at their own risk.
-
-Because D-Island can read notifications, the clipboard, calendars and media information on a computer, only install it from the official sources above. D-Island's built-in updater only installs official releases from GitHub, and checks each download against the checksum published with it.
+Lumen is a separate private project by vibhoram and is not an official D-Island release.
 
 
 NAMES AND TRADEMARKS
 
 "D-Island", "h7" and "ibuildrigs" identify the original author and the official releases. The license does not grant permission to use these names or the D-Island icon, except to give the required credit and to describe the origin of the work truthfully. Modified versions must not present themselves as official D-Island releases, and must use a different name and icon.
 
-Apple, iPhone, Dynamic Island, Apple Music and iCloud are trademarks of Apple Inc. Windows, Microsoft, Outlook and Teams are trademarks of Microsoft Corporation. Other names are trademarks of their respective owners. D-Island is an independent project and is not affiliated with, endorsed or sponsored by any of them.
+Apple, iPhone, Dynamic Island, Apple Music and iCloud are trademarks of Apple Inc. Windows, Microsoft, Outlook and Teams are trademarks of Microsoft Corporation. Other names are trademarks of their respective owners. Lumen is an independent project and is not affiliated with, endorsed or sponsored by any of them.
 
 
 THIRD-PARTY COMPONENTS
 
-D-Island includes open-source components under their own licenses; see THIRD-PARTY-NOTICES.txt.
+Lumen includes open-source components under their own licenses; see THIRD-PARTY-NOTICES.txt.

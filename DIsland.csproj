@@ -15,10 +15,10 @@
     <Product>Lumen</Product>
     <Version>1.2.1</Version>
     <Description>Lumen, a personal island for Windows</Description>
-    <Authors>me</Authors>
-    <Company>me</Company>
-    <Copyright>Copyright (c) 2026 h7 (ibuildrigs). Licensed under the D-Island License 1.0.</Copyright>
-    <PackageProjectUrl>https://github.com/H7gamer/d-island</PackageProjectUrl>
+    <Authors>vibhoram</Authors>
+    <Company>vibhoram</Company>
+    <Copyright>Copyright (c) 2026 vibhoram. Lumen is a modified version under the D-Island License 1.0.</Copyright>
+    <PackageProjectUrl>https://github.com/vibhoram/Lumen</PackageProjectUrl>
     <!-- WinForms' DPI analyzer; WPF owns DPI here and reads it from app.manifest. -->
     <NoWarn>$(NoWarn);WFAC010</NoWarn>
 

@@ -799,7 +799,7 @@ public partial class MainWindow : Window
         if (updatedFrom is not null)
         {
             _ = ShowWhatsNewSoonAsync(updatedFrom);
-            _ = Task.Delay(3000).ContinueWith(_ => ShowInfo(TransientPriority.Calendar, 300, "", "D-Island updated",
+            _ = Task.Delay(3000).ContinueWith(_ => ShowInfo(TransientPriority.Calendar, 300, "", "Lumen updated",
                     $"Version {current}", detailBrush: (Brush)FindResource("Green"), seconds: 5),
                 TaskScheduler.FromCurrentSynchronizationContext());
         }
@@ -849,7 +849,7 @@ public partial class MainWindow : Window
 #endif
         }
         if (waitingFor is not null) return; // asked again in 15 s
-        ShowInfo(TransientPriority.TimerDone, 320, "", "Updating D-Island", $"to {info.Version}",
+        ShowInfo(TransientPriority.TimerDone, 320, "", "Updating Lumen", $"to {info.Version}",
             detailBrush: (Brush)FindResource("Green"), seconds: 4);
         _ = Task.Delay(2500).ContinueWith(_ => App.Updates?.Install(), TaskScheduler.FromCurrentSynchronizationContext());
     }

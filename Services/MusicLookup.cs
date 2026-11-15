@@ -16,7 +16,7 @@ public static class MusicLookup
     private static readonly Dictionary<string, List<LyricLine>?> LyricsCache = new();
     private static readonly Dictionary<string, byte[]?> ArtCache = new();
 
-    static MusicLookup() => Http.DefaultRequestHeaders.UserAgent.ParseAdd("D-Island/1.0 (personal)");
+    static MusicLookup() => Http.DefaultRequestHeaders.UserAgent.ParseAdd("Lumen/1.0 (+https://github.com/vibhoram/Lumen)");
 
     /// <summary>Browser titles carry noise: "(Official Video)", "[Lyrics]", "ft. X", "- Topic", "VEVO", "Artist // Song".</summary>
     public static (string Title, string Artist) Clean(string title, string artist)

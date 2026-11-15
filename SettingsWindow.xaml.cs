@@ -478,14 +478,15 @@ public partial class SettingsWindow : Window
         var about = Section("ABOUT");
         about.Children.Add(new TextBlock { Text = "Lumen", FontSize = 15, FontWeight = FontWeights.SemiBold });
         about.Children.Add(new TextBlock { Text = "A personal island for Windows: music, focus, Clara, clipboard and a little pet.", Foreground = Secondary, Margin = new Thickness(0, 2, 0, 0), TextWrapping = TextWrapping.Wrap });
-        about.Children.Add(new TextBlock { Text = "Made by Vibhor and Claude", FontSize = 13, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 0) });
-        about.Children.Add(new TextBlock { Text = "Based on D-Island by h7 (ibuildrigs) - https://github.com/H7gamer/d-island", Foreground = Secondary, Margin = new Thickness(0, 2, 0, 0), TextWrapping = TextWrapping.Wrap });
+        about.Children.Add(new TextBlock { Text = "Made by Vibhor · https://github.com/vibhoram/Lumen", FontSize = 13, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 0), TextWrapping = TextWrapping.Wrap });
+        // D-Island License 1.0 §3(a) requires this exact credit line to stay visible.
+        about.Children.Add(new TextBlock { Text = "Based on D-Island by h7 (ibuildrigs) - https://github.com/H7gamer/d-island", FontSize = 11, Foreground = Secondary, Margin = new Thickness(0, 8, 0, 0), TextWrapping = TextWrapping.Wrap, Opacity = 0.55 });
         var terms = new TextBlock
         {
             Text =
                 "TERMS OF USE (LUMEN)\n\n" +
-                "1. Lumen is a personal project by Vibhor and Claude. It is for the owner's own use and is not published or sold.\n" +
-                "2. It is built on D-Island (c) 2026 h7 (ibuildrigs), used under the D-Island License 1.0 (LICENSE.txt, NOTICE.txt). The credit above must stay visible, and anyone who ever shares this app must keep that license and credit, keep users informed about their data, and not use it to harm or deceive anyone.\n" +
+                "1. Lumen is Vibhor's personal project (with Claude). It is not an official D-Island release and is not published or sold.\n" +
+                "2. Lumen is a modified version under the D-Island License 1.0 (LICENSE.txt, NOTICE.txt). The credit line above is required by that license. Anyone who shares Lumen must keep the license files, that credit, an accurate privacy statement, and must not use it to harm or deceive anyone.\n" +
                 "3. Your data stays on this PC. Clara sends only what you type (and a screenshot when you attach one) to the AI service you configured, using your own API key. Clipboard history, notes, memory and settings are stored locally in your user folders. See PRIVACY.txt.\n" +
                 "4. The app is provided as is, without warranty. The RAM tools only trim memory and never close apps; the glass effects use undocumented Windows features that may change with updates. Use at your own risk.\n" +
                 "5. Third-party names (Windows, Spotify, Groq, LRCLIB, iTunes and others) belong to their owners and are mentioned only to describe features.",
@@ -500,7 +501,7 @@ public partial class SettingsWindow : Window
         about.Children.Add(showTerms);
         about.Children.Add(terms);
 
-        CreditText.Text = "Lumen  ·  made by Vibhor and Claude";
+        CreditText.Text = "Lumen  ·  made by Vibhor";
 
         _loading = false;
         Dispatcher.InvokeAsync(() =>
@@ -721,7 +722,7 @@ public partial class SettingsWindow : Window
     /// <summary>Alarms: time (HH:mm), daily or once, on/off, label; plus "Add alarm".</summary>
     private void AlarmList(Panel panel)
     {
-        Note(panel, "Alarms ring in the island (with sound) while D-Island is running. Click the island to stop one.");
+        Note(panel, "Alarms ring in the island (with sound) while Lumen is running. Click the island to stop one.");
         var list = new StackPanel();
         panel.Children.Add(list);
 
@@ -815,9 +816,9 @@ public partial class SettingsWindow : Window
         }
 
         Note(panel, "Windows only lets apps read notifications and the Windows calendar if they have a package " +
-                    "identity. The one-time setup registers one for D-Island: it downloads Microsoft's packaging " +
+                    "identity. The one-time setup registers one for Lumen: it downloads Microsoft's packaging " +
                     "tools (about 100 MB, once), creates a signing certificate, and Windows asks for permission once " +
-                    "to trust it. D-Island restarts when it's done.");
+                    "to trust it. Lumen restarts when it's done.");
         var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 4) };
         var setup = new Button { Style = (Style)FindResource("ChipButton"), Content = "Set up…", Margin = new Thickness(0) };
         setup.Click += (_, _) =>

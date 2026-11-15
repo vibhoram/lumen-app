@@ -28,27 +28,19 @@ public enum UpdateState
 public sealed record UpdateInfo(Version Version, string Tag, string PageUrl, string InstallerUrl, string InstallerName, string ChecksumUrl);
 
 /// <summary>
-/// Updates from the official GitHub releases only (https://github.com/H7gamer/d-island).
-/// <list type="bullet">
-/// <item>Checks the public "latest release" API a minute after start and then once a day (no account,
-/// no token; GitHub sees only the IP address and the "D-Island/version" user agent).</item>
-/// <item>A release is used only if it has the installer and its ".sha256" file as assets of that
-/// release, both served from github.com/H7gamer/d-island. The download is verified against the
-/// checksum before anything runs.</item>
-/// <item>Installed copies (the installer's uninstaller sits next to the exe) update themselves
-/// silently; the installer restarts the island. Development builds only report the update.</item>
-/// </list>
+/// Updates from this Lumen repo's GitHub releases (https://github.com/vibhoram/Lumen).
+/// Off by default for private builds; when on, only Lumen installer assets are accepted.
 /// </summary>
 public sealed class UpdateService
 {
-    public const string Repository = "H7gamer/d-island";
+    public const string Repository = "vibhoram/Lumen";
 
     // Must stay above Http: static fields initialise in declaration order, and the client's user agent
     // needs the version (in the other order it was null, the user agent invalid, and the type unusable).
     public static Version CurrentVersion { get; } =
         typeof(UpdateService).Assembly.GetName().Version is { } v ? new Version(v.Major, v.Minor, Math.Max(0, v.Build)) : new Version(0, 0, 0);
 
-    private static readonly Regex InstallerName = new(@"^D-Island-Setup-(\d+\.\d+\.\d+)\.exe$", RegexOptions.IgnoreCase);
+    private static readonly Regex InstallerName = new(@"^Lumen-Setup-(\d+\.\d+\.\d+)\.exe$", RegexOptions.IgnoreCase);
     private static readonly HttpClient Http = CreateClient();
 
     private readonly AppSettings _settings;
@@ -309,7 +301,7 @@ public sealed class UpdateService
     private static HttpClient CreateClient()
     {
         var client = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd($"D-Island/{CurrentVersion}");
+        client.DefaultRequestHeaders.UserAgent.ParseAdd($"Lumen/{CurrentVersion}");
         return client;
     }
 

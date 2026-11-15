@@ -62,7 +62,7 @@ public sealed class WhatsNewWindow : Window
 
     public WhatsNewWindow(IReadOnlyList<WhatsNew.Release> releases, Version? updatedFrom)
     {
-        Title = "What's new in D-Island";
+        Title = "What's new in Lumen";
         Width = 440;
         SizeToContent = SizeToContent.Height;
         WindowStyle = WindowStyle.None;
@@ -91,7 +91,7 @@ public sealed class WhatsNewWindow : Window
         var current = UpdateService.CurrentVersion;
         content.Children.Add(new TextBlock
         {
-            Text = updatedFrom is null ? "What's new in D-Island" : "D-Island is up to date",
+            Text = updatedFrom is null ? "What's new in Lumen" : "Lumen is up to date",
             FontSize = 22,
             FontWeight = FontWeights.SemiBold,
             Margin = new Thickness(0, 16, 0, 0),

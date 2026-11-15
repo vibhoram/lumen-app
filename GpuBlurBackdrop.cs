@@ -85,7 +85,7 @@ internal sealed class GpuBlurBackdrop : IDisposable
         _hwnd = CreateWindowEx(
             (int)(NativeMethods.WS_EX_TOOLWINDOW | NativeMethods.WS_EX_NOACTIVATE)
             | NativeMethods.WS_EX_TOPMOST | NativeMethods.WS_EX_TRANSPARENT | WS_EX_NOREDIRECTIONBITMAP,
-            ClassName, "D-Island Glass", NativeMethods.WS_POPUP, 0, 0, 1, 1,
+            ClassName, "Lumen Glass", NativeMethods.WS_POPUP, 0, 0, 1, 1,
             IntPtr.Zero, IntPtr.Zero, NativeMethods.GetModuleHandle(null), IntPtr.Zero);
         if (_hwnd == IntPtr.Zero) throw new InvalidOperationException("Could not create the glass window.");
         _excluded.Add(_hwnd);

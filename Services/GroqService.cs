@@ -109,7 +109,7 @@ public static class GroqService
             Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json"),
         };
         if (!string.IsNullOrWhiteSpace(apiKey)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey.Trim());
-        request.Headers.UserAgent.ParseAdd("D-Island");
+        request.Headers.UserAgent.ParseAdd("Lumen");
 
         using var response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancel);
         if (!response.IsSuccessStatusCode)

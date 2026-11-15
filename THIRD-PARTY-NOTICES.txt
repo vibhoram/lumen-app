@@ -1,9 +1,9 @@
-D-ISLAND THIRD-PARTY NOTICES
+LUMEN THIRD-PARTY NOTICES
 
-D-Island, Copyright 2026 h7 (ibuildrigs), is licensed under the D-Island License 1.0; see LICENSE.txt and
-NOTICE.txt.
+Lumen (vibhoram) is a modified version under the D-Island License 1.0; see LICENSE.txt and NOTICE.txt.
+Original D-Island: Copyright 2026 h7 (ibuildrigs).
 
-D-Island includes the following open-source components. Each is licensed under its own terms, reproduced
+Lumen includes the following open-source components. Each is licensed under its own terms, reproduced
 or referenced below.
 
 ----------------------------------------------------------------------------------------------------

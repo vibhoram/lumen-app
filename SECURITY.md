@@ -1,28 +1,20 @@
 # Security policy
 
-D-Island can read notifications, the clipboard, calendars and media information, so security issues
-matter. Thank you for reporting them responsibly.
+Lumen can read notifications, the clipboard, calendars and media information, so security issues matter. Thank you for reporting them responsibly.
 
 ## Reporting a vulnerability
 
-**Please don't open a public issue.** Use GitHub's private vulnerability reporting instead:
-**Security** tab of [H7gamer/d-island](https://github.com/H7gamer/d-island) → **Report a
-vulnerability**. You can also get in touch through [ibuildrigs.com](https://ibuildrigs.com).
+**Please don't open a public issue** on a private repo if you can avoid it. Prefer contacting the maintainer privately via GitHub: [@vibhoram](https://github.com/vibhoram) / [vibhoram/Lumen](https://github.com/vibhoram/Lumen).
 
 Please include:
 - what an attacker could do,
 - the steps to reproduce it,
 - the affected version (Settings > About).
 
-You'll get an acknowledgement as soon as possible, and credit in the release notes if you'd like it.
-
 ## Supported versions
 
-Only the latest release from the official sources gets security fixes.
+Only the latest build of this Lumen repo is maintained.
 
-## Fake or modified copies
+## Note
 
-Official releases come only from [GitHub Releases](https://github.com/H7gamer/d-island/releases) of
-this repository and from [ibuildrigs.com](https://ibuildrigs.com). If you find D-Island, or
-something claiming to be it, distributed elsewhere with changes or malware, please report it the
-same way.
+Lumen is not an official D-Island release. For issues in upstream D-Island itself, see that project's security policy.
