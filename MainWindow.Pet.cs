@@ -52,15 +52,15 @@ public partial class MainWindow
         if (_pet.Visibility != Visibility.Visible) { _pet.Visibility = Visibility.Visible; _pet.Running = true; _petWatch.Start(); }
     }
 
-    /// <summary>True when the cursor is over any visible piece of the island: bubbles, the pet, the pill's bubbles.</summary>
+    /// <summary>True when the cursor is over any visible piece of the island: bubbles, the pet, the quick tray.</summary>
     private bool OverIslandParts(int sx, int sy)
     {
         var p = new Point(sx, sy);
-        foreach (FrameworkElement part in new FrameworkElement[] { MediaDiscBubble, MediaPulseBubble, ActivityBubble, ActivityBubble2, IdleWeatherBubble, CarryBubble, PinnedTimerBubble, _pet })
+        foreach (FrameworkElement part in new FrameworkElement[] { MediaDiscBubble, MediaPulseBubble, ActivityBubble, ActivityBubble2, IdleWeatherBubble, CarryBubble, PinnedTimerBubble, QuickTray, _pet })
         {
             if (part.Visibility != Visibility.Visible || part.ActualWidth <= 0) continue;
             var local = part.PointFromScreen(p);
-            if (local.X >= -6 && local.X <= part.ActualWidth + 6 && local.Y >= -6 && local.Y <= part.ActualHeight + 6) return true;
+            if (local.X >= -2 && local.X <= part.ActualWidth + 2 && local.Y >= -2 && local.Y <= part.ActualHeight + 2) return true;
         }
         return false;
     }

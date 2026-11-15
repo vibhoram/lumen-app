@@ -1,4 +1,4 @@
-﻿// D-Island - Copyright 2026 h7 (ibuildrigs) and contributors.
+// D-Island - Copyright 2026 h7 (ibuildrigs) and contributors.
 // Licensed under the D-Island License 1.0; see LICENSE.txt and NOTICE.txt.
 
 using System.Diagnostics;
@@ -237,7 +237,7 @@ public partial class MainWindow : Window
             else if (!IslandHidden && _state.Transient is not null) _state.DismissTransient();
             else SetIslandHidden(!IslandHidden);
         };
-        _peekTimer.Tick += (_, _) => PeekTick();
+        _hitTestTimer.Tick += (_, _) => HitTestTick();
         PreviewKeyDown += (_, _) => _lastKey = Environment.TickCount64;
         _battery.Alert += OnBatteryAlert;
         _devices.Changed += OnDeviceChanged;
@@ -397,12 +397,18 @@ public partial class MainWindow : Window
             FadeRoot(1, 200);
             Render(); // whatever changed while hidden
             UpdateEqualizer();
+            _hitTestTimer.Start(); // resume empty-chrome click-through polling
         }
     }
 
     private void FinishHide()
     {
         _hideAnimating = false;
+        _hitTestTimer.Stop();
+        ApplyPassThrough(false);
+        if (_peeking) SetPeek(false);
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd != IntPtr.Zero) NativeMethods.SetWindowRgn(hwnd, IntPtr.Zero, true);
         _gpuBlur?.SetVisible(false);
         Hide();
     }
@@ -559,14 +565,50 @@ public partial class MainWindow : Window
         }
     }
 
-    private static IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    // Instance hook: empty chrome around the pill must not eat clicks (layered alpha alone is not enough —
+    // shadows/soft edges leave A>0 that Win32 hits while WPF has nothing interactive).
+    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
         if (msg == NativeMethods.WM_MOUSEACTIVATE)
         {
             handled = true;
             return new IntPtr(NativeMethods.MA_NOACTIVATE);
         }
+
+        // Belt-and-suspenders with HitTestTick's WS_EX_TRANSPARENT: empty chrome must not eat clicks.
+        if (msg == NativeMethods.WM_NCHITTEST && !_passThrough && !IslandHidden)
+        {
+            var sx = (short)(lParam.ToInt64() & 0xFFFF);
+            var sy = (short)((lParam.ToInt64() >> 16) & 0xFFFF);
+            if (!OverInteractiveChrome(sx, sy))
+            {
+                handled = true;
+                return new IntPtr(NativeMethods.HTTRANSPARENT);
+            }
+        }
+
         return IntPtr.Zero;
+    }
+
+    /// <summary>True when the screen point is over something the user can click: pill, bubbles, pet, tray.</summary>
+    private bool OverInteractiveChrome(int sx, int sy)
+    {
+        if (!IsLoaded || PresentationSource.FromVisual(Root) is null) return false;
+        // Screen-space AABB from PointToScreen (respects LayoutTransform / DPI). Avoid PointFromScreen
+        // local maths that can disagree with the painted pill and leave a false "over chrome" band.
+        var w = _width.Value;
+        var h = _height.Value;
+        if (w > 1 && h > 1)
+        {
+            var x = (BaseWidth - w) / 2;
+            var topLeft = Root.PointToScreen(new Point(x, PillTop));
+            var bottomRight = Root.PointToScreen(new Point(x + w, PillTop + h));
+            const double slop = 2;
+            if (sx >= topLeft.X - slop && sx <= bottomRight.X + slop
+                && sy >= topLeft.Y - slop && sy <= bottomRight.Y + slop)
+                return true;
+        }
+        return OverIslandParts(sx, sy);
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -578,6 +620,7 @@ public partial class MainWindow : Window
         ApplyTheme();
         UpdateClock();
         _clockTimer.Start();
+        _hitTestTimer.Start(); // empty-chrome click-through (must poll; see HitTestTick)
         SetEqualizerRunning(false);
         Render();
 
@@ -1599,7 +1642,11 @@ public partial class MainWindow : Window
         // it must not follow the spring frame by frame.
         if (needed > Root.Height) Root.Height = Math.Ceiling(needed / 20) * 20;
 
-        var height = (needed > CompactWindowHeight ? Root.Height : CompactWindowHeight) * Scale;
+        // Collapsed: keep the HWND short (needed / 90), never the expanded Root.Height — otherwise the
+        // dead click zone matches the expanded island. Tall only while expanded or still animating tall.
+        var tall = _state.IsExpanded || _height.Target > CompactWindowHeight || _height.Value > CompactWindowHeight + 5;
+        var designH = tall ? Math.Max(needed, Root.Height) : Math.Max(needed, CompactWindowHeight);
+        var height = designH * Scale;
         if (Math.Abs(Height - height) > 0.5) Height = height;
     }
 
@@ -1706,6 +1753,60 @@ public partial class MainWindow : Window
         }
         if (PrivacyDot.Visibility == Visibility.Visible)
             PrivacyDot.Margin = new Thickness(right + 7, PillTop + h / 2 - PrivacyDot.Height / 2, 0, 0);
+
+        // Clip HWND hit-testing (and drawing) to the real chrome. WS_EX_TRANSPARENT alone was not
+        // sticking on this layered WPF window — empty 620×90 chrome kept eating YouTube chips.
+        UpdateWindowRegion();
+    }
+
+    /// <summary>Win32 region = pill ∪ bubbles ∪ pet ∪ tray, so transparent padding around them passes clicks.</summary>
+    private void UpdateWindowRegion()
+    {
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero) return;
+        if (IslandHidden || _width.Value < 2 || _height.Value < 2 || PresentationSource.FromVisual(Root) is null)
+        {
+            NativeMethods.SetWindowRgn(hwnd, IntPtr.Zero, true);
+            return;
+        }
+        if (!NativeMethods.GetWindowRect(hwnd, out var wr)) return;
+
+        var acc = NativeMethods.CreateRectRgn(0, 0, 0, 0);
+        void AddBox(double x, double y, double bw, double bh, double radiusDip)
+        {
+            if (bw < 1 || bh < 1) return;
+            var tl = Root.PointToScreen(new Point(x, y));
+            var br = Root.PointToScreen(new Point(x + bw, y + bh));
+            var l = (int)Math.Floor(tl.X - wr.Left) - 1;
+            var t = (int)Math.Floor(tl.Y - wr.Top) - 1;
+            var right = (int)Math.Ceiling(br.X - wr.Left) + 1;
+            var bottom = (int)Math.Ceiling(br.Y - wr.Top) + 1;
+            var dpi = VisualTreeHelper.GetDpi(this).DpiScaleX;
+            var rr = Math.Max(2, (int)Math.Ceiling(radiusDip * Scale * dpi * 2));
+            var piece = NativeMethods.CreateRoundRectRgn(l, t, right, bottom, rr, rr);
+            NativeMethods.CombineRgn(acc, acc, piece, NativeMethods.RGN_OR);
+            NativeMethods.DeleteObject(piece);
+        }
+
+        var pw = _width.Value;
+        var ph = _height.Value;
+        AddBox((BaseWidth - pw) / 2, PillTop, pw, ph, _radius.Value);
+
+        // Prefer Width/Margin set in this same ApplyGeometry pass — ActualWidth can still be 0 mid-frame.
+        void AddPart(FrameworkElement part)
+        {
+            if (part.Visibility != Visibility.Visible) return;
+            var bw = part.Width > 0 ? part.Width : part.ActualWidth;
+            var bh = part.Height > 0 ? part.Height : part.ActualHeight;
+            if (bw < 1 || bh < 1) return;
+            AddBox(part.Margin.Left, part.Margin.Top, bw, bh, Math.Min(bw, bh) / 2);
+        }
+        foreach (var part in new FrameworkElement[]
+                 { MediaDiscBubble, MediaPulseBubble, ActivityBubble, ActivityBubble2, IdleWeatherBubble,
+                   CarryBubble, PinnedTimerBubble, QuickTray, PrivacyDot, _pet })
+            AddPart(part);
+
+        NativeMethods.SetWindowRgn(hwnd, acc, true); // system owns acc after this
     }
 
     // ---------------------------------------------------------------- mic / camera in use
@@ -2437,34 +2538,80 @@ public partial class MainWindow : Window
         }
     }
 
-    // ---- Peek-through: hold Ctrl over the island and it fades and lets clicks pass to the window behind.
-    private readonly DispatcherTimer _peekTimer = new() { Interval = TimeSpan.FromMilliseconds(40) };
+    // ---- Click-through + peek: poll the cursor. Empty HWND chrome must use WS_EX_TRANSPARENT —
+    // WM_NCHITTEST alone is unreliable on WPF layered windows (far away "worked" only because that
+    // was outside the window). When transparent the window gets no mouse messages, so this timer
+    // must keep running. Alt/Ctrl/Shift peek reuses the same style bit and adds the fade.
+    private readonly DispatcherTimer _hitTestTimer = new() { Interval = TimeSpan.FromMilliseconds(40) };
     private bool _peeking;
+    private bool _passThrough;
+    private bool _cursorOverChrome;
 
-    private void PeekTick()
+    private void HitTestTick()
     {
-        var want = false;
-        var inside = false;
-        if (_settings.CtrlPeek && !IslandHidden && GetIslandScreenRect() is { } r && NativeMethods.GetCursorPos(out var c))
+        try
         {
-            inside = c.X >= r.Left && c.X <= r.Right && c.Y >= r.Top && c.Y <= r.Bottom || (_peeking || true) && OverIslandParts(c.X, c.Y);
+            if (IslandHidden)
+            {
+                // Still on screen mid-hide: stay click-through so the shrinking HWND doesn't eat the desktop.
+                ApplyPassThrough(IsVisible);
+                NativeMethods.SetWindowRgn(new WindowInteropHelper(this).Handle, IntPtr.Zero, true);
+                if (_peeking) SetPeek(false);
+                _cursorOverChrome = false;
+                return;
+            }
+
+            if (!NativeMethods.GetCursorPos(out var c)) return;
+            var over = OverInteractiveChrome(c.X, c.Y);
+
             var vk = _settings.PeekKey switch { PeekKey.Ctrl => 0x11, PeekKey.Shift => 0x10, _ => 0x12 /* Alt */ };
-            want = inside && (NativeMethods.GetAsyncKeyState(vk) & 0x8000) != 0;
+            var wantPeek = _settings.CtrlPeek && over && (NativeMethods.GetAsyncKeyState(vk) & 0x8000) != 0;
+            SetPeek(wantPeek);
+
+            // Outside the pill/bubbles/pet/tray: let the desktop through without fading the island.
+            ApplyPassThrough(wantPeek || !over);
+#if DEBUG
+            if (Environment.GetEnvironmentVariable("DISLAND_HIT_LOG") is { Length: > 0 } hlog) System.IO.File.WriteAllText(hlog, $"cursor=({c.X},{c.Y}) over={over} pass={_passThrough} ex=0x{NativeMethods.GetExStyle(new WindowInteropHelper(this).Handle):X} rgn-w={_width.Value:0}x{_height.Value:0}");
+#endif
+
+            if (over && !_cursorOverChrome)
+            {
+                _cursorOverChrome = true;
+                if (_settings.ExpandOnHover && !_state.IsExpanded && !_hoverSuppressed) _hoverTimer.Start();
+            }
+            else if (!over && _cursorOverChrome)
+            {
+                _cursorOverChrome = false;
+                _hoverTimer.Stop();
+                _hoverSuppressed = false;
+            }
         }
-        SetPeek(want);
-        if (!inside && !_peeking) _peekTimer.Stop();
+        catch
+        {
+            // Never let a hit-test glitch kill the timer — that would leave the dead zone stuck on.
+        }
+    }
+
+    private void ApplyPassThrough(bool pass)
+    {
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero) return;
+        var ex = NativeMethods.GetExStyle(hwnd);
+        var has = (ex & NativeMethods.WS_EX_TRANSPARENT) != 0;
+        // Re-apply if WPF/compositor cleared the bit even when our flag still matches.
+        if (pass == _passThrough && pass == has) return;
+        _passThrough = pass;
+        NativeMethods.SetExStyle(hwnd, pass ? ex | NativeMethods.WS_EX_TRANSPARENT : ex & ~(long)NativeMethods.WS_EX_TRANSPARENT);
+        // Without FRAMECHANGED, WS_EX_TRANSPARENT often doesn't take effect on layered WPF windows.
+        NativeMethods.SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0,
+            NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER
+            | NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_FRAMECHANGED);
     }
 
     private void SetPeek(bool peek)
     {
         if (peek == _peeking) return;
         _peeking = peek;
-        var hwnd = new WindowInteropHelper(this).Handle;
-        if (hwnd != IntPtr.Zero)
-        {
-            var ex = NativeMethods.GetExStyle(hwnd);
-            NativeMethods.SetExStyle(hwnd, peek ? ex | NativeMethods.WS_EX_TRANSPARENT : ex & ~(long)NativeMethods.WS_EX_TRANSPARENT);
-        }
         if (peek) SetExpanded(false);
         // the blur/glass window sits under the island; it must go away too, or the screen stays frosted
         if (_gpuActive) _gpuBlur?.SetVisible(!peek);
@@ -2473,7 +2620,8 @@ public partial class MainWindow : Window
 
     private void OnRootMouseEnter(object sender, MouseEventArgs e)
     {
-        if (_settings.CtrlPeek) _peekTimer.Start();
+        // Hover expand is also started from HitTestTick when the cursor enters chrome from
+        // pass-through (MouseEnter never fires while WS_EX_TRANSPARENT is set).
         if (_settings.ExpandOnHover && !_state.IsExpanded && !_hoverSuppressed) _hoverTimer.Start();
     }
 

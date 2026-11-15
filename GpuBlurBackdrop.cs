@@ -321,9 +321,13 @@ internal sealed class GpuBlurBackdrop : IDisposable
         _clip.SetBottomLeftRadiusY(radius);
         _clip.SetBottomRightRadiusX(radius);
         _clip.SetBottomRightRadiusY(radius);
-        // Standard deviation ≈ radius / 3 matches WPF's BlurEffect radius.
+        // Standard deviation â‰ˆ radius / 3 matches WPF's BlurEffect radius.
         _blur.SetStandardDeviation(Math.Max(0.01f, blurRadius / 3f));
         _root3?.SetOpacity(Math.Clamp(opacity, 0, 1));
+        // Clip the HWND itself to the pill: HTTRANSPARENT only passes clicks to windows of this process, so without a region this
+        // window ate every click in its whole rectangle (the dead space around the island).
+        var region = NativeMethods.CreateRoundRectRgn((int)Math.Floor(x) - 1, (int)Math.Floor(y) - 1, (int)Math.Ceiling(x + width) + 1, (int)Math.Ceiling(y + height) + 1, Math.Max(2, (int)(radius * 2)), Math.Max(2, (int)(radius * 2)));
+        NativeMethods.SetWindowRgn(_hwnd, region, false); // the system owns the region after this
         _device.Commit();
         _lens?.SetShape(x, y, width, height, radius, _bounds.Left, _bounds.Top, Math.Min(4f, blurRadius * 0.25f), _lensStrength, 0.02f, _lensShine);
     }
