@@ -1,10 +1,14 @@
 // D-Island - Copyright 2026 h7 (ibuildrigs) and contributors.
 // Licensed under the D-Island License 1.0; see LICENSE.txt and NOTICE.txt.
 
+using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using DIsland.Services;
@@ -481,16 +485,30 @@ public partial class SettingsWindow : Window
         system.Children.Add(startup);
 
         var about = Section("ABOUT");
-        about.Children.Add(new TextBlock { Text = "Lumen", FontSize = 15, FontWeight = FontWeights.SemiBold });
-        about.Children.Add(new TextBlock { Text = "A personal island for Windows: music, focus, Clara, clipboard and a little pet.", Foreground = Secondary, Margin = new Thickness(0, 2, 0, 0), TextWrapping = TextWrapping.Wrap });
-        about.Children.Add(new TextBlock { Text = "Made by Vibhor Maheshwari · https://github.com/vibhoram/Lumen", FontSize = 13, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 0), TextWrapping = TextWrapping.Wrap });
+        var aboutHead = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
+        if (LoadAssetImage("webser-icon.png", 44) is { } webserAbout)
+        {
+            webserAbout.Margin = new Thickness(0, 0, 12, 0);
+            webserAbout.Cursor = Cursors.Hand;
+            webserAbout.MouseLeftButtonUp += (_, _) => OpenUrl("https://webser.app");
+            aboutHead.Children.Add(webserAbout);
+        }
+        var aboutTitles = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        aboutTitles.Children.Add(new TextBlock { Text = "Lumen", FontSize = 15, FontWeight = FontWeights.SemiBold });
+        aboutTitles.Children.Add(new TextBlock { Text = "A Webser studio app", FontSize = 12, Foreground = Secondary, Margin = new Thickness(0, 2, 0, 0) });
+        aboutHead.Children.Add(aboutTitles);
+        about.Children.Add(aboutHead);
+        about.Children.Add(new TextBlock { Text = "A personal island for Windows: music, focus, Clara, clipboard and a little pet.", Foreground = Secondary, Margin = new Thickness(0, 8, 0, 0), TextWrapping = TextWrapping.Wrap });
+        about.Children.Add(new TextBlock { Text = "Made by Vibhor Maheshwari", FontSize = 13, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 0), TextWrapping = TextWrapping.Wrap });
+        about.Children.Add(LinkRow("Webser", "https://webser.app", "Studio · webser.app"));
+        about.Children.Add(LinkRow("GitHub", "https://github.com/vibhoram/Lumen", "github.com/vibhoram/Lumen"));
         // D-Island License 1.0 §3(a) requires this exact credit line to stay visible.
         about.Children.Add(new TextBlock { Text = "Based on D-Island by h7 (ibuildrigs) - https://github.com/H7gamer/d-island", FontSize = 11, Foreground = Secondary, Margin = new Thickness(0, 8, 0, 0), TextWrapping = TextWrapping.Wrap, Opacity = 0.55 });
         var terms = new TextBlock
         {
             Text =
                 "TERMS OF USE (LUMEN)\n\n" +
-                "1. Lumen is Vibhor Maheshwari's project. It is not an official D-Island release.\n" +
+                "1. Lumen is a Webser studio project by Vibhor Maheshwari (webser.app). It is not an official D-Island release.\n" +
                 "2. Lumen is a modified version under the D-Island License 1.0 (LICENSE.txt, NOTICE.txt). The credit line above is required by that license. Anyone who shares Lumen must keep the license files, that credit, an accurate privacy statement, and must not use it to harm or deceive anyone.\n" +
                 "3. Your data stays on this PC. Clara sends only what you type (and a screenshot when you attach one) to the AI service you configured, using your own API key (Gemini preferred; Groq/OpenRouter optional). Clipboard history, notes, memory and settings are stored locally. See PRIVACY.txt.\n" +
                 "4. The app is provided as is, without warranty. The RAM tools only trim memory and never close apps; the glass effects use undocumented Windows features that may change with updates. Use at your own risk.\n" +
@@ -506,7 +524,14 @@ public partial class SettingsWindow : Window
         about.Children.Add(showTerms);
         about.Children.Add(terms);
 
-        CreditText.Text = "Lumen  ·  made by Vibhor";
+        CreditText.Text = "Lumen  ·  Webser  ·  webser.app";
+        try
+        {
+            var mark = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "webser-icon-48.png");
+            if (File.Exists(mark))
+                WebserMark.Source = new BitmapImage(new Uri(mark));
+        }
+        catch (Exception) { /* mark is optional */ }
 
         _loading = false;
         Dispatcher.InvokeAsync(() =>
@@ -1715,6 +1740,50 @@ public partial class SettingsWindow : Window
         return b;
     }
 
+    private static Image? LoadAssetImage(string fileName, double size)
+    {
+        try
+        {
+            var path = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", fileName);
+            if (!File.Exists(path)) path = System.IO.Path.Combine(AppContext.BaseDirectory, fileName);
+            if (!File.Exists(path)) return null;
+            return new Image
+            {
+                Width = size,
+                Height = size,
+                Stretch = Stretch.Uniform,
+                Source = new BitmapImage(new Uri(path)),
+            };
+        }
+        catch (Exception) { return null; }
+    }
+
+    private static UIElement LinkRow(string label, string url, string display)
+    {
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
+        row.Children.Add(new TextBlock { Text = $"{label}: ", Foreground = Secondary, FontSize = 12 });
+        var link = new TextBlock
+        {
+            Text = display,
+            FontSize = 12,
+            Foreground = Frozen(Color.FromRgb(0x64, 0xD2, 0xFF)),
+            TextDecorations = TextDecorations.Underline,
+            Cursor = Cursors.Hand,
+        };
+        link.MouseLeftButtonUp += (_, _) => OpenUrl(url);
+        row.Children.Add(link);
+        return row;
+    }
+
+    private static void OpenUrl(string url)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch (Exception) { /* no browser */ }
+    }
+
     private void OnResetClick(object sender, RoutedEventArgs e)
     {
         _settings.ResetToDefaults();
@@ -1724,4 +1793,6 @@ public partial class SettingsWindow : Window
     }
 
     private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
+
+    private void OnWebserClick(object sender, MouseButtonEventArgs e) => OpenUrl("https://webser.app");
 }

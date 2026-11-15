@@ -1,7 +1,7 @@
 LUMEN PRIVACY STATEMENT
 What Lumen reads, where it goes, and what is stored
 
-Lumen by Vibhor Maheshwari (vibhoram) - https://github.com/vibhoram/Lumen
+Lumen by Vibhor Maheshwari / Webser (webser.app) - https://github.com/vibhoram/Lumen
 Applies to Lumen version 1.2.1.
 
 

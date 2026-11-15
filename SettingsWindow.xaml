@@ -84,7 +84,10 @@
     <DockPanel>
         <Border x:Name="FooterBar" DockPanel.Dock="Bottom" Background="#99121214" BorderBrush="#1FFFFFFF" BorderThickness="0,1,0,0">
             <Grid Margin="16,10">
-                <TextBlock x:Name="CreditText" VerticalAlignment="Center" FontSize="12" Foreground="#80FFFFFF" />
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Image x:Name="WebserMark" Width="18" Height="18" Margin="0,0,8,0" Stretch="Uniform" Cursor="Hand" MouseLeftButtonUp="OnWebserClick" />
+                    <TextBlock x:Name="CreditText" VerticalAlignment="Center" FontSize="12" Foreground="#80FFFFFF" Cursor="Hand" MouseLeftButtonUp="OnWebserClick" />
+                </StackPanel>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button Style="{StaticResource ChipButton}" Content="Reset to defaults" Click="OnResetClick" />
                     <Button Style="{StaticResource ChipButton}" Content="Close" Margin="8,0,0,0" Click="OnCloseClick" />
