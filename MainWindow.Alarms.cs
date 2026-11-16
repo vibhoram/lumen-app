@@ -376,7 +376,8 @@ public partial class MainWindow
                 Cursor = Cursors.Hand,
                 BorderThickness = new Thickness(1),
                 BorderBrush = (Brush)FindResource("GlassRim"),
-                Background = open ? AssistantPanel.AccentGradient() : (Brush)FindResource("GlassFill"),
+                // Solid selected fill — no Clara cyan→violet gradient on these mode pills.
+                Background = open ? (Brush)FindResource("Accent") : (Brush)FindResource("GlassFill"),
                 Child = label,
                 RenderTransformOrigin = new Point(0.5, 0.5),
                 RenderTransform = new ScaleTransform(1, 1),
