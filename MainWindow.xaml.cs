@@ -236,11 +236,13 @@ public partial class MainWindow : Window
         _brightness.Changed += ShowBrightness;
         _volumeKeys.VolumeKey += OnVolumeKey;
         // Shake: if an alert (notification, code...) is showing, it goes away and the pill stays; otherwise hide / show the pill.
+        // Don't hide while Settings is open — scrolling there was false-firing Magic Shake and burying the island.
         _shake.Shaken += () =>
         {
             _pet.React(PetEvent.Shake);
             if (CarryVisible) HideCarry();
             else if (!IslandHidden && _state.Transient is not null) _state.DismissTransient();
+            else if (!IslandHidden && SettingsIsVisible()) return;
             else SetIslandHidden(!IslandHidden);
         };
         _hitTestTimer.Tick += (_, _) => HitTestTick();

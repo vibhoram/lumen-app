@@ -1,7 +1,10 @@
 // D-Island (personal fork) - context awareness: step aside in full-screen games and video, stay quiet in calls.
 
+using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Windows;
 using System.Windows.Threading;
+using DIsland.Interop;
 using DIsland.Services;
 
 namespace DIsland;
@@ -26,7 +29,11 @@ public partial class MainWindow
         _contextTimer.Start();
     }
 
-    /// <summary>Full-screen games, video and presentations: the island hides itself, then comes back.</summary>
+    /// <summary>
+    /// Full-screen games, video and presentations: the island hides itself, then comes back.
+    /// Our own windows (Settings is borderless) must never count — Windows often reports them as
+    /// "full screen", which made the pill vanish whenever Settings was open.
+    /// </summary>
     private void CheckFullscreen()
     {
         if (!_settings.HideInFullscreen)
@@ -34,6 +41,19 @@ public partial class MainWindow
             if (_autoHidden) { _autoHidden = false; SetIslandHidden(false); }
             return;
         }
+
+        // Lumen Settings / What's New / etc. in the foreground → never auto-hide.
+        if (ForegroundIsOurs())
+        {
+            _fullscreenTicks = 0;
+            if (_autoHidden)
+            {
+                _autoHidden = false;
+                SetIslandHidden(false);
+            }
+            return;
+        }
+
         if (SHQueryUserNotificationState(out var state) != 0) return;
         var fullscreen = state is NotificationState.RunningD3DFullScreen or NotificationState.PresentationMode;
         // Win+Shift+S / Print Screen overlays also report as "full screen". Need a long debounce so a
@@ -49,5 +69,22 @@ public partial class MainWindow
             _autoHidden = false;
             SetIslandHidden(false); // only undo our own hiding, never one the user asked for
         }
+    }
+
+    /// <summary>True when the foreground HWND belongs to this process (Settings, What's New, …).</summary>
+    private static bool ForegroundIsOurs()
+    {
+        var fg = NativeMethods.GetForegroundWindow();
+        if (fg == IntPtr.Zero) return false;
+        NativeMethods.GetWindowThreadProcessId(fg, out var pid);
+        return pid == (uint)Environment.ProcessId;
+    }
+
+    /// <summary>Settings is on screen (even if not focused) — used to avoid Magic-Shake hiding mid-edit.</summary>
+    private static bool SettingsIsVisible()
+    {
+        foreach (Window w in Application.Current.Windows)
+            if (w is SettingsWindow { IsVisible: true }) return true;
+        return false;
     }
 }
