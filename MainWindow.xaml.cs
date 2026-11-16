@@ -147,9 +147,8 @@ public partial class MainWindow : Window
         WireMonitors();
         WireBar();
         ActivityBubble.IsVisibleChanged += (_, _) => UpdateBubbleRings();
-        ActivityBubble2.IsVisibleChanged += (_, _) => UpdateBubbleRings();
         ActivityBubble.SizeChanged += (_, _) => UpdateBubbleRings();
-        ActivityBubble2.SizeChanged += (_, _) => UpdateBubbleRings();
+        ActivityStrand.SizeChanged += (_, _) => UpdateGpuShape();
         WireMusic();
         WireMediaVolumeChip();
         WireDock();
@@ -551,6 +550,7 @@ public partial class MainWindow : Window
         ApplyTheme();
         UpdateWallpaperMute();
         UpdateMotionArtwork(_media.Current);
+        if (IsLoaded) UpdateSecondActivity(); // ActivityChrome / ShowSecondActivity
 
         Reposition();
         if (IsLoaded) Render();
@@ -1771,7 +1771,14 @@ public partial class MainWindow : Window
             var leftOfPill = (BaseWidth - w) / 2 - (MediaDiscBubble.Visibility == Visibility.Visible ? MediaDiscBubble.Width + 7 : 0);
             PinnedTimerBubble.Margin = new Thickness(leftOfPill - 7 - size, PillTop + (h - size) / 2, 0, 0);
         }
-        foreach (var bubble in new[] { MediaPulseBubble, ActivityBubble, ActivityBubble2, IdleWeatherBubble, CarryBubble })
+        if (MediaPulseBubble.Visibility == Visibility.Visible)
+        {
+            var size = Math.Max(26, h);
+            MediaPulseBubble.Width = MediaPulseBubble.Height = size;
+            MediaPulseBubble.Margin = new Thickness(right + 7, PillTop + (h - size) / 2, 0, 0);
+            right += 7 + size;
+        }
+        foreach (var bubble in new[] { ActivityBubble, ActivityBubble2 })
         {
             if (bubble.Visibility != Visibility.Visible) continue;
             var size = Math.Max(26, h);
@@ -1779,8 +1786,37 @@ public partial class MainWindow : Window
             bubble.Margin = new Thickness(right + 7, PillTop + (h - size) / 2, 0, 0);
             right += 7 + size;
         }
+        // Side chrome shares one compact height (not the tall clock pill) so the strand
+        // doesn't eat the window and shove weather off the right edge.
+        var sideH = Math.Max(28, Math.Min(h, 34));
+        var strandOn = ActivityStrand.Visibility == Visibility.Visible;
+        if (strandOn)
+        {
+            ActivityStrand.Height = sideH;
+            var rad = sideH / 2;
+            ActivityStrandBack.CornerRadius = new CornerRadius(rad);
+            ActivityStrandSheen.CornerRadius = new CornerRadius(rad);
+            ActivityStrandGlow.CornerRadius = new CornerRadius(rad);
+            RemeasureActivityStrand(sideH);
+            var strandW = ActivityStrand.Width;
+            if (strandW < 8) strandW = 120;
+            ActivityStrand.Margin = new Thickness(right + 7, PillTop + (h - sideH) / 2, 0, 0);
+            right += 7 + strandW;
+        }
+        var sideOn = strandOn || ActivityBubble.Visibility == Visibility.Visible || ActivityBubble2.Visibility == Visibility.Visible;
+        foreach (var bubble in new[] { IdleWeatherBubble, CarryBubble })
+        {
+            if (bubble.Visibility != Visibility.Visible) continue;
+            var size = sideOn ? sideH : Math.Max(26, h);
+            bubble.Width = bubble.Height = size;
+            bubble.Margin = new Thickness(right + 7, PillTop + (h - size) / 2, 0, 0);
+            right += 7 + size;
+        }
         if (PrivacyDot.Visibility == Visibility.Visible)
             PrivacyDot.Margin = new Thickness(right + 7, PillTop + h / 2 - PrivacyDot.Height / 2, 0, 0);
+
+        // Widen the root when strand + weather would run past the right edge (never crush the strand).
+        EnsureSideChromeWidth(right);
 
         // After bubble margins: glass HWND is pill ∪ weather/carry so they get the same live blur.
         UpdateGpuShape();
@@ -1788,6 +1824,16 @@ public partial class MainWindow : Window
         // One padded axis-aligned region around the real chrome. Tight per-shape GDI regions clipped the
         // pet (it walks via RenderTransform outside its 44px box) and jagged the WPF-AA pill corners.
         UpdateWindowRegion();
+    }
+
+    /// <summary>Extra root width on the right for side chrome; pill stays centered on <see cref="BaseWidth"/>.</summary>
+    private void EnsureSideChromeWidth(double rightEdge)
+    {
+        var need = Math.Max(BaseWidth, Math.Ceiling(rightEdge + 10));
+        if (Math.Abs(Root.Width - need) < 0.5 && Math.Abs(Width - need * Scale) < 0.5) return;
+        Root.Width = need;
+        Width = need * Scale;
+        Reposition();
     }
 
     /// <summary>Loose HWND clip so empty side padding doesn't eat clicks, without carving the painted pill.</summary>
@@ -1826,7 +1872,7 @@ public partial class MainWindow : Window
         }
 
         foreach (var part in new FrameworkElement[]
-                 { MediaDiscBubble, MediaPulseBubble, ActivityBubble, ActivityBubble2, IdleWeatherBubble,
+                 { MediaDiscBubble, MediaPulseBubble, ActivityBubble, ActivityBubble2, ActivityStrand, IdleWeatherBubble,
                    CarryBubble, PinnedTimerBubble, QuickTray, PrivacyDot })
             IncludePart(part);
 
@@ -2264,26 +2310,37 @@ public partial class MainWindow : Window
             CollectGlassBubblesPx(f));
     }
 
-    /// <summary>Weather + carry bubbles in glass-window pixels so they share the pill's live blur.</summary>
+    /// <summary>Orbs + overlapping discs under the activity strand so they share the pill's live blur.</summary>
     private (float X, float Y, float Size)[]? CollectGlassBubblesPx(double f)
     {
         if (!IsGlass) return null;
-        (float X, float Y, float Size) One(FrameworkElement bubble)
+        var list = new List<(float X, float Y, float Size)>(8);
+        void One(FrameworkElement bubble)
         {
-            if (bubble.Visibility != Visibility.Visible) return default;
+            if (bubble.Visibility != Visibility.Visible) return;
             var size = bubble.Width > 0 ? bubble.Width : bubble.ActualWidth;
-            if (size < 2) return default;
-            return ((float)(bubble.Margin.Left * f), (float)(bubble.Margin.Top * f), (float)(size * f));
+            if (size < 2) return;
+            list.Add(((float)(bubble.Margin.Left * f), (float)(bubble.Margin.Top * f), (float)(size * f)));
         }
-        var weather = One(IdleWeatherBubble);
-        var carry = One(CarryBubble);
-        var n = (weather.Size >= 2 ? 1 : 0) + (carry.Size >= 2 ? 1 : 0);
-        if (n == 0) return null;
-        var list = new (float X, float Y, float Size)[n];
-        var i = 0;
-        if (weather.Size >= 2) list[i++] = weather;
-        if (carry.Size >= 2) list[i] = carry;
-        return list;
+        void Capsule(FrameworkElement el)
+        {
+            if (el.Visibility != Visibility.Visible) return;
+            var w = el.Width > 0 ? el.Width : el.ActualWidth;
+            var h = el.Height > 0 ? el.Height : el.ActualHeight;
+            if (w < 2 || h < 2) return;
+            var x = el.Margin.Left;
+            var y = el.Margin.Top;
+            var step = h * 0.55;
+            for (var cx = x; cx + h * 0.35 < x + w; cx += step)
+                list.Add(((float)(cx * f), (float)(y * f), (float)(h * f)));
+            list.Add(((float)((x + w - h) * f), (float)(y * f), (float)(h * f)));
+        }
+        One(ActivityBubble);
+        One(ActivityBubble2);
+        Capsule(ActivityStrand);
+        One(IdleWeatherBubble);
+        One(CarryBubble);
+        return list.Count == 0 ? null : list.ToArray();
     }
 
     /// <summary>Copies the screen behind the pill (plus room for the blur to spread) into the glass image.</summary>
@@ -2466,6 +2523,27 @@ public partial class MainWindow : Window
 
         Paint(IdleWeatherBack, IdleWeatherGlow, IdleWeatherSheen);
         Paint(CarryBack, CarryGlow, CarrySheen);
+        Paint(ActivityBubbleBack, ActivityBubbleGlow, ActivityBubbleSheen);
+        Paint(ActivityBubbleBack2, ActivityBubbleGlow2, ActivityBubbleSheen2);
+
+        // Strand is a capsule Border — same tint / rim / sheen as the pill.
+        ActivityStrandBack.Background = fillBrush;
+        ActivityStrandBack.BorderBrush = rim;
+        ActivityStrandBack.BorderThickness = new Thickness(glass ? 1.35 : 1.0);
+        if (glass && glow is not null)
+        {
+            ActivityStrandGlow.BorderBrush = glow;
+            ActivityStrandGlow.Opacity = Math.Clamp(0.28 + edge * 0.35, 0.28, 0.65);
+            ActivityStrandGlow.Visibility = Visibility.Visible;
+        }
+        else ActivityStrandGlow.Visibility = Visibility.Collapsed;
+        if (glass && sheen is not null)
+        {
+            ActivityStrandSheen.Background = sheen;
+            ActivityStrandSheen.Opacity = Math.Clamp(0.4 + shine * 0.35, 0.4, 0.9);
+            ActivityStrandSheen.Visibility = Visibility.Visible;
+        }
+        else ActivityStrandSheen.Visibility = Visibility.Collapsed;
     }
 
     private readonly DropShadowEffect _textShadow = new()
@@ -2890,6 +2968,8 @@ public partial class MainWindow : Window
             BuildCalendar();
         }
         _state.IsExpanded = expanded;
+        // Fold Alarm/Timer/Stopwatch when the island closes so the next open isn't still "in" that mode.
+        if (changed && !expanded) FoldClockMode();
         if (expanded) HideTray();
         if (expanded) ArmDock();
         UpdateIdleWeatherBubble();
@@ -4878,30 +4958,75 @@ public partial class MainWindow : Window
     // ---------------------------------------------------------------- second activity bubble
 
     /// <summary>
-    /// The second running activity (music while a timer runs, …) as a bubble beside the collapsed pill:
-    /// album art for music, a timer / stopwatch glyph otherwise. Hidden while expanded or during alerts.
+    /// Side chrome beside the collapsed pill. Strand (default): one liquid-glass capsule for
+    /// alarm / timer / stopwatch. Bubbles: classic round orbs (up to two). Weather rides after.
     /// </summary>
     private Artwork? _bubbleArt;
-
     private Artwork? _bubbleArt2;
 
     private void UpdateSecondActivity()
     {
         var allowed = _settings.ShowSecondActivity && !_state.IsExpanded && _state.Transient is null && !BarIsIdle;
-        var second = allowed ? _state.SecondaryView : null;
-        var third = allowed ? _state.TertiaryView : null;
+        var sides = allowed ? _state.SideActivities : Array.Empty<IslandView>();
+        var useStrand = _settings.ActivityChrome == ActivityChrome.Strand;
 
-        FillBubble(ActivityBubble, ActivityBubbleArt, ActivityBubbleGlyph, second, ref _bubbleArt);
-        FillBubble(ActivityBubble2, ActivityBubbleArt2, ActivityBubbleGlyph2, third, ref _bubbleArt2);
-        var changed = ShowBubble(ActivityBubble, second is not null);
-        changed |= ShowBubble(ActivityBubble2, third is not null);
+        IslandView? media = null;
+        var clock = new List<IslandView>(3);
+        foreach (var v in sides)
+        {
+            if (v == IslandView.Media && media is null) media = v;
+            else if (v is IslandView.Timer or IslandView.Stopwatch or IslandView.AlarmSet) clock.Add(v);
+        }
+
+        bool changed;
+        if (useStrand)
+        {
+            FillBubble(ActivityBubble, ActivityBubbleArt, ActivityBubbleGlyph, media, ref _bubbleArt);
+            changed = ShowBubble(ActivityBubble, media is not null);
+            changed |= ShowBubble(ActivityBubble2, false);
+            changed |= BuildActivityStrand(clock);
+        }
+        else
+        {
+            changed = BuildActivityStrand(Array.Empty<IslandView>());
+            IslandView? At(int i) => i < sides.Count ? sides[i] : null;
+            FillBubble(ActivityBubble, ActivityBubbleArt, ActivityBubbleGlyph, At(0), ref _bubbleArt);
+            FillBubble(ActivityBubble2, ActivityBubbleArt2, ActivityBubbleGlyph2, At(1), ref _bubbleArt2);
+            changed |= ShowBubble(ActivityBubble, At(0) is not null);
+            changed |= ShowBubble(ActivityBubble2, At(1) is not null);
+        }
+
         UpdateBubbleRings();
-        if (changed) ApplyGeometry(); // positions, and move the privacy dot past them
+        UpdateIdleWeatherBubble();
+        if (changed) ApplyGeometry();
+    }
+
+    private void OnActivityBubbleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: IslandView view }) return;
+        e.Handled = true;
+        if (view == IslandView.Media)
+        {
+            if (_settings.ClickOpensMediaApp) OpenMediaApp();
+            else SetExpanded(true);
+            return;
+        }
+        if (IslandHidden) SetIslandHidden(false);
+        SetExpanded(true);
+        var mode = view switch
+        {
+            IslandView.AlarmSet => ClockMode.Alarm,
+            IslandView.Timer => ClockMode.Timer,
+            IslandView.Stopwatch => ClockMode.Stopwatch,
+            _ => ClockMode.None,
+        };
+        if (mode != ClockMode.None) SetClockMode(mode);
     }
 
     /// <summary>Puts the right content (artwork or a glyph) into a bubble for the given activity.</summary>
     private void FillBubble(Grid bubble, Ellipse artEllipse, TextBlock glyph, IslandView? view, ref Artwork? cachedArt)
     {
+        bubble.Tag = view;
         if (view is null) return;
         glyph.ClearValue(TextBlock.FontFamilyProperty); // back to the icon font (a timer bubble shows its time in text)
         glyph.ClearValue(TextBlock.FontWeightProperty);

@@ -96,6 +96,12 @@ public sealed class StateController
     /// <summary>The third running activity, shown as a second bubble.</summary>
     public IslandView? TertiaryView => Bubbles().Skip(1).Select(v => (IslandView?)v).FirstOrDefault();
 
+    /// <summary>The fourth running activity (alarm when timer + stopwatch + media already take slots).</summary>
+    public IslandView? QuaternaryView => Bubbles().Skip(2).Select(v => (IslandView?)v).FirstOrDefault();
+
+    /// <summary>Every side activity (timer / stopwatch / alarm / media-as-bubble).</summary>
+    public IReadOnlyList<IslandView> SideActivities => Bubbles().ToList();
+
     public IslandView CurrentView => _transient ?? PersistentView;
 
     /// <summary>

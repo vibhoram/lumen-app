@@ -19,7 +19,7 @@ public partial class MainWindow
     private DrumPicker _aHour = null!, _aMinute = null!, _aAmPm = null!;
     private bool _drumSync;
 
-    private StackPanel _alarmChips = null!;
+    private WrapPanel _alarmChips = null!;
     private Border _dailyChip = null!;
     private Border _setAlarmPill = null!;
     private TextBlock _setAlarmLabel = null!;
@@ -79,7 +79,8 @@ public partial class MainWindow
         Grid.SetColumn(actions, 2);
         row.Children.Add(actions);
 
-        _alarmChips = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(24, 5, 0, 0) };
+        // Left-aligned wrap — the old horizontal stack with a 24px indent looked randomly placed and clipped extras.
+        _alarmChips = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
         _alarmSuggest = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
         AlarmRow.Children.Add(row);
         AlarmRow.Children.Add(_alarmSuggest);
@@ -104,7 +105,7 @@ public partial class MainWindow
         _aAmPm.Index = t.Hour >= 12 ? 1 : 0;
         _drumSync = false;
         _dailyChip.Background = _alarmDaily
-            ? new LinearGradientBrush(Color.FromRgb(0x3B, 0x9D, 0xFF), Color.FromRgb(0x0A, 0x7A, 0xFF), 90)
+            ? new SolidColorBrush(Color.FromRgb(0x0A, 0x84, 0xFF))
             : (Brush)FindResource("GlassFill");
     }
 
@@ -142,7 +143,7 @@ public partial class MainWindow
         _setAlarmLabel.ToolTip = when;
         _setAlarmPill.Background = already
             ? (Brush)FindResource("GlassFill")
-            : new LinearGradientBrush(Color.FromRgb(0x34, 0xC7, 0x59), Color.FromRgb(0x28, 0xA7, 0x48), 90);
+            : new SolidColorBrush(Color.FromRgb(0x30, 0xD1, 0x58));
         _setAlarmPill.BorderBrush = already
             ? (Brush)FindResource("GlassRim")
             : new SolidColorBrush(Color.FromArgb(0x66, 0xFF, 0xFF, 0xFF));
@@ -203,30 +204,37 @@ public partial class MainWindow
         }
     }
 
-    /// <summary>One quiet line: "Alarms  7:30 AM ✕  · 8:00 AM daily ✕". Nothing at all when there are none.</summary>
+    /// <summary>Your alarms as left-aligned chips that wrap. Tap ✕ to remove.</summary>
     private void BuildAlarmChips()
     {
         if (_alarmChips is null) return;
         _alarmChips.Children.Clear();
-        var list = _settings.Alarms.OrderBy(a => a.TimeOfDay).Take(4).ToList();
+        var list = _settings.Alarms.OrderBy(a => a.TimeOfDay).ToList();
         foreach (var alarm in list)
         {
             var just = _alarmJustAdded is not null && alarm.Time == _alarmJustAdded;
-            var text = Clock((int)alarm.TimeOfDay.TotalMinutes) + (alarm.Daily ? " daily" : "") + "  ✕";
-            var chip = new TextBlock
+            var label = Clock((int)alarm.TimeOfDay.TotalMinutes) + (alarm.Daily ? " daily" : "") + "  ✕";
+            var chip = new Border
             {
-                Text = text,
-                FontSize = 11.5,
-                FontWeight = just ? FontWeights.SemiBold : FontWeights.Normal,
-                Opacity = just ? 1 : (alarm.Enabled ? 0.7 : 0.35),
-                Foreground = just ? Brushes.White : null,
-                Margin = new Thickness(0, 0, 14, 0),
+                CornerRadius = new CornerRadius(12),
+                Padding = new Thickness(10, 5, 10, 5),
+                Margin = new Thickness(0, 0, 6, 6),
                 Cursor = Cursors.Hand,
+                Background = (Brush)FindResource("GlassFill"),
+                BorderBrush = (Brush)FindResource("GlassRim"),
+                BorderThickness = new Thickness(1),
+                Opacity = just ? 1 : (alarm.Enabled ? 0.85 : 0.4),
+                Child = new TextBlock
+                {
+                    Text = label,
+                    FontSize = 11.5,
+                    FontWeight = just ? FontWeights.SemiBold : FontWeights.Normal,
+                    VerticalAlignment = VerticalAlignment.Center,
+                },
                 ToolTip = "Click to remove",
-                Background = Brushes.Transparent,
             };
             chip.MouseEnter += (_, _) => chip.Opacity = 1;
-            chip.MouseLeave += (_, _) => chip.Opacity = alarm.Enabled ? 0.7 : 0.35;
+            chip.MouseLeave += (_, _) => chip.Opacity = alarm.Enabled ? 0.85 : 0.4;
             chip.MouseLeftButtonUp += (_, e) =>
             {
                 e.Handled = true;
@@ -272,6 +280,25 @@ public partial class MainWindow
         {
             if (region == _leavingClockRegion) continue; // still fading out
             region.Visibility = region == shown ? Visibility.Visible : Visibility.Collapsed;
+        }
+        UpdateModeBar();
+    }
+
+    /// <summary>Close Alarm/Timer/Stopwatch when the island collapses (mouse leave / click outside).</summary>
+    private void FoldClockMode()
+    {
+        if (_clockMode == ClockMode.None && _leavingClockRegion is null) return;
+        _leavingClockRegion = null;
+        _clockMode = ClockMode.None;
+        _barMode = null; // force the mode pills to rebuild closed
+        foreach (var region in new FrameworkElement[] { AlarmRow, TimerPresets, TimerActivePanel, StopwatchPanel, StopwatchIdlePanel })
+        {
+            region.BeginAnimation(OpacityProperty, null);
+            region.Opacity = 1;
+            region.IsHitTestVisible = true;
+            region.Margin = new Thickness(region.Margin.Left, region.Margin.Top, region.Margin.Right, 0);
+            region.RenderTransform = Transform.Identity;
+            region.Visibility = Visibility.Collapsed;
         }
         UpdateModeBar();
     }
@@ -365,22 +392,26 @@ public partial class MainWindow
             var accent = (Brush)FindResource(i == 0 ? "Orange" : i == 1 ? "Violet" : "Cyan");
             label.Children.Add(new TextBlock { Style = (Style)FindResource("Glyph"), Text = ModeGlyphs[i], FontSize = 13, Foreground = open ? Brushes.White : accent, Margin = new Thickness(0, 0, 7, 0) });
             label.Children.Add(new TextBlock { Text = ModeNames[i], FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = tint, VerticalAlignment = VerticalAlignment.Center });
-            var status = new TextBlock { FontSize = 11, FontWeight = FontWeights.SemiBold, Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Foreground = accent };
+            var status = new TextBlock { FontSize = 10.5, FontWeight = FontWeights.SemiBold, Margin = new Thickness(5, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Foreground = accent, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 72 };
             _modeStatus[i] = status;
             label.Children.Add(status);
+            // Selected = a brighter glass chip (same material as the island). Not Clara cyan/violet.
+            var selectedFill = new SolidColorBrush(Color.FromArgb(0x42, 255, 255, 255));
+            selectedFill.Freeze();
             var pill = new Border
             {
-                CornerRadius = new CornerRadius(16),
-                Padding = new Thickness(8, 7, 8, 7),
-                Margin = new Thickness(i == 0 ? 0 : 3, 0, i == 2 ? 0 : 3, 0),
+                CornerRadius = new CornerRadius(14),
+                Padding = new Thickness(6, 6, 6, 6),
+                Margin = new Thickness(i == 0 ? 0 : 2, 0, i == 2 ? 0 : 2, 0),
                 Cursor = Cursors.Hand,
                 BorderThickness = new Thickness(1),
                 BorderBrush = (Brush)FindResource("GlassRim"),
-                // Solid selected fill — no Clara cyan→violet gradient on these mode pills.
-                Background = open ? (Brush)FindResource("Accent") : (Brush)FindResource("GlassFill"),
+                // Soft white glass when selected — no Clara cyan→violet gradient.
+                Background = open ? selectedFill : (Brush)FindResource("GlassFill"),
                 Child = label,
                 RenderTransformOrigin = new Point(0.5, 0.5),
                 RenderTransform = new ScaleTransform(1, 1),
+                ClipToBounds = true,
             };
             pill.MouseEnter += (_, _) => PopPill(pill, 1.05);
             pill.MouseLeave += (_, _) => PopPill(pill, 1);
@@ -410,7 +441,7 @@ public partial class MainWindow
             Padding = new Thickness(18, 8, 18, 8),
             Cursor = Cursors.Hand,
             HorizontalAlignment = HorizontalAlignment.Right,
-            Background = new LinearGradientBrush(Color.FromRgb(0xF7, 0xF8, 0xFC), Color.FromRgb(0xDD, 0xE2, 0xEE), 90),
+            Background = new SolidColorBrush(Color.FromRgb(0xEE, 0xF0, 0xF4)),
             RenderTransformOrigin = new Point(0.5, 0.5),
             RenderTransform = new ScaleTransform(1, 1),
             Child = _swStartText,
@@ -479,7 +510,9 @@ public partial class MainWindow
         });
         start.HorizontalAlignment = HorizontalAlignment.Right;
         start.VerticalAlignment = VerticalAlignment.Center;
-        start.Background = AssistantPanel.AccentGradient();
+        // Solid light chip — no Clara cyan→violet gradient.
+        start.Background = new SolidColorBrush(Color.FromRgb(0xEE, 0xF0, 0xF4));
+        ((TextBlock)start.Child).Foreground = new SolidColorBrush(Color.FromRgb(0x15, 0x16, 0x1B));
         ((TextBlock)start.Child).FontSize = 13;
         start.Padding = new Thickness(18, 7, 18, 7);
 

@@ -13,15 +13,17 @@ public partial class MainWindow
     {
         if (_state is null || IdleWeatherBubble is null) return;
         var weather = _settings.WeatherInIdlePill && _settings.WeatherSeparate ? _weather.Current : null;
-        var show = weather is not null && _currentView == ClockView && !_state.IsExpanded && !IslandHidden && !BarIsIdle
+        // Beside the island whenever collapsed — not only on the clock (media used to hide it).
+        var show = weather is not null && !_state.IsExpanded && !IslandHidden && !BarIsIdle
                    && _settings.IdleStyle != IdleStyle.Minimal && _state.Transient is null;
         if (show && weather is not null)
         {
-            var key = $"{weather.Kind}|{weather.IsDay}|{Degrees(weather.Temperature)}";
+            var iconSize = IdleWeatherBubble.Width > 0 && IdleWeatherBubble.Width < 30 ? 14 : 16;
+            var key = $"{weather.Kind}|{weather.IsDay}|{Degrees(weather.Temperature)}|{iconSize}";
             if (key != _idleWeatherKey)
             {
                 _idleWeatherKey = key;
-                IdleWeatherIcon.Child = WeatherIcons.Create(weather.Kind, weather.IsDay, 16);
+                IdleWeatherIcon.Child = WeatherIcons.Create(weather.Kind, weather.IsDay, iconSize);
                 IdleWeatherTemp.Text = Degrees(weather.Temperature);
                 IdleWeatherBubble.ToolTip = $"{weather.Condition}, feels like {Degrees(weather.FeelsLike)}";
             }

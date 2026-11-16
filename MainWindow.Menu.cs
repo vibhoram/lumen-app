@@ -37,7 +37,7 @@ public partial class MainWindow
             _pressTimer.Stop();
             if (_timer.IsActive) SetTimerPinned(!_timerPinned);
         };
-        foreach (var element in new FrameworkElement[] { TimerView, ActivityBubble, ActivityBubble2, PinnedTimerBubble })
+        foreach (var element in new FrameworkElement[] { TimerView, ActivityBubble, ActivityBubble2, ActivityStrand, PinnedTimerBubble })
         {
             element.PreviewMouseLeftButtonDown += (_, _) => { if (_timer.IsActive) _pressTimer.Start(); };
             element.PreviewMouseLeftButtonUp += (_, _) => _pressTimer.Stop();

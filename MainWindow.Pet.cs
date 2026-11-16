@@ -56,7 +56,7 @@ public partial class MainWindow
     private bool OverIslandParts(int sx, int sy)
     {
         var p = new Point(sx, sy);
-        foreach (FrameworkElement part in new FrameworkElement[] { MediaDiscBubble, MediaPulseBubble, ActivityBubble, ActivityBubble2, IdleWeatherBubble, CarryBubble, PinnedTimerBubble, QuickTray, _pet })
+        foreach (FrameworkElement part in new FrameworkElement[] { MediaDiscBubble, MediaPulseBubble, ActivityBubble, ActivityBubble2, ActivityStrand, IdleWeatherBubble, CarryBubble, PinnedTimerBubble, QuickTray, _pet })
         {
             if (part.Visibility != Visibility.Visible || part.ActualWidth <= 0) continue;
             var local = part.PointFromScreen(p);

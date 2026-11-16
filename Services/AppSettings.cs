@@ -99,6 +99,15 @@ public enum IdleStyle
     Minimal,
 }
 
+/// <summary>How clock-side activities (alarm / timer / stopwatch) appear beside the collapsed island.</summary>
+public enum ActivityChrome
+{
+    /// <summary>One liquid-glass capsule listing every running activity.</summary>
+    Strand,
+    /// <summary>Classic round bubbles (at most two).</summary>
+    Bubbles,
+}
+
 /// <summary>What fills the right side of Home when nothing is playing.</summary>
 public enum HomeGlance
 {
@@ -519,6 +528,9 @@ public sealed class AppSettings
 
     /// <summary>When two activities run (e.g. timer + music), show the second as a small bubble beside the island.</summary>
     public bool ShowSecondActivity { get; set; } = true;
+
+    /// <summary>Strand (default): one glass capsule for all clock activities. Bubbles: classic round orbs.</summary>
+    public ActivityChrome ActivityChrome { get; set; } = ActivityChrome.Strand;
 
     /// <summary>Equalizer bars follow the actual sound instead of a looping animation.</summary>
     public bool RealWaveform { get; set; } = true;

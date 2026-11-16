@@ -339,6 +339,10 @@ public partial class SettingsWindow : Window
         var activities = Section("ACTIVITIES");
         Check(activities, "Show a second activity as a bubble beside the island (e.g. music while a timer runs)",
             () => s.ShowSecondActivity, v => s.ShowSecondActivity = v);
+        Choice(activities, "Clock activities look",
+            new[] { (ActivityChrome.Strand, "Glass strand (all three)"), (ActivityChrome.Bubbles, "Round bubbles (up to two)") },
+            () => s.ActivityChrome, v => s.ActivityChrome = v);
+        Note(activities, "Strand keeps alarm, timer and stopwatch in one liquid-glass piece. Bubbles is the classic round style.");
         Check(activities, "Music bars follow the actual sound", () => s.RealWaveform, v => s.RealWaveform = v);
         Check(activities, "Clicking the music activity opens the music app (hover still expands)",
             () => s.ClickOpensMediaApp, v => s.ClickOpensMediaApp = v);

@@ -826,21 +826,51 @@
 
         </Grid>
 
-        <!-- Second activity (e.g. music while a timer runs), as a small bubble beside the pill like the
-             iPhone's split island. Content set in UpdateSecondActivity; positioned in ApplyGeometry. -->
+        <!-- Activity orbs (media, or Bubbles chrome). Glass sheen matches the pill. -->
         <Grid x:Name="ActivityBubble" HorizontalAlignment="Left" VerticalAlignment="Top" Width="36" Height="36"
-              Visibility="Collapsed" RenderTransformOrigin="0,0.5" Cursor="Hand">
+              Visibility="Collapsed" RenderTransformOrigin="0,0.5" Cursor="Hand"
+              MouseLeftButtonUp="OnActivityBubbleClick">
             <Grid.RenderTransform>
                 <ScaleTransform />
             </Grid.RenderTransform>
             <Ellipse x:Name="ActivityBubbleBack" Fill="{StaticResource BubbleFill}" Stroke="{StaticResource BubbleRim}" StrokeThickness="1" />
+            <Ellipse x:Name="ActivityBubbleGlow" IsHitTestVisible="False" Visibility="Collapsed" StrokeThickness="7" />
+            <Ellipse x:Name="ActivityBubbleSheen" IsHitTestVisible="False" Visibility="Collapsed" />
             <Ellipse x:Name="ActivityBubbleArt" Margin="5" Visibility="Collapsed" />
             <TextBlock x:Name="ActivityBubbleGlyph" Style="{StaticResource Glyph}" FontSize="15" Text="&#xE916;" />
             <Path x:Name="ActivityBubbleRing" StrokeThickness="2.4" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
                   IsHitTestVisible="False" />
         </Grid>
+        <Grid x:Name="ActivityBubble2" HorizontalAlignment="Left" VerticalAlignment="Top" Width="36" Height="36"
+              Visibility="Collapsed" RenderTransformOrigin="0,0.5" Cursor="Hand"
+              MouseLeftButtonUp="OnActivityBubbleClick">
+            <Grid.RenderTransform>
+                <ScaleTransform />
+            </Grid.RenderTransform>
+            <Ellipse x:Name="ActivityBubbleBack2" Fill="{StaticResource BubbleFill}" Stroke="{StaticResource BubbleRim}" StrokeThickness="1" />
+            <Ellipse x:Name="ActivityBubbleGlow2" IsHitTestVisible="False" Visibility="Collapsed" StrokeThickness="7" />
+            <Ellipse x:Name="ActivityBubbleSheen2" IsHitTestVisible="False" Visibility="Collapsed" />
+            <Ellipse x:Name="ActivityBubbleArt2" Margin="5" Visibility="Collapsed" />
+            <TextBlock x:Name="ActivityBubbleGlyph2" Style="{StaticResource Glyph}" FontSize="15" Text="&#xE916;" />
+            <Path x:Name="ActivityBubbleRing2" StrokeThickness="2.4" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                  IsHitTestVisible="False" />
+        </Grid>
 
-        <!-- Idle weather: its own round bubble beside the clock pill (UpdateIdleWeatherBubble).
+        <!-- Activity strand (default): one liquid-glass capsule for alarm + timer + stopwatch. -->
+        <Grid x:Name="ActivityStrand" HorizontalAlignment="Left" VerticalAlignment="Top" Height="34"
+              Visibility="Collapsed" RenderTransformOrigin="0,0.5" ClipToBounds="False">
+            <Grid.RenderTransform><ScaleTransform /></Grid.RenderTransform>
+            <Border x:Name="ActivityStrandGlow" CornerRadius="17" BorderThickness="7" IsHitTestVisible="False" Visibility="Collapsed" />
+            <Border x:Name="ActivityStrandBack" CornerRadius="17" BorderThickness="1.35"
+                    Background="{StaticResource BubbleFill}" BorderBrush="{StaticResource BubbleRim}" />
+            <Border x:Name="ActivityStrandSheen" CornerRadius="17" IsHitTestVisible="False" Visibility="Collapsed" />
+            <Border x:Name="ActivityStrandSpine" Height="2" CornerRadius="1" VerticalAlignment="Bottom"
+                    IsHitTestVisible="False" Opacity="0.85" />
+            <StackPanel x:Name="ActivityStrandRow" Orientation="Horizontal"
+                        HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Grid>
+
+        <!-- Idle weather: its own round bubble beside the strand (UpdateIdleWeatherBubble).
              Back/sheen/glow match the pill under Liquid Glass (ApplySideBubbleGlass). -->
         <Grid x:Name="IdleWeatherBubble" HorizontalAlignment="Left" VerticalAlignment="Top" Width="34" Height="34"
               Visibility="Collapsed" RenderTransformOrigin="0,0.5" Cursor="Hand">
@@ -933,19 +963,6 @@
             <Path x:Name="PinnedTimerRing" StrokeThickness="2.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" IsHitTestVisible="False" />
             <TextBlock x:Name="PinnedTimerText" FontSize="10.5" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"
                        Typography.NumeralAlignment="Tabular" />
-        </Grid>
-
-        <!-- Third activity: a second bubble after the first. -->
-        <Grid x:Name="ActivityBubble2" HorizontalAlignment="Left" VerticalAlignment="Top" Width="36" Height="36"
-              Visibility="Collapsed" RenderTransformOrigin="0,0.5" Cursor="Hand">
-            <Grid.RenderTransform>
-                <ScaleTransform />
-            </Grid.RenderTransform>
-            <Ellipse Fill="{StaticResource BubbleFill}" Stroke="{StaticResource BubbleRim}" StrokeThickness="1" />
-            <Ellipse x:Name="ActivityBubbleArt2" Margin="5" Visibility="Collapsed" />
-            <TextBlock x:Name="ActivityBubbleGlyph2" Style="{StaticResource Glyph}" FontSize="15" Text="&#xE916;" />
-            <Path x:Name="ActivityBubbleRing2" StrokeThickness="2.4" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                  IsHitTestVisible="False" />
         </Grid>
 
         <!-- Mic (orange) / camera (green) in use, just right of the collapsed pill like the iPhone's

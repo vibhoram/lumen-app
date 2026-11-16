@@ -23,8 +23,8 @@ public sealed class AssistantPanel : Grid
 {
     internal static readonly FontFamily IconFont = new("Segoe Fluent Icons, Segoe MDL2 Assets");
     // Neon cyberpunk: cool cyan into electric violet (matches Clara's portrait glow).
-    private static readonly Color AccentA = Color.FromRgb(0x5E, 0xE7, 0xFF);
-    private static readonly Color AccentB = Color.FromRgb(0xB0, 0x5C, 0xFF);
+    internal static readonly Color AccentA = Color.FromRgb(0x5E, 0xE7, 0xFF);
+    internal static readonly Color AccentB = Color.FromRgb(0xB0, 0x5C, 0xFF);
 
     private readonly AppSettings _settings;
     private readonly List<ChatMessage> _history = new();
