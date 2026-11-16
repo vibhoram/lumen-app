@@ -10,54 +10,53 @@ using System.Windows.Media.Imaging;
 namespace DIsland;
 
 /// <summary>
-/// Webser W from the cream app icon: black glyph kept, cream plate removed, painted white for dark UI.
+/// Webser cream-tile mark: knock out the black export frame (no dog-ear corners),
+/// keep the cream plate, crush the W to pure #000.
 /// </summary>
 public static class WebserMark
 {
     public static readonly Uri Site = new("https://webser.app");
 
-    private static ImageSource? _glyph;
+    private static ImageSource? _mark;
 
     public static FrameworkElement Create(double size, Brush? fill = null)
     {
         _ = fill;
-        return new Image
+        var img = new Image
         {
             Width = size,
             Height = size,
             Stretch = Stretch.Uniform,
-            Source = Glyph(),
+            Source = Mark(),
             SnapsToDevicePixels = true,
+            UseLayoutRounding = true,
         };
+        RenderOptions.SetBitmapScalingMode(img, BitmapScalingMode.HighQuality);
+        return img;
     }
 
-    private static ImageSource Glyph()
+    private static ImageSource Mark()
     {
-        if (_glyph is not null) return _glyph;
+        if (_mark is not null) return _mark;
 
-        // Prefer the cream-tile official mark (black W). Dark-on-dark is a fallback source only.
         foreach (var name in new[] { "webser-w-light.png", "webser-w.png", "webser-icon.png" })
         {
             var path = Path.Combine(AppContext.BaseDirectory, "Assets", name);
             if (!File.Exists(path)) continue;
             try
             {
-                _glyph = ExtractGlyph(path);
-                if (_glyph is not null) return _glyph;
+                _mark = BuildMark(path);
+                if (_mark is not null) return _mark;
             }
             catch (Exception) { /* next */ }
         }
 
         var empty = BitmapSource.Create(1, 1, 96, 96, PixelFormats.Bgra32, null, new byte[4], 4);
         empty.Freeze();
-        return _glyph = empty;
+        return _mark = empty;
     }
 
-    /// <summary>
-    /// Cream tile → keep dark W pixels, drop the plate, recolor glyph white so it reads on dark About.
-    /// Cream-on-black stickers → keep bright pixels as-is.
-    /// </summary>
-    private static ImageSource? ExtractGlyph(string path)
+    private static ImageSource? BuildMark(string path)
     {
         var raw = new BitmapImage();
         raw.BeginInit();
@@ -73,41 +72,99 @@ public static class WebserMark
         var pixels = new byte[stride * h];
         converted.CopyPixels(pixels, stride, 0);
 
-        // Sample corners to decide: light plate (cream icon) vs dark plate (sticker).
-        double CornerLum(int x, int y)
+        // Flood-fill from every border pixel: anything dark/transparent connected to the
+        // export frame becomes clear — that's what left the black dog-ears on the cream tile.
+        var drop = new bool[w * h];
+        var stack = new Stack<int>();
+        void Seed(int x, int y)
         {
-            var i = y * stride + x * 4;
-            return 0.299 * pixels[i + 2] + 0.587 * pixels[i + 1] + 0.114 * pixels[i];
+            var i = y * w + x;
+            if (drop[i]) return;
+            var p = y * stride + x * 4;
+            var a = pixels[p + 3];
+            var lum = 0.299 * pixels[p + 2] + 0.587 * pixels[p + 1] + 0.114 * pixels[p];
+            // Frame is black (or already clear). Cream and the W stay.
+            if (a < 40 || lum < 55)
+            {
+                drop[i] = true;
+                stack.Push(i);
+            }
         }
-        var plate = (CornerLum(2, 2) + CornerLum(w - 3, 2) + CornerLum(2, h - 3) + CornerLum(w - 3, h - 3)) / 4;
-        var lightPlate = plate > 160; // cream app icon
+        for (var x = 0; x < w; x++) { Seed(x, 0); Seed(x, h - 1); }
+        for (var y = 0; y < h; y++) { Seed(0, y); Seed(w - 1, y); }
+
+        while (stack.Count > 0)
+        {
+            var i = stack.Pop();
+            var x = i % w;
+            var y = i / w;
+            void Try(int nx, int ny)
+            {
+                if ((uint)nx >= (uint)w || (uint)ny >= (uint)h) return;
+                var ni = ny * w + nx;
+                if (drop[ni]) return;
+                var p = ny * stride + nx * 4;
+                var a = pixels[p + 3];
+                var lum = 0.299 * pixels[p + 2] + 0.587 * pixels[p + 1] + 0.114 * pixels[p];
+                // Stay on the black frame / soft AA into it — don't eat into cream or the W.
+                if (a < 40 || lum < 55)
+                {
+                    drop[ni] = true;
+                    stack.Push(ni);
+                }
+            }
+            Try(x - 1, y); Try(x + 1, y); Try(x, y - 1); Try(x, y + 1);
+        }
+
+        // Representative cream from remaining light pixels.
+        byte creamB = 0xEB, creamG = 0xF3, creamR = 0xFA;
+        for (var y = h / 5; y < h - h / 5; y += 4)
+        for (var x = w / 5; x < w - w / 5; x += 4)
+        {
+            var i = y * w + x;
+            if (drop[i]) continue;
+            var p = y * stride + x * 4;
+            if (pixels[p + 3] < 200) continue;
+            var lum = 0.299 * pixels[p + 2] + 0.587 * pixels[p + 1] + 0.114 * pixels[p];
+            if (lum < 200) continue;
+            creamB = pixels[p]; creamG = pixels[p + 1]; creamR = pixels[p + 2];
+            goto GotCream;
+        }
+        GotCream:
 
         var minX = w; var minY = h; var maxX = 0; var maxY = 0;
         var has = false;
         for (var y = 0; y < h; y++)
         for (var x = 0; x < w; x++)
         {
-            var i = y * stride + x * 4;
-            var b = pixels[i]; var g = pixels[i + 1]; var r = pixels[i + 2];
-            var lum = 0.299 * r + 0.587 * g + 0.114 * b;
-            var keep = lightPlate ? lum < 80 : lum > 100;
-            if (keep)
+            var i = y * w + x;
+            var p = y * stride + x * 4;
+            if (drop[i])
             {
-                has = true;
-                if (x < minX) minX = x; if (y < minY) minY = y;
-                if (x > maxX) maxX = x; if (y > maxY) maxY = y;
-                // Always white on dark Settings chrome
-                pixels[i] = pixels[i + 1] = pixels[i + 2] = 255;
-                pixels[i + 3] = 255;
+                pixels[p] = pixels[p + 1] = pixels[p + 2] = pixels[p + 3] = 0;
+                continue;
+            }
+
+            var lum = 0.299 * pixels[p + 2] + 0.587 * pixels[p + 1] + 0.114 * pixels[p];
+            // Hard split so small sizes don't wash the W into grey.
+            if (lum < 140)
+            {
+                pixels[p] = pixels[p + 1] = pixels[p + 2] = 0;
+                pixels[p + 3] = 255;
             }
             else
             {
-                pixels[i] = pixels[i + 1] = pixels[i + 2] = pixels[i + 3] = 0;
+                pixels[p] = creamB; pixels[p + 1] = creamG; pixels[p + 2] = creamR;
+                pixels[p + 3] = 255;
             }
+
+            has = true;
+            if (x < minX) minX = x; if (y < minY) minY = y;
+            if (x > maxX) maxX = x; if (y > maxY) maxY = y;
         }
         if (!has) return null;
 
-        const int pad = 2;
+        const int pad = 1;
         minX = Math.Max(0, minX - pad); minY = Math.Max(0, minY - pad);
         maxX = Math.Min(w - 1, maxX + pad); maxY = Math.Min(h - 1, maxY + pad);
         var cw = maxX - minX + 1;

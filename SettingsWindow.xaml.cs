@@ -60,13 +60,19 @@ public partial class SettingsWindow : Window
             _settings.Save();
             if (_updateStatusRefresh is not null && App.Updates is { } updates) updates.Changed -= _updateStatusRefresh;
         };
-        WheelScrolling.Attach(SettingsScroller, pixelsPerNotch: 36);
-        WheelScrolling.Attach(NavScroller, pixelsPerNotch: 36);
+        WheelScrolling.Attach(SettingsScroller, pixelsPerNotch: 56, smooth: true);
+        WheelScrolling.Attach(NavScroller, pixelsPerNotch: 48, smooth: true);
         SettingsScroller.ScrollChanged += (_, _) => UpdateNavSelection();
         Loaded += (_, _) => UpdateNavSelection();
 
         SourceInitialized += (_, _) => ApplyBackdrop();
-        _backdropOn = Environment.OSVersion.Version.Build >= 22621;
+        StateChanged += (_, _) =>
+        {
+            if (MaxButton is not null)
+                MaxButton.Content = WindowState == WindowState.Maximized ? "\uE923" : "\uE922";
+        };
+        HeaderMarkHost.Child = WebserMark.Create(28);
+        HeaderVersion.Text = string.IsNullOrEmpty(AppVersion) ? "" : $"v{AppVersion}";
         Build();
     }
 
@@ -81,25 +87,32 @@ public partial class SettingsWindow : Window
     private struct Margins { public int Left, Right, Top, Bottom; }
 
     /// <summary>
-    /// Windows 11: dark title bar + Acrylic. Top margin stays 0 so content never draws under the
-    /// min/max/close buttons (full -1 margins let toggles/swatches peek through the caption).
+    /// Custom chrome (WindowStyle=None): solid client, rounded Win11 corners, dark mode.
+    /// No acrylic frame-extend — that was what let cards bleed under the caption and drew double lines.
     /// </summary>
     private void ApplyBackdrop()
     {
-        if (!_backdropOn) return;
+        Background = Frozen(Color.FromRgb(0x14, 0x14, 0x16));
+        _backdropOn = false; // glass cards use solid fills under custom chrome
         try
         {
             var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
             var dark = 1;
             DIsland.Interop.NativeMethods.DwmSetWindowAttribute(hwnd, 20 /* USE_IMMERSIVE_DARK_MODE */, ref dark, sizeof(int));
-            var acrylic = 3; // DWMSBT_TRANSIENTWINDOW
-            if (DIsland.Interop.NativeMethods.DwmSetWindowAttribute(hwnd, 38 /* SYSTEMBACKDROP_TYPE */, ref acrylic, sizeof(int)) != 0) { _backdropOn = false; return; }
-            var margins = new Margins { Left = -1, Right = -1, Top = 0, Bottom = -1 };
+            var round = 2; // DWMWCP_ROUND
+            DIsland.Interop.NativeMethods.DwmSetWindowAttribute(hwnd, 33 /* WINDOW_CORNER_PREFERENCE */, ref round, sizeof(int));
+            var margins = new Margins { Left = 0, Right = 0, Top = 0, Bottom = 0 };
             DwmExtendFrameIntoClientArea(hwnd, ref margins);
-            System.Windows.Interop.HwndSource.FromHwnd(hwnd)!.CompositionTarget.BackgroundColor = Colors.Transparent;
-            Background = Brushes.Transparent;
         }
-        catch (Exception) { _backdropOn = false; }
+        catch (Exception) { /* older Windows */ }
+    }
+
+    private void OnMinimizeClick(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+
+    private void OnMaximizeClick(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+        MaxButton.Content = WindowState == WindowState.Maximized ? "\uE923" : "\uE922"; // restore / maximize glyphs
     }
 
     // ---------------------------------------------------------------- layout
@@ -114,6 +127,7 @@ public partial class SettingsWindow : Window
         _navSelected = null;
         var s = _settings;
 
+        NavGroup("Appearance");
         BuildLookPresets();
 
         var style = Section("STYLE");
@@ -196,6 +210,7 @@ public partial class SettingsWindow : Window
         }, () => s.HomeGlance, v => s.HomeGlance = v);
         Note(text, "Fills the right side of Home when nothing is playing. Weather is the default.");
 
+        NavGroup("Behavior");
         var interaction = Section("INTERACTION");
         Check(interaction, "Expand on hover (click always works)", () => s.ExpandOnHover, v => s.ExpandOnHover = v);
         Slider(interaction, "Hover delay", 0, 1000, 10, () => s.HoverDelayMs, v => s.HoverDelayMs = (int)v, v => $"{v:0} ms");
@@ -254,6 +269,7 @@ public partial class SettingsWindow : Window
         }, () => s.WeatherMotion, v => s.WeatherMotion = v);
         Note(animation, "Applies to every sky (clear, cloudy, rain, snow, fog, thunder). Lively = busy & fast. Cinematic = sparse & slow. Static = rich still frame (lowest CPU). Also under Weather.");
 
+        NavGroup("Media");
         var media = Section("MEDIA");
         Check(media, "Show album art banner when expanded", () => s.ShowArtBanner, v => s.ShowArtBanner = v);
         Check(media, "Animated album art from Apple Music", () => s.MotionArtwork, v => s.MotionArtwork = v);
@@ -274,7 +290,12 @@ public partial class SettingsWindow : Window
         Check(media, "Split the collapsed music pill: spinning album disc and pulse bubble beside the title", () => s.MusicSplit, v => s.MusicSplit = v);
         Check(media, "Wave ribbon along the collapsed music pill (cover colours, moves with the music)", () => s.MusicWave, v => s.MusicWave = v);
         Check(media, "Show the time of day on the music pill", () => s.ClockOnMusicPill, v => s.ClockOnMusicPill = v);
-        Choice(media, "Music pill wave", new[] { (WaveStyle.Ribbon, "Ribbon"), (WaveStyle.Silk, "Silk"), (WaveStyle.Tide, "Tide"), (WaveStyle.Pulse, "Pulse"), (WaveStyle.Bars, "Bars"), (WaveStyle.Beads, "Beads"), (WaveStyle.Aurora, "Aurora"), (WaveStyle.Comet, "Comet"), (WaveStyle.Pixels, "Pixels") }, () => s.WaveStyle, v => s.WaveStyle = v);
+        Choice(media, "Music pill wave", new[]
+        {
+            (WaveStyle.Ribbon, "Ribbon"), (WaveStyle.Silk, "Silk"), (WaveStyle.Tide, "Tide"),
+            (WaveStyle.Pulse, "Pulse"), (WaveStyle.Bars, "Bars"), (WaveStyle.Beads, "Beads"),
+            (WaveStyle.Aurora, "Aurora"), (WaveStyle.Comet, "Comet"), (WaveStyle.Pixels, "Pixels"),
+        }, () => s.WaveStyle, v => s.WaveStyle = v);
         Choice(media, "Audio bars", new[] { (EqualizerLook.Aura, "Aura (cover colours)"), (EqualizerLook.Silver, "Silver"), (EqualizerLook.Song, "Song colour"), (EqualizerLook.Mint, "Mint"), (EqualizerLook.Sunset, "Sunset") }, () => s.EqualizerLook, v => s.EqualizerLook = v);
         Check(media, "Artist name under the title on the collapsed pill", () => s.ShowArtistOnPill, v => s.ShowArtistOnPill = v);
         Check(media, "Thin progress line along the collapsed pill", () => s.CompactProgressLine, v => s.CompactProgressLine = v);
@@ -331,6 +352,7 @@ public partial class SettingsWindow : Window
         Check(wallpaper, "Mute the wallpaper while music is playing",
             () => s.MuteWallpaperDuringMedia, v => s.MuteWallpaperDuringMedia = v);
 
+        NavGroup("Pages");
         var pages = Section("EXPANDED ISLAND");
         Choice(pages, "Navigation", new[] { (PageNavigation.Tabs, "Tabs"), (PageNavigation.Dots, "Page dots") },
             () => s.PageNavigation, v => s.PageNavigation = v);
@@ -389,6 +411,7 @@ public partial class SettingsWindow : Window
         Note(order, "Drag a page by its handle, or use the arrows. Home always stays first.");
         BuildPageOrder(order);
 
+        NavGroup("Clara");
         var ai = Section("CLARA (AI ASSISTANT)", "Clara");
         var bioBox = new TextBox { Text = s.UserBio, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 90, MaxHeight = 180, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(8, 6, 8, 6), Margin = new Thickness(0, 4, 0, 4) };
         bioBox.TextChanged += (_, _) => Update(() => s.UserBio = bioBox.Text);
@@ -409,7 +432,7 @@ public partial class SettingsWindow : Window
         TextRow(ai, "2. OpenRouter API key (optional)", () => s.OpenRouterApiKey, v => { s.OpenRouterApiKey = v.Trim(); if (s.OpenRouterApiKey.Length > 0 && s.GeminiApiKey.Length == 0) s.CloudProvider = CloudProvider.OpenRouter; });
         Note(ai, "One key, many models: openrouter.ai/keys. Used if Gemini isn't set (or as a failsafe after Gemini).");
         TextRow(ai, "OpenRouter model", () => s.OpenRouterModel, v => s.OpenRouterModel = string.IsNullOrWhiteSpace(v) ? "google/gemini-2.5-flash" : v.Trim());
-        TextRow(ai, "3. Groq API key (failsafe)", () => s.GroqApiKey, v => { if (v.Trim().Length > 0 || s.GroqApiKey.Length == 0) s.GroqApiKey = v.Trim(); });
+        TextRow(ai, "3. Groq API key (failsafe)", () => s.GroqApiKey, v => s.GroqApiKey = v.Trim());
         TextRow(ai, "Groq model", () => s.GroqModel, v => s.GroqModel = v.Trim());
         Note(ai, "Groq is last resort (rate limits hit fast). console.groq.com/keys. Leave blank if you don't want it.");
         var forget = new Button { Style = (Style)FindResource("ChipButton"), Content = "Clear Clara's memory", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 6, 0, 2) };
@@ -457,6 +480,7 @@ public partial class SettingsWindow : Window
         quickApps.Children.Add(_quickAppsPanel);
         BuildQuickApps();
 
+        NavGroup("System");
         var alerts = Section("ALERTS");
         Check(alerts, "Show when a device connects or disconnects (USB, Bluetooth, monitors)",
             () => s.DeviceAlerts, v => s.DeviceAlerts = v);
@@ -486,9 +510,18 @@ public partial class SettingsWindow : Window
         };
         system.Children.Add(startup);
 
+        var updates = Section("UPDATES");
+        Check(updates, "Check for updates automatically (once a day)", () => s.CheckForUpdates, v => s.CheckForUpdates = v);
+        Check(updates, "Download and install updates when the island is idle", () => s.AutoInstallUpdates, v => s.AutoInstallUpdates = v);
+        Note(updates,
+            "Installed copies (setup.exe) talk to github.com/vibhoram/lumen-app. When you ship a new " +
+            "Lumen-Setup-x.y.z.exe + .sha256, friends get a pill alert and — if auto-install is on — the " +
+            "update installs itself when nothing's running. Loose Debug folders can't self-update.");
+        UpdateControls(updates);
+
         var about = Section("ABOUT");
         var aboutHead = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
-        var webserAbout = WebserMark.Create(36);
+        var webserAbout = WebserMark.Create(40);
         webserAbout.Margin = new Thickness(0, 0, 12, 0);
         webserAbout.Cursor = Cursors.Hand;
         webserAbout.MouseLeftButtonUp += (_, _) => OpenUrl("https://webser.app");
@@ -506,23 +539,34 @@ public partial class SettingsWindow : Window
         about.Children.Add(new TextBlock { Text = "Based on D-Island by h7 (ibuildrigs) - https://github.com/H7gamer/d-island", FontSize = 11, Foreground = Secondary, Margin = new Thickness(0, 8, 0, 0), TextWrapping = TextWrapping.Wrap, Opacity = 0.55 });
         var terms = new TextBlock
         {
-            Text =
-                "TERMS OF USE (LUMEN)\n\n" +
-                "1. Lumen is a Webser studio project by Vibhor Maheshwari (webser.app). It is not an official D-Island release.\n" +
-                "2. Lumen is a modified version under the D-Island License 1.0 (LICENSE.txt, NOTICE.txt). The credit line above is required by that license. Anyone who shares Lumen must keep the license files, that credit, an accurate privacy statement, and must not use it to harm or deceive anyone.\n" +
-                "3. Your data stays on this PC. Clara sends only what you type (and a screenshot when you attach one) to the AI service you configured, using your own API key (Gemini preferred; Groq/OpenRouter optional). Clipboard history, notes, memory and settings are stored locally. See PRIVACY.txt.\n" +
-                "4. The app is provided as is, without warranty. The RAM tools only trim memory and never close apps; the glass effects use undocumented Windows features that may change with updates. Use at your own risk.\n" +
-                "5. Third-party names (Windows, Spotify, Groq, Gemini, OpenRouter, LRCLIB, iTunes and others) belong to their owners and are mentioned only to describe features.",
+            Text = LoadLegalText("TERMS.txt"),
             FontSize = 11.5,
             Foreground = Secondary,
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 10, 0, 0),
             Visibility = Visibility.Collapsed,
         };
-        var showTerms = new Button { Style = (Style)FindResource("ChipButton"), Content = "Terms & license", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 10, 0, 0) };
+        var showTerms = new Button { Style = (Style)FindResource("ChipButton"), Content = "Terms of use", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 10, 0, 0) };
         showTerms.Click += (_, _) => terms.Visibility = terms.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
         about.Children.Add(showTerms);
         about.Children.Add(terms);
+        var openLegal = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
+        void LegalChip(string file, string label)
+        {
+            var path = System.IO.Path.Combine(AppContext.BaseDirectory, file);
+            if (!File.Exists(path)) return;
+            var b = new Button { Style = (Style)FindResource("ChipButton"), Content = label, Margin = new Thickness(0, 0, 8, 0) };
+            b.Click += (_, _) =>
+            {
+                try { Process.Start(new ProcessStartInfo(path) { UseShellExecute = true }); }
+                catch (Exception) { /* no association */ }
+            };
+            openLegal.Children.Add(b);
+        }
+        LegalChip("TERMS.txt", "Open TERMS.txt");
+        LegalChip("PRIVACY.txt", "Open PRIVACY.txt");
+        LegalChip("LICENSE.txt", "Open LICENSE.txt");
+        about.Children.Add(openLegal);
 
         CreditText.Text = "Lumen  ·  Webser  ·  webser.app";
         WebserMarkHost.Child = WebserMark.Create(16);
@@ -1011,18 +1055,24 @@ public partial class SettingsWindow : Window
     private void HotkeyRow(Panel panel, string label, Func<string> get, Action<string> set, bool showProblem = false)
     {
         var row = new Grid { Margin = new Thickness(0, 4, 0, 4) };
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
-        row.ColumnDefinitions.Add(new ColumnDefinition());
-        row.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2.2, GridUnitType.Star) });
+        row.Children.Add(new TextBlock
+        {
+            Text = label,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 12, 0),
+        });
 
         var box = new TextBox
         {
             Text = string.IsNullOrEmpty(get()) ? "None" : get(),
             IsReadOnly = true,
             IsReadOnlyCaretVisible = false,
-            Width = 160,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Cursor = System.Windows.Input.Cursors.Hand,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            MinWidth = 140,
+            Cursor = Cursors.Hand,
             ToolTip = "Click, then press a shortcut (with Ctrl, Alt, Shift or Win). Backspace clears it.",
         };
         var problem = new TextBlock { Foreground = Faint, FontSize = 12, TextWrapping = TextWrapping.Wrap };
@@ -1404,32 +1454,141 @@ public partial class SettingsWindow : Window
         rim.BeginAnimation(SolidColorBrush.ColorProperty, fade);
     }
 
-    /// <summary>A sidebar entry that scrolls its section's header to the top.</summary>
+    /// <summary>Quiet group label in the sidebar (Appearance / Behavior / …).</summary>
+    private void NavGroup(string title)
+    {
+        Nav.Children.Add(new TextBlock
+        {
+            Text = title.ToUpperInvariant(),
+            FontSize = 10,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = Faint,
+            Margin = new Thickness(10, _nav.Count == 0 && Nav.Children.Count == 0 ? 4 : 14, 10, 4),
+            IsHitTestVisible = false,
+        });
+    }
+
+    /// <summary>A sidebar entry with a small vector icon; scrolls its section to the top.</summary>
     private void AddNavItem(string title, TextBlock header)
     {
+        var scale = new ScaleTransform(1, 1);
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        row.Children.Add(NavIcon(title));
+        row.Children.Add(new TextBlock
+        {
+            Text = title,
+            FontSize = 12.5,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        });
         var item = new Border
         {
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(10, 6, 10, 6),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(10, 7, 10, 7),
             Margin = new Thickness(0, 0, 0, 2),
             Background = Brushes.Transparent,
-            Cursor = System.Windows.Input.Cursors.Hand,
-            Child = new TextBlock
-            {
-                Text = title,
-                FontSize = 12.5,
-                TextTrimming = TextTrimming.CharacterEllipsis,
-            },
+            Cursor = Cursors.Hand,
+            Child = row,
+            RenderTransform = scale,
+            RenderTransformOrigin = new Point(0.5, 0.5),
         };
-        item.MouseEnter += (_, _) => { if (item != _navSelected) item.Background = Hover; };
-        item.MouseLeave += (_, _) => { if (item != _navSelected) item.Background = Brushes.Transparent; };
+        item.MouseEnter += (_, _) =>
+        {
+            if (item != _navSelected) item.Background = Hover;
+            AnimateScale(scale, 1.03);
+        };
+        item.MouseLeave += (_, _) =>
+        {
+            if (item != _navSelected) item.Background = Brushes.Transparent;
+            AnimateScale(scale, 1);
+        };
         item.MouseLeftButtonUp += (_, _) =>
         {
             var y = header.TransformToAncestor(Sections).Transform(new Point(0, 0)).Y - header.Margin.Top + 4;
             SettingsScroller.ScrollToVerticalOffset(Math.Max(0, y));
+            AnimateScale(scale, 0.97, 1);
         };
         Nav.Children.Add(item);
         _nav.Add((header, item));
+    }
+
+    private static void AnimateScale(ScaleTransform scale, double to, double? then = null)
+    {
+        var anim = new DoubleAnimation(to, TimeSpan.FromMilliseconds(120))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+        };
+        if (then is { } back)
+        {
+            anim.Completed += (_, _) =>
+            {
+                var settle = new DoubleAnimation(back, TimeSpan.FromMilliseconds(140))
+                {
+                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+                };
+                scale.BeginAnimation(ScaleTransform.ScaleXProperty, settle);
+                scale.BeginAnimation(ScaleTransform.ScaleYProperty, settle);
+            };
+        }
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, anim);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
+    }
+
+    /// <summary>Tiny stroked icons (Path geometry) — no asset files, crisp at any DPI.</summary>
+    private static FrameworkElement NavIcon(string title)
+    {
+        var key = title.Trim().ToLowerInvariant();
+        var data = key switch
+        {
+            "looks" => "M12,3 L14.5,9 L21,9.5 L16,14 L17.5,21 L12,17.5 L6.5,21 L8,14 L3,9.5 L9.5,9 Z",
+            "style" => "M4,7 H20 M4,12 H20 M4,17 H14",
+            "material" => "M4,16 L12,4 L20,16 Z M8,16 H16",
+            "adaptive background" => "M4,6 H20 V18 H4 Z M4,12 H20",
+            "colors" => "M12,4 A8,8 0 1 1 11.9,4 M12,8 A4,4 0 1 0 12.1,8",
+            "text & clock" => "M12,4 V12 L17,15 M12,2 A10,10 0 1 1 11.9,2",
+            "interaction" => "M9,4 L15,12 L11,12 L13,20 L7,12 L11,12 Z",
+            "shortcuts" => "M4,8 H8 V12 H4 Z M10,8 H14 V12 H10 Z M16,8 H20 V12 H16 Z M7,14 H17 V18 H7 Z",
+            "animation" => "M4,12 Q8,4 12,12 Q16,20 20,12",
+            "media" => "M6,6 H14 V18 H6 Z M14,9 L20,6 V18 L14,15 Z",
+            "activities" or "alarms" or "focus" => "M12,4 A8,8 0 1 1 11.9,4 M12,8 V12 L15,14",
+            "wallpaper engine" => "M4,6 H20 V18 H4 Z M8,14 L11,10 L14,13 L16,11 L20,16 H4 Z",
+            "expanded island" or "page order" => "M6,8 H18 A4,4 0 0 1 18,16 H6 A4,4 0 0 1 6,8 Z",
+            "notifications" => "M8,17 H16 M12,3 A5,5 0 0 1 17,8 V13 L19,16 H5 L7,13 V8 A5,5 0 0 1 12,3",
+            "calendar" => "M5,6 H19 V19 H5 Z M5,10 H19 M9,4 V8 M15,4 V8",
+            "companion" => "M8,14 C8,10 10,8 12,8 C14,8 16,10 16,14 M9,18 H15 M10,11 H10.2 M14,11 H14.2",
+            "clipboard" => "M9,4 H15 V6 H19 V20 H5 V6 H9 Z",
+            "system" or "vitals" or "system vitals" => "M6,8 H18 V16 H6 Z M9,16 V19 H15 V16 M10,11 H14",
+            "clara" => "M12,4 A6,6 0 0 1 18,10 V14 A6,6 0 0 1 6,14 V10 A6,6 0 0 1 12,4 M9,18 H15",
+            "to-do & notes" => "M6,6 H18 V20 H6 Z M9,10 H15 M9,14 H13",
+            "file shelf" => "M4,8 H10 L12,10 H20 V18 H4 Z",
+            "weather" => "M8,14 A4,4 0 1 1 14,10 A3.5,3.5 0 1 1 16,16 H8",
+            "quick apps" => "M5,5 H10 V10 H5 Z M14,5 H19 V10 H14 Z M5,14 H10 V19 H5 Z M14,14 H19 V19 H14 Z",
+            "alerts" => "M12,4 L20,18 H4 Z M12,10 V14 M12,16 V17",
+            "position" => "M12,4 A6,6 0 0 1 18,12 C18,16 12,21 12,21 C12,21 6,16 6,12 A6,6 0 0 1 12,4 M12,10 A2,2 0 1 0 12.1,10",
+            "about" => "M12,3 A9,9 0 1 1 11.9,3 M11,10 H13 V17 H11 Z M11,7 H13 V9 H11 Z",
+            "updates" => "M12,4 V8 M12,4 A8,8 0 1 1 6,8 M10,6 L12,4 L14,6",
+            _ => "M6,8 H18 A4,4 0 0 1 18,16 H6 A4,4 0 0 1 6,8 Z",
+        };
+        return new Viewbox
+        {
+            Width = 14,
+            Height = 14,
+            Margin = new Thickness(0, 0, 8, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = new System.Windows.Shapes.Path
+            {
+                Data = Geometry.Parse(data),
+                Stroke = Frozen(Color.FromArgb(0xB3, 0xFF, 0xFF, 0xFF)),
+                StrokeThickness = 1.4,
+                StrokeStartLineCap = PenLineCap.Round,
+                StrokeEndLineCap = PenLineCap.Round,
+                StrokeLineJoin = PenLineJoin.Round,
+                Fill = Brushes.Transparent,
+                Width = 24,
+                Height = 24,
+                Stretch = Stretch.Uniform,
+            },
+        };
     }
 
     /// <summary>Highlights the sidebar entry of the section at the top of the view.</summary>
@@ -1628,15 +1787,20 @@ public partial class SettingsWindow : Window
 
     private void TextRow(Panel panel, string label, Func<string> get, Action<string> set)
     {
-        var row = new Grid { Margin = new Thickness(0, 4, 0, 4) };
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
-        row.ColumnDefinitions.Add(new ColumnDefinition());
-        row.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
-        var box = new TextBox { Text = get(), Padding = new Thickness(8, 5, 8, 5) };
+        // Label above the field — long Clara labels were overflowing under a 150 px column.
+        var stack = new StackPanel { Margin = new Thickness(0, 6, 0, 4) };
+        stack.Children.Add(new TextBlock
+        {
+            Text = label,
+            Foreground = Secondary,
+            FontSize = 12,
+            Margin = new Thickness(2, 0, 0, 4),
+            TextWrapping = TextWrapping.Wrap,
+        });
+        var box = new TextBox { Text = get(), HorizontalAlignment = HorizontalAlignment.Stretch };
         box.TextChanged += (_, _) => Update(() => set(box.Text));
-        Grid.SetColumn(box, 1);
-        row.Children.Add(box);
-        panel.Children.Add(row);
+        stack.Children.Add(box);
+        panel.Children.Add(stack);
     }
 
     private void Check(Panel panel, string label, Func<bool> get, Action<bool> set)
@@ -1650,10 +1814,16 @@ public partial class SettingsWindow : Window
         bool rebuildMaterialOptions = false)
     {
         var row = new Grid { Margin = new Thickness(0, 2, 0, 2) };
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = label is null ? new GridLength(0) : new GridLength(150) });
-        row.ColumnDefinitions.Add(new ColumnDefinition());
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = label is null ? new GridLength(0) : new GridLength(140) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         if (label is not null)
-            row.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
+            row.Children.Add(new TextBlock
+            {
+                Text = label,
+                VerticalAlignment = VerticalAlignment.Center,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 10, 0),
+            });
 
         var group = $"g{_groupId++}";
         var wrap = new WrapPanel();
@@ -1758,6 +1928,17 @@ public partial class SettingsWindow : Window
             Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
         }
         catch (Exception) { /* no browser */ }
+    }
+
+    private static string LoadLegalText(string fileName)
+    {
+        try
+        {
+            var path = System.IO.Path.Combine(AppContext.BaseDirectory, fileName);
+            if (File.Exists(path)) return File.ReadAllText(path).Trim();
+        }
+        catch (Exception) { /* missing from output */ }
+        return "Terms file missing from this install. See LICENSE.txt and PRIVACY.txt next to Lumen, or https://webser.app.";
     }
 
     private void OnResetClick(object sender, RoutedEventArgs e)

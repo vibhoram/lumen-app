@@ -12,7 +12,7 @@ public enum WaveStyle { Ribbon, Silk, Tide, Pulse, Bars, Beads, Aurora, Comet, P
 public sealed class WaveRibbon : FrameworkElement
 {
     private WaveStyle _style = WaveStyle.Ribbon;
-    public WaveStyle Style { get => _style; set { if (_style == value) return; _style = value; InvalidateVisual(); } }
+    public new WaveStyle Style { get => _style; set { if (_style == value) return; _style = value; InvalidateVisual(); } }
 
     private readonly DispatcherTimer _timer = new(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(33) };
     private readonly DateTime _start = DateTime.UtcNow;

@@ -1,15 +1,16 @@
 LUMEN PRIVACY STATEMENT
 What Lumen reads, where it goes, and what is stored
 
-Lumen by Vibhor Maheshwari / Webser (webser.app) - https://github.com/vibhoram/Lumen
-Applies to Lumen version 1.2.1.
+Lumen by Vibhor Maheshwari / Webser (webser.app) - https://webser.app
+Source: https://github.com/vibhoram/Lumen · Releases / updates: https://github.com/vibhoram/lumen-app
+Applies to Lumen version 1.3.2.
 
 
 IN SHORT
 
 - Lumen has no accounts, no analytics, no telemetry, no advertising and no tracking.
 - Almost everything it reads stays on your computer, in memory, only to show it in the island.
-- It only contacts the internet for weather (and your town's name), for calendar links you add, to check for updates on GitHub (off by default), for Apple Music artwork (only if you switch that on), for Clara (only when you send a message, using your own API key), for music lyrics/art lookups, and once to download Microsoft's packaging tools (only if you choose the notifications setup).
+- It only contacts the internet for weather (and your town's name), for calendar links you add, to check for updates on GitHub (on by default for installed copies; you can turn it off), for Apple Music artwork (only if you switch that on), for Clara (only when you send a message, using your own API key), for music lyrics/art lookups, and once to download Microsoft's packaging tools (only if you choose the notifications setup).
 - You can turn every feature below off in Settings, and you can delete all stored data (see section 6).
 
 
@@ -37,7 +38,7 @@ Read to show it in the island, kept in memory, and not sent anywhere.
 - Place name (OpenStreetMap Nominatim, https://nominatim.openstreetmap.org), only with "My location": the same rounded location, to show your town's name on the weather page. Asked once per place; the name is remembered in your settings file.
 - Calendar links (your calendar provider, such as Google, Microsoft or Apple): Lumen downloads the iCal links you add, about every 10 minutes. These links act like a password; Lumen stores them only in your settings file and shows only the website name.
 - Apple Music motion artwork (Apple), OFF by default: if you switch it on, the artist and album of what you are playing are sent to Apple's iTunes Search and Apple Music web services to find and download the album's animated artwork.
-- Updates (GitHub, https://github.com/vibhoram/Lumen): off by default. If you turn checking on, Lumen asks GitHub for the latest release of this repo. The request contains only Lumen's version number. If there is a newer version, Lumen downloads it from GitHub, checks it against its published checksum, and installs it.
+- Updates (GitHub, https://github.com/vibhoram/lumen-app): on by default for copies installed with the setup program. Lumen asks GitHub for the latest release. The request contains only Lumen's version number. If there is a newer version, Lumen downloads Lumen-Setup-x.y.z.exe from that repo, checks it against its published .sha256 file, and may install it when the island is idle (auto-install is also on by default; both can be turned off in Settings > Updates).
 - Notifications setup (Microsoft NuGet, https://www.nuget.org), only if you run the setup: a one-time download of Microsoft's packaging tools.
 - Clara (AI assistant): only when you send a message — your message, any screenshot or text you attached, a few facts about the moment (switchable in Settings), and short remembered facts — go to the cloud with YOUR OWN API key. Order: Gemini first, then OpenRouter, then Groq as last-resort failsafe. Lumen never ships with a shared key.
 - Music lookups: when a song plays, title and artist may go to lrclib.net (synced lyrics) and the iTunes Search API (album art). Both can be switched off in Settings > Media.
@@ -77,4 +78,4 @@ Uninstall Lumen from Windows Settings > Apps and answer Yes when asked whether t
 
 7. CHANGES AND CONTACT
 
-This statement may change with new versions; each version includes its own copy. Questions: https://github.com/vibhoram/Lumen
+This statement may change with new versions; each version includes its own copy. Questions: https://webser.app or https://github.com/vibhoram/lumen-app

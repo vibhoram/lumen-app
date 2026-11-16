@@ -13,7 +13,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Lumen.ico</ApplicationIcon>
     <Product>Lumen</Product>
-    <Version>1.3.1</Version>
+    <Version>1.3.2</Version>
     <Description>Lumen, a personal island for Windows</Description>
     <Authors>vibhoram</Authors>
     <Company>vibhoram</Company>
@@ -69,7 +69,7 @@
 
   <!-- Licence, privacy statement and third-party notices travel with every build (Settings > About links them). -->
   <ItemGroup>
-    <None Include="LICENSE.txt;NOTICE.txt;PRIVACY.txt;THIRD-PARTY-NOTICES.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="LICENSE.txt;NOTICE.txt;PRIVACY.txt;TERMS.txt;THIRD-PARTY-NOTICES.txt" CopyToOutputDirectory="PreserveNewest" />
     <!-- Repository files that aren't part of the app. -->
     <None Remove=".github\**" />
     <Compile Remove=".github\**" />

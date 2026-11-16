@@ -2,6 +2,11 @@
 
 Based on D-Island by h7 (ibuildrigs) — https://github.com/H7gamer/d-island
 
+### What's new in 1.3.2
+- **Settings:** one custom title bar, nav icons, smoother scroll, Clara fields that no longer overlap their labels.
+- **Terms & privacy:** TERMS.txt in the install; About opens the legal files; PRIVACY matches real update behaviour.
+- **Defaults:** fresh installs no longer ship a maintainer bio into Clara; Groq keys can be cleared.
+
 ### What's new in 1.3.1
 - **Webser:** studio mark and webser.app in About (vector W, not a pasted tile).
 - **Public releases:** installers and in-app updates ship from this public repo. Clara needs your own API key (Gemini preferred).

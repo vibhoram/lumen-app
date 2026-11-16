@@ -41,7 +41,7 @@ public sealed class MusicProgressBar : FrameworkElement
         }
     }
 
-    public ProgressStyle Style
+    public new ProgressStyle Style
     {
         get => _style;
         set { _style = value; UpdateTimer(); InvalidateVisual(); }

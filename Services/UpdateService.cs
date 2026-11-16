@@ -231,6 +231,10 @@ public sealed class UpdateService
             }
         }
         if (installerName is null) return null;
+        // Prefer the version baked into Lumen-Setup-x.y.z.exe so a mistagged release can't lie in Settings.
+        var fromName = InstallerName.Match(installerName);
+        if (!fromName.Success || !Version.TryParse(fromName.Groups[1].Value, out var assetVersion)) return null;
+        version = assetVersion;
         foreach (var asset in root.GetProperty("assets").EnumerateArray())
         {
             var url = asset.GetProperty("browser_download_url").GetString() ?? "";

@@ -88,6 +88,7 @@ Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
 Source: "HowToUse.html"; DestDir: "{app}"; Flags: ignoreversion
 ; Shown on the privacy page during setup (extracted on demand); also installed (via the publish folder).
 Source: "..\PRIVACY.txt"; Flags: dontcopy
+Source: "..\TERMS.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\Lumen"; Filename: "{app}\DIsland.exe"; Comment: "Lumen — a personal island for Windows"

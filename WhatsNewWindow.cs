@@ -26,6 +26,15 @@ public static class WhatsNew
 
     public static readonly IReadOnlyList<Release> Releases = new[]
     {
+        new Release(new Version(1, 3, 2), new[]
+        {
+            new Item("", "#FF0A84FF", "Settings chrome",
+                "One custom title bar, nav icons, smoother scrolling, and fields that no longer sit on top of their labels."),
+            new Item("", "#FF30D158", "Terms & privacy",
+                "Real TERMS.txt in the install, About opens the legal files, and PRIVACY matches how updates actually work."),
+            new Item("", "#FFFF9F0A", "Cleaner defaults",
+                "Fresh installs no longer ship a maintainer bio into Clara; Groq keys can be cleared."),
+        }),
         new Release(new Version(1, 3, 1), new[]
         {
             new Item("", "#FFFFFFFF", "Webser",

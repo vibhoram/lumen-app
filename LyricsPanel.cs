@@ -181,7 +181,7 @@ public sealed class LyricsPanel : Grid
         }, System.Windows.Threading.DispatcherPriority.Background);
     }
 
-    private static void Style(TextBlock block, bool current)
+    private static new void Style(TextBlock block, bool current)
     {
         block.FontWeight = current ? FontWeights.SemiBold : FontWeights.Normal;
     }

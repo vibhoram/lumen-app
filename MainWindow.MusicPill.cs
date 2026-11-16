@@ -12,8 +12,6 @@ namespace DIsland;
 
 public partial class MainWindow
 {
-    private bool _discSpinning;
-
     /// <summary>Layout of the collapsed music view: split into disc + pill + pulse, or art and bars inside one pill.</summary>
     private void ApplyMusicLayout()
     {

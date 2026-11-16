@@ -322,15 +322,10 @@ public sealed class AppSettings
     public bool ClockDefaultsV2 { get; set; }
 
     /// <summary>The name Clara uses for you. It is sent to the AI provider as part of her instructions (only the name).</summary>
-    public string UserName { get; set; } = "Vibhor";
+    public string UserName { get; set; } = "";
 
-    /// <summary>What Clara should know about you: your field, vocabulary, goals. Shapes how she reads your abbreviations.</summary>
-    public string UserBio { get; set; } =
-        "Studying aircraft maintenance engineering (AME). Everything technical should be read in an aviation and aircraft maintenance sense first: " +
-        "GTE = gas turbine engine, VOR = VHF omnidirectional range, DME = distance measuring equipment, ILS = instrument landing system, ADF = automatic direction finder, " +
-        "FADEC = full authority digital engine control, APU = auxiliary power unit, EGT = exhaust gas temperature, N1/N2 = engine spool speeds, TCAS, MEL/MMEL, AMM, IPC, SRM, NDT, CAMO, AD/SB (airworthiness directives and service bulletins), " +
-        "torque values, safety wire, tooling, human factors, and regulations (ICAO, EASA, FAA, Transport Canada). Never reinterpret these as software, medical or other meanings unless he says so. " +
-        "If a term really is ambiguous, ask once which he means.";
+    /// <summary>What Clara should know about you: your field, vocabulary, goals. Empty by default so fresh installs don't ship the maintainer's bio.</summary>
+    public string UserBio { get; set; } = "";
 
     /// <summary>Clipboard items older than this many hours are removed (0 = keep until the 100-item limit). Pinned items stay.</summary>
     public int ClipboardKeepHours { get; set; }
